@@ -163,7 +163,6 @@ memsys-opensource/
 │   │   ├── memcell_extractor/        # MemCell extractor
 │   │   ├── memory_extractor/         # Memory extractor
 │   │   └── prompts/                  # LLM prompt templates
-│   ├── retrieval_layer/              # Retrieval layer - memory retrieval
 │   ├── biz_layer/                    # Business layer - business logic
 │   ├── infra_layer/                  # Infrastructure layer
 │   ├── core/                         # Core functionality (DI/lifecycle/middleware)

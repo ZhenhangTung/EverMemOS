@@ -53,7 +53,6 @@ class MemoryManager:
     def __init__(self) -> None:
         # 获取记忆服务实例
         self._fetch_service = get_fetch_memory_service()
-        self._retrieve_service = get_retrieve_mem_service()
 
         logger.info(
             "MemoryManager initialized with fetch_mem_service and retrieve_mem_service"
