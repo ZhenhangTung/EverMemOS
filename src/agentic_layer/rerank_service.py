@@ -189,66 +189,54 @@ class DeepInfraRerankService(DeepInfraRerankServiceInterface):
         Raises:
             DeepInfraRerankError: API请求失败时抛出
         """
-        await self._ensure_session()
+        if not documents:
+            return {"results": []}
 
-        # 构建请求数据 - 使用DeepInfra推理API格式
-        if instruction is None:
-            request_data = {
-                "queries": [query],  # 查询列表
-                "documents": documents,  # 文档列表
-                # "instruction":
-            }
-        else:
-            request_data = {
-                "queries": [query],  # 查询列表
-                "documents": documents,  # 文档列表
-                "instruction": instruction,
-            }
+        # 拆分成10个批次
+        num_batches = 10
+        # 使用numpy.array_split将文档分成大致相等的10个批次
+        # We filter out empty batches that can be created if len(documents) < num_batches
+        batches = [
+            list(batch)
+            for batch in np.array_split(documents, num_batches)
+            if len(batch) > 0
+        ]
 
-        # 使用推理API端点
-        url = f"{self.config.base_url}/{self.config.model}"
+        tasks = [
+            self._send_rerank_request_batch(query, batch, instruction)
+            for batch in batches
+        ]
 
-        async with self._semaphore:
-            for attempt in range(self.config.max_retries):
-                try:
-                    async with self.session.post(url, json=request_data) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            # 转换响应格式以匹配原有逻辑
-                            return self._convert_response_format(result, len(documents))
-                        else:
-                            error_text = await response.text()
-                            logger.error(
-                                f"DeepInfra Rerank API error (attempt {attempt + 1}): {response.status} - {error_text}"
-                            )
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                            if attempt < self.config.max_retries - 1:
-                                await asyncio.sleep(2**attempt)  # 指数退避
-                                continue
-                            else:
-                                raise DeepInfraRerankError(
-                                    f"Rerank API request failed: {response.status} - {error_text}"
-                                )
+        all_scores = []
+        total_input_tokens = 0
+        last_response = None
 
-                except aiohttp.ClientError as e:
-                    logger.error(
-                        f"DeepInfra Rerank API client error (attempt {attempt + 1}): {e}"
-                    )
-                    if attempt < self.config.max_retries - 1:
-                        await asyncio.sleep(2**attempt)
-                        continue
-                    else:
-                        raise DeepInfraRerankError(f"Rerank client error: {e}")
+        for i, result in enumerate(batch_results):
+            if isinstance(result, Exception):
+                logger.error(f"Rerank batch {i} failed: {result}")
+                # For a failed batch, we must insert scores of a corresponding length
+                # to maintain the correct document order. Let's use a very low score.
+                batch_len = len(batches[i])
+                all_scores.extend([-100.0] * batch_len)
+                continue
 
-                except Exception as e:
-                    logger.error(
-                        f"Unexpected rerank error (attempt {attempt + 1}): {e}"
-                    )
-                    if attempt < self.config.max_retries - 1:
-                        await asyncio.sleep(2**attempt)
-                        continue
-                    else:
-                        raise DeepInfraRerankError(f"Unexpected rerank error: {e}")
+            all_scores.extend(result.get("scores", []))
+            total_input_tokens += result.get("input_tokens", 0)
+            last_response = result
+
+        if not last_response:
+            raise DeepInfraRerankError("All rerank batches failed.")
+
+        combined_response = {
+            "scores": all_scores,
+            "input_tokens": total_input_tokens,
+            "request_id": last_response.get("request_id"),
+            "inference_status": last_response.get("inference_status", {}),
+        }
+
+        return self._convert_response_format(combined_response, len(documents))
 
     def _convert_response_format(
         self, api_response: Dict[str, Any], num_documents: int
