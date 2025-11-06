@@ -84,14 +84,13 @@ class MongoDBConfig:
 
     用于配置 MongoDB 数据库连接参数。
     """
-
     uri: Optional[str] = None
     host: str = "localhost"
     port: str = "27017"
     database: str = "memsys"
     username: Optional[str] = None
     password: Optional[str] = None
-
+    
     def __post_init__(self):
         """从环境变量加载配置并构建 URI"""
         if not os.getenv("MONGODB_URI"):
@@ -100,17 +99,20 @@ class MongoDBConfig:
             self.database = os.getenv("MONGODB_DATABASE", self.database)
             self.username = os.getenv("MONGODB_USERNAME")
             self.password = os.getenv("MONGODB_PASSWORD")
-
+            
             if self.username and self.password:
                 from urllib.parse import quote_plus
-
                 self.uri = f"mongodb://{quote_plus(self.username)}:{quote_plus(self.password)}@{self.host}:{self.port}/{self.database}"
             else:
                 self.uri = f"mongodb://{self.host}:{self.port}/{self.database}"
+            uri_params = os.getenv("MONGODB_URI_PARAMS", "").strip()
+            if uri_params:
+                separator = '&' if ('?' in self.uri) else '?'
+                self.uri = f"{self.uri}{separator}{uri_params}"
+
         else:
             self.uri = os.getenv("MONGODB_URI")
             self.database = os.getenv("MONGODB_DATABASE", self.database)
-
 
 @dataclass
 class ExtractModeConfig:
