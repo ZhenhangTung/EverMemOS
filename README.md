@@ -327,13 +327,8 @@ This script will:
 - Generate user profiles and save them to `demo/memcell_outputs/` directory
 
 > **💡 Tip**:
-> By default, the script extracts memories for the **ASSISTANT** scenario. You can optionally extract memories for the **GROUP_CHAT** scenario:
-> 1. Open the `demo/extract_memory.py` file.
-> 2. Locate the `EXTRACT_CONFIG` section.
-> 3. Change `scenario_type` from `ScenarioType.ASSISTANT` to `ScenarioType.GROUP_CHAT`.
-> 4. Run the extraction script again.
->
-> You can run either one or both scenarios.
+> Configuration is very simple! `extract_memory.py` uses HTTP API and requires only 2 parameters to run.
+> For detailed configuration instructions and usage guide, please see the [Demo Documentation](demo/README.md).
 
 **Step 2: Chat with Memory**
 

@@ -5,9 +5,9 @@
 
 from typing import List, Dict, Any, Optional
 
-from demo.memory_config import ScenarioType
-from demo.memory_utils import query_all_groups_from_mongodb
-from demo.i18n_texts import I18nTexts
+from demo.config import ScenarioType
+from demo.utils import query_all_groups_from_mongodb
+from demo.ui import I18nTexts
 from common_utils.cli_ui import CLIUI
 
 

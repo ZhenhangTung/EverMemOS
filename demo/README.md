@@ -26,20 +26,32 @@ The system supports **Chinese and English** language modes with fully automatic 
 demo/
 ├── chat_with_memory.py          # 🎯 Main: Interactive chat with memory
 ├── extract_memory.py            # 🎯 Main: Memory extraction from conversations
+├── simple_demo.py               # 🎯 Main: Quick start example
+│
+├── config/                      # Configuration module
+│   ├── __init__.py
+│   └── memory_config.py        # Shared configuration classes
+│
+├── utils/                       # Utility module
+│   ├── __init__.py
+│   ├── memory_utils.py         # Shared utility functions
+│   └── simple_memory_manager.py # Simple memory manager
+│
+├── ui/                          # UI module
+│   ├── __init__.py
+│   └── i18n_texts.py           # Internationalization texts
 │
 ├── chat/                        # Chat system components
+│   ├── __init__.py
 │   ├── orchestrator.py         # Chat application orchestrator
 │   ├── session.py              # Session management
 │   ├── ui.py                   # User interface
 │   └── selectors.py            # Language/scenario/group selectors
 │
 ├── extract/                     # Memory extraction components
+│   ├── __init__.py
 │   ├── extractor.py            # Memory extraction logic
 │   └── validator.py            # Result validation
-│
-├── memory_config.py             # Configuration for both scripts
-├── memory_utils.py              # Shared utility functions
-├── i18n_texts.py                # Internationalization texts
 │
 ├── chat_history/                # 📁 Output: Chat conversation logs (auto-generated)
 ├── memcell_outputs/             # 📁 Output: Extracted memories (auto-generated)
@@ -97,7 +109,7 @@ uv run python src/bootstrap.py demo/simple_demo.py
 - ✅ Friendly output - explanations for every step
 - ✅ Real HTTP API - uses the same API as production
 
-**Dependencies**: `simple_memory_manager.py` (HTTP API wrapper)
+**Dependencies**: `utils/simple_memory_manager.py` (HTTP API wrapper)
 
 ### 2. `extract_memory.py` - Memory Extraction
 - Processes conversation files from the `data/` directory
@@ -114,9 +126,9 @@ uv run python src/bootstrap.py demo/simple_demo.py
 ## 📦 Supporting Modules
 
 ### Configuration Files
-- **`memory_config.py`** - Shared configuration for extraction and chat
-- **`memory_utils.py`** - Common utility functions (MongoDB, serialization)
-- **`i18n_texts.py`** - Bilingual text resources (Chinese/English)
+- **`config/memory_config.py`** - Shared configuration for extraction and chat
+- **`utils/memory_utils.py`** - Common utility functions (MongoDB, serialization)
+- **`ui/i18n_texts.py`** - Bilingual text resources (Chinese/English)
 
 ### Modular Components
 - **`chat/`** - Chat system implementation (orchestrator, session, UI, selectors)
@@ -157,9 +169,8 @@ Edit `extract_memory.py` and use the default configuration:
 ```python
 # 💡 Use sample data (default):
 EXTRACT_CONFIG = ExtractModeConfig(
-    scenario_type=ScenarioType.GROUP_CHAT,  # Scenario: GROUP_CHAT or ASSISTANT
-    language="zh",  # 🌏 Language: zh (Chinese) or en (English)
-    enable_profile_extraction=True,
+    scenario_type=ScenarioType.GROUP_CHAT,  # GROUP_CHAT or ASSISTANT
+    language="zh",  # zh or en
 )
 ```
 
@@ -184,11 +195,9 @@ Uncomment and modify the custom data configuration in `extract_memory.py`:
 EXTRACT_CONFIG = ExtractModeConfig(
     scenario_type=ScenarioType.GROUP_CHAT,
     language="zh",
-    data_file=Path("/path/to/your/data.json"),  # 🔧 Specify your data file path
-    output_dir=Path(__file__).parent / "memcell_outputs",  # 🔧 Output directory (optional)
-    group_id="my_custom_group",  # 🔧 Group ID (optional)
-    group_name="My Custom Group",  # 🔧 Group name (optional)
-    enable_profile_extraction=True,
+    data_file=Path("/path/to/your/data.json"),
+    group_id="my_custom_group",  # optional
+    group_name="My Custom Group",  # optional
 )
 ```
 
@@ -253,10 +262,8 @@ language="zh",
 ```python
 # extract_memory.py - Modify config
 EXTRACT_CONFIG = ExtractModeConfig(
-    data_file=PROJECT_ROOT / "data" / "assistant_chat_en.json",
-    prompt_language="en",
     scenario_type=ScenarioType.ASSISTANT,
-    output_dir=Path(__file__).parent / "memcell_outputs" / "assistant_en",
+    language="en",
 )
 ```
 
@@ -315,60 +322,46 @@ During chat sessions, the following commands are supported:
 All configuration is done in `extract_memory.py`. Simply modify these parameters:
 
 ```python
-# Get project root directory
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from demo.config import ExtractModeConfig, ScenarioType
 
 EXTRACT_CONFIG = ExtractModeConfig(
-    # 📁 Data file path (Required)
-    data_file=PROJECT_ROOT / "data" / "assistant_chat_zh.json",
+    scenario_type=ScenarioType.ASSISTANT,  # Scenario type
+    language="zh",  # Language: zh or en
     
-    # 🌏 Prompt language (Required: "zh" or "en")
-    prompt_language="zh",
-    
-    # 🎯 Scenario type
-    scenario_type=ScenarioType.ASSISTANT,  # or ScenarioType.GROUP_CHAT
-    
-    # 📂 Output directory (Optional, defaults to demo/memcell_outputs/)
-    output_dir=Path(__file__).parent / "memcell_outputs" / "assistant_zh",
-    
-    # Other settings
-    enable_profile_extraction=False,  # V4: Profile extraction not yet supported
+    # Optional config
+    data_file=Path("/path/to/your/data.json"),  # Custom data file
+    group_id="my_group",  # Group ID
+    enable_profile_extraction=True,  # Enable profile extraction
 )
 ```
 
-**🌏 Prompt Language Parameter - Critical**
+**🌏 Language Parameter**
 
-The `prompt_language` parameter controls which language prompts are used during extraction:
-- `prompt_language="zh"` → Uses prompts from `src/memory_layer/prompts/zh/`
-- `prompt_language="en"` → Uses prompts from `src/memory_layer/prompts/en/`
+The `language` parameter controls the prompt language and data source:
+- `language="zh"` → Uses Chinese prompts, auto-loads `data/xxx_zh.json`
+- `language="en"` → Uses English prompts, auto-loads `data/xxx_en.json`
 
-This ensures MemCell, Profile, Episode, and Semantic memory extraction all use the correct language prompts.
-
-> 💡 **Best Practice**: Match your prompt language with your data language. For Chinese conversations, use `"zh"`. For English conversations, use `"en"`.
+> 💡 **Best Practice**: Match your language with your data language. For Chinese conversations, use `"zh"`. For English conversations, use `"en"`.
 
 **Example Configurations:**
 
 ```python
-# Example 1: Chinese data with Chinese prompts
+# Example 1: Chinese data
 EXTRACT_CONFIG = ExtractModeConfig(
-    data_file=PROJECT_ROOT / "data" / "group_chat_zh.json",
-    prompt_language="zh",
     scenario_type=ScenarioType.GROUP_CHAT,
-    output_dir=Path(__file__).parent / "memcell_outputs" / "group_chat_zh",
+    language="zh",
 )
 
-# Example 2: English data with English prompts
+# Example 2: English data
 EXTRACT_CONFIG = ExtractModeConfig(
-    data_file=PROJECT_ROOT / "data" / "assistant_chat_en.json",
-    prompt_language="en",
     scenario_type=ScenarioType.ASSISTANT,
-    output_dir=Path(__file__).parent / "memcell_outputs" / "assistant_en",
+    language="en",
 )
 ```
 
 ### Advanced Configuration
 
-Edit `memory_config.py` to customize:
+Edit `config/memory_config.py` to customize:
 - **LLM Config**: Model selection, API Key, temperature
 - **Embedding Config**: Vectorization service URL and model
 - **MongoDB Config**: Database connection settings

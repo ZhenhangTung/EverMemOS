@@ -5,7 +5,7 @@
 
 from typing import List, Dict, Any, Optional
 
-from demo.i18n_texts import I18nTexts
+from demo.ui import I18nTexts
 from common_utils.cli_ui import CLIUI
 
 
@@ -121,16 +121,23 @@ class ChatUI:
                 print()
                 ui.note(" | ".join(agentic_info), icon="🤖")
                 
-                # 显示 LLM 推理
+                # 显示 LLM 推理（优化提示语）
                 reasoning = retrieval_metadata.get("reasoning")
                 if reasoning:
+                    # 优化常见的误导性提示
+                    if "均为空" in reasoning or "内容均为空" in reasoning or "所有检索到的记忆内容均为空" in reasoning:
+                        reasoning = "💡 首轮检索到的记忆信息不够充分，LLM 生成了更精确的补充查询以获取更多相关记忆"
+                    elif "未提供" in reasoning and "信息" in reasoning:
+                        # 提取关键词，使提示更友好
+                        reasoning = f"💡 {reasoning.replace('未提供任何关于', '首轮检索缺少').replace('信息', '相关信息，已补充查询')}"
+                    
                     print(f"   💭 {reasoning}")
                 
                 # 显示改进查询
                 if is_multi_round:
                     refined_queries = retrieval_metadata.get("refined_queries", [])
                     if refined_queries:
-                        print(f"   📝 改进查询:")
+                        print(f"   🔍 补充查询 ({len(refined_queries)} 个):")
                         for i, q in enumerate(refined_queries[:3], 1):
                             print(f"      {i}. {q[:60]}{'...' if len(q) > 60 else ''}")
         
@@ -138,10 +145,23 @@ class ChatUI:
         lines = []
         for i, mem in enumerate(memories, start=1):
             timestamp = mem.get("timestamp", "")[:10]
-            subject = mem.get("subject", "")
-            summary = mem.get("summary", "")
-            content = subject or summary or ""
-            lines.append(f"📌 [{i:2d}]  {timestamp}  │  {content}")
+            
+            # 优先级：subject > summary > episode > atomic_fact > content
+            # 使用 strip() 确保空字符串被正确处理
+            subject = (mem.get("subject") or "").strip()
+            summary = (mem.get("summary") or "").strip()
+            episode = (mem.get("episode") or "").strip()
+            atomic_fact = (mem.get("atomic_fact") or "").strip()
+            content = (mem.get("content") or "").strip()
+            
+            # 选择第一个非空的字段
+            display_text = subject or summary or episode or atomic_fact or content or "(无内容)"
+            
+            # 限制显示长度
+            if len(display_text) > 80:
+                display_text = display_text[:77] + "..."
+            
+            lines.append(f"📌 [{i:2d}]  {timestamp}  │  {display_text}")
         
         if lines:
             print()

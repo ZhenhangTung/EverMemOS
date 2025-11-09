@@ -58,16 +58,11 @@ async def test_v3_memorize_api():
     
     # 加载真实对话数据
     data_file = "data/assistant_chat_zh.json"
-<<<<<<< HEAD:demo/test_v3_api_http.py
     try:
         test_messages, group_id, group_name = load_conversation_data(data_file)
     except FileNotFoundError as e:
         print(f"❌ 错误: {e}")
         return False
-=======
-
-    test_messages, group_id, group_name = load_conversation_data(data_file)
->>>>>>> 9a0cd0faee3e85337760d4e17cc67695bf63b9a9:demo/memorize_batch_message.py
     
     # ✨ 配置 Profile 提取场景
     # "assistant" / "companion" -> 陪伴场景（提取兴趣、偏好、生活习惯）

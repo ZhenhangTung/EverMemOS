@@ -27,7 +27,7 @@ from beanie import init_beanie
 from infra_layer.adapters.out.persistence.document.memory.memcell import (
     MemCell as DocMemCell,
 )
-from demo.memory_config import MongoDBConfig
+from demo.config import MongoDBConfig
 
 
 # ============================================================================

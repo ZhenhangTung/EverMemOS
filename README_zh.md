@@ -322,13 +322,8 @@ uv run python src/bootstrap.py demo/extract_memory.py
 - 生成用户画像并保存到 `demo/memcell_outputs/` 目录
 
 > **💡 提示**:
-> 默认情况下，脚本会提取 **助手 (ASSISTANT)** 场景的记忆。您可以选择性地提取 **群聊 (GROUP_CHAT)** 场景的记忆：
-> 1. 打开 `demo/extract_memory.py` 文件。
-> 2. 找到 `EXTRACT_CONFIG` 配置部分。
-> 3. 将 `scenario_type` 从 `ScenarioType.ASSISTANT` 修改为 `ScenarioType.GROUP_CHAT`。
-> 4. 再次运行提取脚本。
->
-> 您可以只运行一种场景，也可以两种都运行。
+> 配置非常简单！`extract_memory.py` 使用 HTTP API，只需 2 个参数即可运行。
+> 详细的配置说明和使用指南请参阅 [Demo 文档](demo/README_zh.md)。
 
 **步骤 2: 与记忆聊天**
 

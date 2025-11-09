@@ -12,9 +12,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from demo.memory_config import ChatModeConfig, LLMConfig, MongoDBConfig
-from demo.memory_utils import ensure_mongo_beanie_ready
-from demo.i18n_texts import I18nTexts
+from demo.config import ChatModeConfig, LLMConfig, MongoDBConfig
+from demo.utils import ensure_mongo_beanie_ready
+from demo.ui import I18nTexts
 from common_utils.cli_ui import CLIUI
 
 from .session import ChatSession

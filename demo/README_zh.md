@@ -26,20 +26,32 @@
 demo/
 ├── chat_with_memory.py          # 🎯 核心：记忆增强对话
 ├── extract_memory.py            # 🎯 核心：对话记忆提取
+├── simple_demo.py               # 🎯 核心：快速入门示例
+│
+├── config/                      # 配置模块
+│   ├── __init__.py
+│   └── memory_config.py        # 共享配置类
+│
+├── utils/                       # 工具模块
+│   ├── __init__.py
+│   ├── memory_utils.py         # 共享工具函数
+│   └── simple_memory_manager.py # 简单记忆管理器
+│
+├── ui/                          # UI 模块
+│   ├── __init__.py
+│   └── i18n_texts.py           # 国际化文本
 │
 ├── chat/                        # 聊天系统组件
+│   ├── __init__.py
 │   ├── orchestrator.py         # 聊天应用编排器
 │   ├── session.py              # 会话管理
 │   ├── ui.py                   # 用户界面
 │   └── selectors.py            # 语言/场景/群组选择器
 │
 ├── extract/                     # 记忆提取组件
+│   ├── __init__.py
 │   ├── extractor.py            # 记忆提取逻辑
 │   └── validator.py            # 结果验证
-│
-├── memory_config.py             # 两个脚本的共享配置
-├── memory_utils.py              # 共享工具函数
-├── i18n_texts.py                # 国际化文本资源
 │
 ├── chat_history/                # 📁 输出：对话记录（自动生成）
 ├── memcell_outputs/             # 📁 输出：提取的记忆（自动生成）
@@ -97,7 +109,7 @@ uv run python src/bootstrap.py demo/simple_demo.py
 - ✅ 友好输出 - 每一步都有说明
 - ✅ 真实 HTTP API - 使用与生产环境相同的 API
 
-**依赖**: `simple_memory_manager.py`（HTTP API 封装器）
+**依赖**: `utils/simple_memory_manager.py`（HTTP API 封装器）
 
 ### 2. `extract_memory.py` - 记忆提取
 - 处理 `data/` 目录中的对话文件
@@ -114,9 +126,9 @@ uv run python src/bootstrap.py demo/simple_demo.py
 ## 📦 支持模块
 
 ### 配置文件
-- **`memory_config.py`** - 提取和对话的共享配置
-- **`memory_utils.py`** - 通用工具函数（MongoDB、序列化）
-- **`i18n_texts.py`** - 双语文本资源（中文/英文）
+- **`config/memory_config.py`** - 提取和对话的共享配置
+- **`utils/memory_utils.py`** - 通用工具函数（MongoDB、序列化）
+- **`ui/i18n_texts.py`** - 双语文本资源（中文/英文）
 
 ### 模块化组件
 - **`chat/`** - 聊天系统实现（编排器、会话、界面、选择器）
@@ -157,9 +169,8 @@ uv run python src/bootstrap.py demo/simple_demo.py
 ```python
 # 💡 使用示例数据（默认）：
 EXTRACT_CONFIG = ExtractModeConfig(
-    scenario_type=ScenarioType.GROUP_CHAT,  # 场景：GROUP_CHAT（群聊）或 ASSISTANT（助手）
-    language="zh",  # 🌏 语言：zh（中文）或 en（英文）
-    enable_profile_extraction=True,
+    scenario_type=ScenarioType.GROUP_CHAT,  # GROUP_CHAT 或 ASSISTANT
+    language="zh",  # zh 或 en
 )
 ```
 
@@ -184,11 +195,9 @@ EXTRACT_CONFIG = ExtractModeConfig(
 EXTRACT_CONFIG = ExtractModeConfig(
     scenario_type=ScenarioType.GROUP_CHAT,
     language="zh",
-    data_file=Path("/path/to/your/data.json"),  # 🔧 指定您的数据文件路径
-    output_dir=Path(__file__).parent / "memcell_outputs",  # 🔧 输出目录（可选）
-    group_id="my_custom_group",  # 🔧 群组 ID（可选）
-    group_name="My Custom Group",  # 🔧 群组名称（可选）
-    enable_profile_extraction=True,
+    data_file=Path("/path/to/your/data.json"),
+    group_id="my_custom_group",  # 可选
+    group_name="My Custom Group",  # 可选
 )
 ```
 
@@ -253,10 +262,8 @@ language="zh",
 ```python
 # extract_memory.py - 修改配置
 EXTRACT_CONFIG = ExtractModeConfig(
-    data_file=PROJECT_ROOT / "data" / "assistant_chat_en.json",
-    prompt_language="en",
     scenario_type=ScenarioType.ASSISTANT,
-    output_dir=Path(__file__).parent / "memcell_outputs" / "assistant_en",
+    language="en",
 )
 ```
 
@@ -315,60 +322,46 @@ demo/memcell_outputs/
 所有配置都在 `extract_memory.py` 中完成。只需修改这些参数：
 
 ```python
-# 获取项目根目录
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from demo.config import ExtractModeConfig, ScenarioType
 
 EXTRACT_CONFIG = ExtractModeConfig(
-    # 📁 数据文件路径（必填）
-    data_file=PROJECT_ROOT / "data" / "assistant_chat_zh.json",
+    scenario_type=ScenarioType.ASSISTANT,  # 场景类型
+    language="zh",  # 语言：zh 或 en
     
-    # 🌏 Prompt 语言（必填："zh" 或 "en"）
-    prompt_language="zh",
-    
-    # 🎯 场景类型
-    scenario_type=ScenarioType.ASSISTANT,  # 或 ScenarioType.GROUP_CHAT
-    
-    # 📂 输出目录（可选，默认为 demo/memcell_outputs/）
-    output_dir=Path(__file__).parent / "memcell_outputs" / "assistant_zh",
-    
-    # 其他配置
-    enable_profile_extraction=False,  # V4: 暂不支持 Profile 提取
+    # 可选配置
+    data_file=Path("/path/to/your/data.json"),  # 自定义数据文件
+    group_id="my_group",  # 群组 ID
+    enable_profile_extraction=True,  # 是否提取画像
 )
 ```
 
-**🌏 Prompt 语言参数 - 关键配置**
+**🌏 语言参数说明**
 
-`prompt_language` 参数控制提取时使用的 Prompt 语言：
-- `prompt_language="zh"` → 使用 `src/memory_layer/prompts/zh/` 中的中文 Prompt
-- `prompt_language="en"` → 使用 `src/memory_layer/prompts/en/` 中的英文 Prompt
+`language` 参数控制提取时使用的 Prompt 语言和数据源：
+- `language="zh"` → 使用中文 Prompt，自动加载 `data/xxx_zh.json`
+- `language="en"` → 使用英文 Prompt，自动加载 `data/xxx_en.json`
 
-确保 MemCell、Profile、Episode、Semantic 记忆提取都使用正确语言的 Prompt。
-
-> 💡 **最佳实践**：Prompt 语言应与数据语言匹配。中文对话使用 `"zh"`，英文对话使用 `"en"`。
+> 💡 **最佳实践**：语言应与数据语言匹配。中文对话使用 `"zh"`，英文对话使用 `"en"`。
 
 **配置示例：**
 
 ```python
-# 示例 1：中文数据 + 中文 Prompt
+# 示例 1：中文数据
 EXTRACT_CONFIG = ExtractModeConfig(
-    data_file=PROJECT_ROOT / "data" / "group_chat_zh.json",
-    prompt_language="zh",
     scenario_type=ScenarioType.GROUP_CHAT,
-    output_dir=Path(__file__).parent / "memcell_outputs" / "group_chat_zh",
+    language="zh",
 )
 
-# 示例 2：英文数据 + 英文 Prompt
+# 示例 2：英文数据
 EXTRACT_CONFIG = ExtractModeConfig(
-    data_file=PROJECT_ROOT / "data" / "assistant_chat_en.json",
-    prompt_language="en",
     scenario_type=ScenarioType.ASSISTANT,
-    output_dir=Path(__file__).parent / "memcell_outputs" / "assistant_en",
+    language="en",
 )
 ```
 
 ### 高级配置
 
-编辑 `memory_config.py` 可自定义：
+编辑 `config/memory_config.py` 可自定义：
 - **LLM 配置**：模型选择、API Key、温度参数
 - **嵌入配置**：向量化服务地址和模型
 - **MongoDB 配置**：数据库连接设置

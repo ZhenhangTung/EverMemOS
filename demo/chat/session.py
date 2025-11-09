@@ -9,9 +9,9 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from demo.memory_config import ChatModeConfig, LLMConfig, ScenarioType
-from demo.memory_utils import query_memcells_by_group_and_time
-from demo.i18n_texts import I18nTexts
+from demo.config import ChatModeConfig, LLMConfig, ScenarioType
+from demo.utils import query_memcells_by_group_and_time
+from demo.ui import I18nTexts
 from memory_layer.llm.llm_provider import LLMProvider
 from common_utils.datetime_utils import get_now_with_timezone
 

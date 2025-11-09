@@ -13,7 +13,7 @@ Run the demo:
 """
 
 import asyncio
-from demo.simple_memory_manager import SimpleMemoryManager
+from demo.utils import SimpleMemoryManager
 
 
 async def main():
