@@ -227,7 +227,9 @@ class EpisodicMemoryMilvusRepository(BaseMilvusRepository[EpisodicMemoryCollecti
             # 获取集合
 
             # 执行搜索
-            search_params = {"metric_type": "L2", "params": {"ef": 64}}
+            # 动态调整 ef 参数：必须 >= limit，通常设为 limit 的 1.5-2 倍
+            ef_value = max(128, limit * 2)  # 确保 ef >= limit，至少 128
+            search_params = {"metric_type": "L2", "params": {"ef": ef_value}}
 
             results = await self.collection.search(
                 data=[query_vector],

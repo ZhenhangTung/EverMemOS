@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, List
 import logging
+import asyncio
 
 from datetime import datetime, timedelta
 import jieba
@@ -1289,8 +1290,9 @@ class MemoryManager:
                 memories = []
                 for doc, rrf_score in final_results:
                     # doc 可能来自 Milvus 或 ES，需要统一格式
-                    if isinstance(doc, dict):
-                        # 来自 ES 的结果
+                    # 区分方法：Milvus 有 'id' 字段，ES 有 'event_id' 字段
+                    if 'event_id' in doc and 'id' not in doc:
+                        # 来自 ES 的结果（已经是标准格式）
                         memory = {
                             'score': rrf_score,
                             'event_id': doc.get('event_id', ''),
@@ -1304,18 +1306,18 @@ class MemoryManager:
                             'metadata': doc.get('metadata', {}),
                         }
                     else:
-                        # 来自 Milvus 的结果
+                        # 来自 Milvus 的结果（需要转换字段名）
                         memory = {
                             'score': rrf_score,
-                            'event_id': doc.get('id', ''),
+                            'event_id': doc.get('id', ''),  # Milvus 用 'id'
                             'user_id': doc.get('user_id', ''),
                             'group_id': doc.get('group_id', ''),
                             'timestamp': doc.get('timestamp', ''),
-                            'subject': doc.get('metadata', {}).get('title', ''),
+                            'subject': doc.get('metadata', {}).get('title', '') if isinstance(doc.get('metadata'), dict) else '',
                             'episode': doc.get('episode', ''),
-                            'summary': doc.get('metadata', {}).get('summary', ''),
+                            'summary': doc.get('metadata', {}).get('summary', '') if isinstance(doc.get('metadata'), dict) else '',
                             'memory_sub_type': doc.get('memory_sub_type', ''),
-                            'metadata': doc.get('metadata', {}),
+                            'metadata': doc.get('metadata', {}) if isinstance(doc.get('metadata'), dict) else {},
                         }
                     memories.append(memory)
                 
@@ -1359,159 +1361,276 @@ class MemoryManager:
         llm_provider = None,
         agentic_config = None,
     ) -> Dict[str, Any]:
+        """Agentic 检索：LLM 引导的多轮智能检索
+        
+        流程：Round 1 (RRF检索) → Rerank → LLM判断 → Round 2 (多查询) → 融合 → Rerank
         """
-        Agentic 检索（LLM 引导的多轮检索）
-        
-        使用 LLM 判断检索充分性，并在必要时进行多轮检索以获得更好的结果。
-        
-        流程：
-        1. Round 1: 混合检索 (Embedding + BM25 + RRF) → Top 20
-        2. Rerank → Top 5 → LLM 判断充分性
-        3. 如果充分：返回原始 Top 20
-        4. 如果不充分：
-           - LLM 生成多个改进查询（2-3 个）
-           - Round 2: 并行检索所有查询
-           - 使用 RRF 融合 → 去重合并到 40 个
-           - Rerank → 返回最终 Top 20
-        
-        Args:
-            query: 用户查询
-            user_id: 用户ID（用于过滤）
-            group_id: 群组ID（用于过滤）
-            time_range_days: 时间范围天数
-            top_k: 返回结果数量（默认 20）
-            llm_provider: LLM Provider（必需，用于判断和查询生成）
-            agentic_config: Agentic 配置（可选，使用默认配置）
-        
-        Returns:
-            Dict 包含 memories, metadata
-            {
-                "memories": [...],
-                "count": int,
-                "metadata": {
-                    "retrieval_mode": "agentic",
-                    "is_multi_round": bool,
-                    "round1_count": int,
-                    "is_sufficient": bool,
-                    "reasoning": str,
-                    "refined_queries": List[str],  # 仅在多轮时存在
-                    "round2_count": int,  # 仅在多轮时存在
-                    "final_count": int,
-                    "total_latency_ms": float,
-                }
-            }
-        
-        Example:
-            >>> from memory_layer.llm.llm_provider import LLMProvider
-            >>> from agentic_layer.agentic_utils import AgenticConfig
-            >>> 
-            >>> llm = LLMProvider("openai", model="gpt-4", api_key="...")
-            >>> config = AgenticConfig(use_reranker=True)
-            >>> 
-            >>> result = await memory_manager.retrieve_agentic(
-            ...     query="用户喜欢吃什么？",
-            ...     group_id="美食爱好者群",
-            ...     llm_provider=llm,
-            ...     agentic_config=config
-            ... )
-            >>> 
-            >>> print(result["count"])  # 20
-            >>> print(result["metadata"]["is_sufficient"])  # False
-            >>> print(result["metadata"]["refined_queries"])  
-            # ["用户最喜欢的菜系是什么？", "用户喜欢什么口味？", ...]
-        
-        Note:
-            - 需要提供 llm_provider，否则会抛出异常
-            - LLM API 调用可能产生额外成本
-            - 延迟通常为 5-10 秒（视 LLM 响应速度）
-            - 如果 LLM 调用失败，会自动降级到 lightweight 模式
-        """
-        # 验证 LLM Provider
+        # 验证参数
         if llm_provider is None:
-            raise ValueError(
-                "llm_provider is required for agentic retrieval. "
-                "Please provide a LLMProvider instance."
-            )
+            raise ValueError("llm_provider is required for agentic retrieval")
         
-        # 导入 agentic 检索函数
-        from .retrieval_utils import agentic_retrieval
+        # 导入依赖
+        from .agentic_utils import AgenticConfig, check_sufficiency, generate_multi_queries, format_documents_for_llm
+        from .rerank_service import get_rerank_service
         
-        memcell_repo = get_bean_by_type(MemCellRawRepository)
+        # 使用默认配置
+        if agentic_config is None:
+            agentic_config = AgenticConfig()
+        config = agentic_config
         
-        now = get_now_with_timezone()
-        start_date = now - timedelta(days=time_range_days)
+        start_time = time.time()
+        metadata = {
+            "retrieval_mode": "agentic",
+            "is_multi_round": False,
+            "round1_count": 0,
+            "round1_reranked_count": 0,
+            "is_sufficient": None,
+            "reasoning": None,
+            "missing_info": None,
+            "refined_queries": None,
+            "round2_count": 0,
+            "final_count": 0,
+            "total_latency_ms": 0.0,
+        }
         
-        # 1. 查询 MemCell 候选
-        logger.info(f"Agentic retrieval: Preparing candidates for query: {query[:50]}...")
+        logger.info(f"{'='*60}")
+        logger.info(f"Agentic Retrieval: {query[:60]}...")
+        logger.info(f"{'='*60}")
         
-        if group_id:
-            memcells = await memcell_repo.find_by_group_id(group_id, limit=1000)
-            memcells = [
-                m for m in memcells
-                if m.timestamp and start_date <= m.timestamp <= now
-            ]
-        elif user_id:
-            memcells = await memcell_repo.find_by_user_and_time_range(
-                user_id=user_id,
-                start_time=start_date,
-                end_time=now,
-                limit=1000,
-            )
-        else:
-            memcells = await memcell_repo.find_by_time_range(
-                start_time=start_date,
-                end_time=now,
-                limit=1000,
-            )
-        
-        if not memcells:
-            logger.warning("No memcells found for agentic retrieval")
-            return {
-                "memories": [],
-                "count": 0,
-                "metadata": {
-                    "retrieval_mode": "agentic",
-                    "total_latency_ms": 0.0,
-                    "error": "No candidates found"
-                }
-            }
-        
-        logger.info(f"Prepared {len(memcells)} candidates for agentic retrieval")
-        
-        # 2. 执行 Agentic 检索
         try:
-            results_tuples, metadata = await agentic_retrieval(
+            # ========== Round 1: RRF 混合检索 ==========
+            logger.info("Round 1: RRF retrieval...")
+            
+            round1_result = await self.retrieve_lightweight(
                 query=query,
-                candidates=memcells,
-                llm_provider=llm_provider,
-                config=agentic_config,
+                user_id=user_id,
+                group_id=group_id,
+                time_range_days=time_range_days,
+                top_k=config.round1_top_n,  # 20
+                retrieval_mode="rrf",
+                data_source="memcell",
             )
             
-            # 3. 转换为返回格式
-            memories = []
-            for memcell, score in results_tuples:
-                memories.append({
-                    "event_id": str(memcell.event_id),
-                    "user_id": memcell.user_id,
-                    "group_id": getattr(memcell, 'group_id', None),
-                    "timestamp": memcell.timestamp.isoformat() if hasattr(memcell.timestamp, 'isoformat') else str(memcell.timestamp),
-                    "episode": memcell.episode,
-                    "summary": getattr(memcell, 'summary', None),
-                    "subject": getattr(memcell, 'subject', None),
-                    "score": float(score),
-                })
+            round1_memories = round1_result.get("memories", [])
+            metadata["round1_count"] = len(round1_memories)
+            metadata["round1_latency_ms"] = round1_result.get("metadata", {}).get("total_latency_ms", 0)
+            
+            logger.info(f"Round 1: Retrieved {len(round1_memories)} memories")
+            
+            if not round1_memories:
+                logger.warning("Round 1 returned no results")
+                metadata["total_latency_ms"] = (time.time() - start_time) * 1000
+                return {"memories": [], "count": 0, "metadata": metadata}
+            
+            # ========== Rerank Round 1 结果 → Top 5 ==========
+            if config.use_reranker:
+                logger.info("Reranking Top 20 to Top 5 for sufficiency check...")
+                rerank_service = get_rerank_service()
+                
+                # 转换格式用于 rerank
+                candidates_for_rerank = [
+                    {
+                        "index": i,
+                        "episode": mem.get("episode", ""),
+                        "summary": mem.get("summary", ""),
+                        "subject": mem.get("subject", ""),
+                        "score": mem.get("score", 0),
+                    }
+                    for i, mem in enumerate(round1_memories)
+                ]
+                
+                reranked_hits = await rerank_service._rerank_all_hits(
+                    query, candidates_for_rerank, top_k=config.round1_rerank_top_n
+                )
+                
+                # 提取 Top 5 用于 LLM 判断
+                top5_for_llm = []
+                for hit in reranked_hits[:config.round1_rerank_top_n]:
+                    idx = hit.get("index", 0)
+                    if 0 <= idx < len(round1_memories):
+                        mem = round1_memories[idx]
+                        # 转换为 (candidate, score) 格式供 LLM 使用
+                        top5_for_llm.append((mem, hit.get("relevance_score", 0)))
+                
+                metadata["round1_reranked_count"] = len(top5_for_llm)
+                logger.info(f"Rerank: Got Top {len(top5_for_llm)} for sufficiency check")
+            else:
+                # 不使用 reranker，直接取前 5
+                top5_for_llm = [(mem, mem.get("score", 0)) for mem in round1_memories[:config.round1_rerank_top_n]]
+                metadata["round1_reranked_count"] = len(top5_for_llm)
+                logger.info("No Rerank: Using original Top 5")
+            
+            if not top5_for_llm:
+                logger.warning("No results for sufficiency check")
+                metadata["total_latency_ms"] = (time.time() - start_time) * 1000
+                return round1_result
+            
+            # ========== LLM 判断充分性 ==========
+            logger.info("LLM: Checking sufficiency on Top 5...")
+            
+            is_sufficient, reasoning, missing_info = await check_sufficiency(
+                query=query,
+                results=top5_for_llm,
+                llm_provider=llm_provider,
+                max_docs=config.round1_rerank_top_n
+            )
+            
+            metadata["is_sufficient"] = is_sufficient
+            metadata["reasoning"] = reasoning
+            metadata["missing_info"] = missing_info
+            
+            logger.info(f"LLM Result: {'✅ Sufficient' if is_sufficient else '❌ Insufficient'}")
+            logger.info(f"LLM Reasoning: {reasoning}")
+            
+            # ========== 如果充分：直接返回 Round 1 结果 ==========
+            if is_sufficient:
+                logger.info("Decision: Sufficient! Using Round 1 results")
+                metadata["final_count"] = len(round1_memories)
+                metadata["total_latency_ms"] = (time.time() - start_time) * 1000
+                
+                round1_result["metadata"] = metadata
+                logger.info(f"Complete: Latency {metadata['total_latency_ms']:.0f}ms")
+                return round1_result
+            
+            # ========== Round 2: LLM 生成多个改进查询 ==========
+            metadata["is_multi_round"] = True
+            logger.info("Decision: Insufficient, entering Round 2")
+            
+            if missing_info:
+                logger.info(f"Missing: {', '.join(missing_info)}")
+            
+            if config.enable_multi_query:
+                logger.info("LLM: Generating multiple refined queries...")
+                
+                refined_queries, query_strategy = await generate_multi_queries(
+                    original_query=query,
+                    results=top5_for_llm,
+                    missing_info=missing_info,
+                    llm_provider=llm_provider,
+                    max_docs=config.round1_rerank_top_n,
+                    num_queries=config.num_queries
+                )
+                
+                metadata["refined_queries"] = refined_queries
+                metadata["query_strategy"] = query_strategy
+                metadata["num_queries"] = len(refined_queries)
+                
+                logger.info(f"Generated {len(refined_queries)} queries")
+                for i, q in enumerate(refined_queries, 1):
+                    logger.debug(f"  Query {i}: {q[:80]}...")
+            else:
+                # 单查询模式
+                refined_queries = [query]
+                metadata["refined_queries"] = refined_queries
+                metadata["num_queries"] = 1
+            
+            # ========== Round 2: 并行执行多查询检索 ==========
+            logger.info(f"Round 2: Executing {len(refined_queries)} queries in parallel...")
+            
+            # 并行调用 retrieve_lightweight
+            round2_tasks = [
+                self.retrieve_lightweight(
+                    query=q,
+                    user_id=user_id,
+                    group_id=group_id,
+                    time_range_days=time_range_days,
+                    top_k=config.round2_per_query_top_n,  # 每个查询 50 条
+                    retrieval_mode="rrf",
+                    data_source="memcell",
+                )
+                for q in refined_queries
+            ]
+            
+            round2_results_list = await asyncio.gather(*round2_tasks, return_exceptions=True)
+            
+            # 收集所有查询的结果
+            all_round2_memories = []
+            for i, result in enumerate(round2_results_list, 1):
+                if isinstance(result, Exception):
+                    logger.error(f"Query {i} failed: {result}")
+                    continue
+                
+                memories = result.get("memories", [])
+                if memories:
+                    all_round2_memories.extend(memories)
+                    logger.debug(f"Query {i}: Retrieved {len(memories)} memories")
+            
+            logger.info(f"Round 2: Total retrieved {len(all_round2_memories)} memories before dedup")
+            
+            # ========== 去重和融合 ==========
+            logger.info("Merge: Deduplicating and combining Round 1 + Round 2...")
+            
+            # 去重：使用 event_id
+            round1_event_ids = {mem.get("event_id") for mem in round1_memories}
+            round2_unique = [
+                mem for mem in all_round2_memories
+                if mem.get("event_id") not in round1_event_ids
+            ]
+            
+            # 合并：Round 1 (20) + Round 2 去重后的结果（最多取到总数 40）
+            combined_memories = round1_memories.copy()
+            needed_from_round2 = config.combined_total - len(combined_memories)
+            combined_memories.extend(round2_unique[:needed_from_round2])
+            
+            metadata["round2_count"] = len(round2_unique[:needed_from_round2])
+            logger.info(f"Merge: Round1={len(round1_memories)}, Round2_unique={len(round2_unique[:needed_from_round2])}, Total={len(combined_memories)}")
+            
+            # ========== Final Rerank ==========
+            if config.use_reranker and len(combined_memories) > 0:
+                logger.info(f"Rerank: Reranking {len(combined_memories)} memories...")
+                
+                rerank_service = get_rerank_service()
+                
+                # 转换格式
+                candidates_for_rerank = [
+                    {
+                        "index": i,
+                        "episode": mem.get("episode", ""),
+                        "summary": mem.get("summary", ""),
+                        "subject": mem.get("subject", ""),
+                        "score": mem.get("score", 0),
+                    }
+                    for i, mem in enumerate(combined_memories)
+                ]
+                
+                reranked_hits = await rerank_service._rerank_all_hits(
+                    query,  # 使用原始查询
+                    candidates_for_rerank,
+                    top_k=config.final_top_n
+                )
+                
+                # 提取最终 Top 20
+                final_memories = []
+                for hit in reranked_hits[:config.final_top_n]:
+                    idx = hit.get("index", 0)
+                    if 0 <= idx < len(combined_memories):
+                        mem = combined_memories[idx].copy()
+                        mem["score"] = hit.get("relevance_score", mem.get("score", 0))
+                        final_memories.append(mem)
+                
+                logger.info(f"Rerank: Final Top {len(final_memories)} selected")
+            else:
+                # 不使用 Reranker，直接返回 Top N
+                final_memories = combined_memories[:config.final_top_n]
+                logger.info(f"No Rerank: Returning Top {len(final_memories)}")
+            
+            metadata["final_count"] = len(final_memories)
+            metadata["total_latency_ms"] = (time.time() - start_time) * 1000
+            
+            logger.info(f"Complete: Final {len(final_memories)} memories | Latency {metadata['total_latency_ms']:.0f}ms")
+            logger.info(f"{'='*60}\n")
             
             return {
-                "memories": memories,
-                "count": len(memories),
+                "memories": final_memories,
+                "count": len(final_memories),
                 "metadata": metadata,
             }
         
         except Exception as e:
             logger.error(f"Agentic retrieval failed: {e}", exc_info=True)
             
-            # 降级策略：回退到 lightweight 检索
-            logger.warning("Falling back to lightweight retrieval due to agentic failure")
+            # 降级到 lightweight
+            logger.warning("Falling back to lightweight retrieval")
             
             fallback_result = await self.retrieve_lightweight(
                 query=query,
@@ -1523,7 +1642,6 @@ class MemoryManager:
                 data_source="memcell",
             )
             
-            # 添加降级标记
             fallback_result["metadata"]["retrieval_mode"] = "agentic_fallback"
             fallback_result["metadata"]["fallback_reason"] = str(e)
             

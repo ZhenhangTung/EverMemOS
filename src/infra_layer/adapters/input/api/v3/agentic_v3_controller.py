@@ -357,3 +357,168 @@ class AgenticV3Controller(BaseController):
             raise HTTPException(
                 status_code=500, detail="检索失败，请稍后重试"
             ) from e
+    
+    @post(
+        "/retrieve_agentic",
+        response_model=Dict[str, Any],
+        summary="Agentic 记忆检索（LLM 引导的多轮检索）",
+        description="""
+        Agentic 记忆检索接口，使用 LLM 引导的多轮智能检索
+        
+        ## 功能说明：
+        - 使用 LLM 判断检索充分性
+        - 自动进行多轮检索和查询改进
+        - 使用 Rerank 提升结果质量
+        - 适合需要深度理解的复杂查询
+        
+        ## 检索流程：
+        1. Round 1: RRF 混合检索（Embedding + BM25）
+        2. Rerank 优化结果
+        3. LLM 判断是否充分
+        4. 如果不充分：生成多个改进查询
+        5. Round 2: 多查询并行检索
+        6. 融合并 Rerank 返回最终结果
+        
+        ## 输入格式：
+        ```json
+        {
+          "query": "用户喜欢吃什么？",
+          "user_id": "default",
+          "group_id": "assistant",
+          "time_range_days": 365,
+          "top_k": 20,
+          "llm_config": {
+            "api_key": "your_api_key",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini"
+          }
+        }
+        ```
+        
+        ## 字段说明：
+        - **query** (必需): 用户查询
+        - **user_id** (可选): 用户ID（用于过滤）
+        - **group_id** (可选): 群组ID（用于过滤）
+        - **time_range_days** (可选): 时间范围天数（默认365天）
+        - **top_k** (可选): 返回结果数量（默认20）
+        - **llm_config** (可选): LLM 配置
+          * api_key: LLM API Key（可选，默认使用环境变量）
+          * base_url: LLM API 地址（可选，默认 OpenRouter）
+          * model: LLM 模型（可选，默认 gpt-4o-mini）
+        
+        ## 返回格式：
+        ```json
+        {
+          "status": "ok",
+          "message": "Agentic 检索成功，找到 15 条记忆",
+          "result": {
+            "memories": [...],
+            "count": 15,
+            "metadata": {
+              "retrieval_mode": "agentic",
+              "is_multi_round": true,
+              "round1_count": 20,
+              "is_sufficient": false,
+              "reasoning": "需要更多关于饮食偏好的具体信息",
+              "refined_queries": ["用户最喜欢的菜系？", "用户不喜欢吃什么？"],
+              "round2_count": 40,
+              "final_count": 15,
+              "total_latency_ms": 2345.67
+            }
+          }
+        }
+        ```
+        
+        ## 使用场景：
+        - 复杂问题回答
+        - 深度信息挖掘
+        - 多维度记忆检索
+        - 智能对话系统
+        
+        ## 注意事项：
+        - 需要配置 LLM API Key
+        - 检索耗时较长（通常 2-5 秒）
+        - 会产生 LLM API 调用费用
+        """,
+    )
+    async def retrieve_agentic(
+        self, fastapi_request: FastAPIRequest
+    ) -> Dict[str, Any]:
+        """
+        Agentic 记忆检索（LLM 引导的多轮智能检索）
+        
+        Args:
+            fastapi_request: FastAPI 请求对象
+            
+        Returns:
+            Dict[str, Any]: 检索结果响应
+        """
+        try:
+            # 1. 解析请求参数
+            request_data = await fastapi_request.json()
+            query = request_data.get("query")
+            user_id = request_data.get("user_id")
+            group_id = request_data.get("group_id")
+            time_range_days = request_data.get("time_range_days", 365)
+            top_k = request_data.get("top_k", 20)
+            llm_config = request_data.get("llm_config", {})
+            
+            if not query:
+                raise ValueError("缺少必需参数：query")
+            
+            logger.info(
+                f"收到 agentic 检索请求: query={query}, group_id={group_id}, top_k={top_k}"
+            )
+            
+            # 2. 创建 LLM Provider
+            from memory_layer.llm.llm_provider import LLMProvider
+            import os
+            
+            # 从请求或环境变量获取配置
+            api_key = llm_config.get("api_key") or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+            base_url = llm_config.get("base_url") or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+            model = llm_config.get("model") or os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+            
+            if not api_key:
+                raise ValueError("缺少 LLM API Key，请在 llm_config.api_key 中提供或设置环境变量 OPENROUTER_API_KEY/OPENAI_API_KEY")
+            
+            # 创建 LLM Provider（使用 OpenAI 兼容接口）
+            llm_provider = LLMProvider(
+                provider_type="openai",
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                temperature=0.3,
+                max_tokens=2048,
+            )
+            
+            logger.info(f"使用 LLM: {model} @ {base_url}")
+            
+            # 3. 调用 memory_manager 的 agentic 检索
+            result = await self.memory_manager.retrieve_agentic(
+                query=query,
+                user_id=user_id,
+                group_id=group_id,
+                time_range_days=time_range_days,
+                top_k=top_k,
+                llm_provider=llm_provider,
+                agentic_config=None,  # 使用默认配置
+            )
+            
+            # 4. 返回统一格式
+            return {
+                "status": ErrorStatus.OK.value,
+                "message": f"Agentic 检索成功，找到 {result['count']} 条记忆",
+                "result": result,
+            }
+        
+        except ValueError as e:
+            logger.error("V3 retrieve_agentic 请求参数错误: %s", e)
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("V3 retrieve_agentic 请求处理失败: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=500, detail="Agentic 检索失败，请稍后重试"
+            ) from e
