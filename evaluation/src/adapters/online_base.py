@@ -1,13 +1,13 @@
 """
-在线 API Adapter 基类
+Online API Adapter base class.
 
-为所有在线记忆系统 API（Mem0, Memos, Memu 等）提供通用功能。
-所有在线 API adapter 可以继承此类。
+Provides common functionality for all online memory system APIs (Mem0, Memos, Memu, etc.).
+All online API adapters can inherit from this class.
 
-设计理念：
-- 提供默认的 answer() 实现（使用通用 prompt）
-- 子类可以重写 answer() 使用自己的特定 prompt
-- 提供辅助方法用于数据格式转换
+Design principles:
+- Provide default answer() implementation (using generic prompt)
+- Subclasses can override answer() to use their own specific prompts
+- Provide helper methods for data format conversion
 """
 from abc import abstractmethod
 from pathlib import Path
@@ -17,29 +17,29 @@ from evaluation.src.adapters.base import BaseAdapter
 from evaluation.src.core.data_models import Conversation, SearchResult
 from evaluation.src.utils.config import load_yaml
 
-# 导入 Memory Layer 组件
+# Import Memory Layer components
 from memory_layer.llm.llm_provider import LLMProvider
 
 
 class OnlineAPIAdapter(BaseAdapter):
     """
-    在线 API Adapter 基类
+    Online API Adapter base class.
     
-    提供通用功能：
-    1. LLM Provider 初始化
-    2. Answer 生成（复用 EverMemOS 的实现）
-    3. 标准格式转换辅助方法
+    Provides common functionality:
+    1. LLM Provider initialization
+    2. Answer generation (reuses EverMemOS implementation)
+    3. Standard format conversion helper methods
     
-    子类只需实现：
-    - add(): 调用在线 API 摄入数据
-    - search(): 调用在线 API 检索
+    Subclasses only need to implement:
+    - add(): Call online API to ingest data
+    - search(): Call online API for retrieval
     """
     
     def __init__(self, config: dict, output_dir: Path = None):
         super().__init__(config)
         self.output_dir = Path(output_dir) if output_dir else Path(".")
         
-        # 初始化 LLM Provider（用于 answer 生成）
+        # Initialize LLM Provider (for answer generation)
         llm_config = config.get("llm", {})
         
         self.llm_provider = LLMProvider(
@@ -51,7 +51,7 @@ class OnlineAPIAdapter(BaseAdapter):
             max_tokens=llm_config.get("max_tokens", 32768),
         )
         
-        # 加载 prompts（从 YAML 文件）
+        # Load prompts (from YAML file)
         evaluation_root = Path(__file__).parent.parent.parent
         prompts_path = evaluation_root / "config" / "prompts.yaml"
         self._prompts = load_yaml(str(prompts_path))
@@ -67,9 +67,9 @@ class OnlineAPIAdapter(BaseAdapter):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        摄入对话数据（调用在线 API）
+        Ingest conversation data (call online API).
         
-        子类必须实现此方法。
+        Subclasses must implement this method.
         """
         pass
     
@@ -82,26 +82,26 @@ class OnlineAPIAdapter(BaseAdapter):
         **kwargs
     ) -> SearchResult:
         """
-        检索相关记忆（调用在线 API）
+        Retrieve relevant memories (call online API).
         
-        子类必须实现此方法。
+        Subclasses must implement this method.
         """
         pass
     
     async def answer(self, query: str, context: str, **kwargs) -> str:
         """
-        生成答案（使用通用 MEMOS prompt）
+        Generate answer (using generic MEMOS prompt).
         
-        子类可以重写此方法以使用自己特定的 prompt。
-        默认使用 ANSWER_PROMPT_MEMOS（适用于大多数系统）。
+        Subclasses can override this method to use their own specific prompt.
+        Defaults to ANSWER_PROMPT_MEMOS (suitable for most systems).
         """
-        # 获取 answer prompt（子类可以重写 _get_answer_prompt）
+        # Get answer prompt (subclasses can override _get_answer_prompt)
         prompt = self._get_answer_prompt().format(context=context, question=query)
         
-        # 获取重试次数
+        # Get retry count
         max_retries = self.config.get("answer", {}).get("max_retries", 3)
         
-        # 生成答案
+        # Generate answer
         for i in range(max_retries):
             try:
                 result = await self.llm_provider.generate(
@@ -110,7 +110,7 @@ class OnlineAPIAdapter(BaseAdapter):
                     max_tokens=32768,
                 )
                 
-                # 清理结果（移除可能的 "FINAL ANSWER:" 前缀）
+                # Clean result (remove possible "FINAL ANSWER:" prefix)
                 if "FINAL ANSWER:" in result:
                     parts = result.split("FINAL ANSWER:")
                     if len(parts) > 1:
@@ -134,14 +134,14 @@ class OnlineAPIAdapter(BaseAdapter):
     
     def _get_answer_prompt(self) -> str:
         """
-        获取 answer prompt
+        Get answer prompt.
         
-        子类可以重写此方法返回自己的 prompt。
-        默认返回通用 default prompt
+        Subclasses can override this method to return their own prompt.
+        Defaults to generic default prompt.
         """
         return self._prompts["online_api"]["default"]["answer_prompt"]
     
-    # ===== 辅助方法：格式转换 =====
+    # ===== Helper methods: format conversion =====
     
     def _conversation_to_messages(
         self, 
@@ -150,22 +150,22 @@ class OnlineAPIAdapter(BaseAdapter):
         perspective: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        将标准 Conversation 转换为消息列表
+        Convert standard Conversation to message list.
         
         Args:
-            conversation: 标准对话对象
-            format_type: 格式类型（basic, mem0, memos, memu）
-            perspective: 视角（speaker_a 或 speaker_b），用于双视角系统如Memos
+            conversation: Standard conversation object
+            format_type: Format type (basic, mem0, memos, memu)
+            perspective: Perspective (speaker_a or speaker_b), used for dual-perspective systems like Memos
         
         Returns:
-            消息列表
+            Message list
         """
         messages = []
         speaker_a = conversation.metadata.get("speaker_a", "")
         speaker_b = conversation.metadata.get("speaker_b", "")
         
         for msg in conversation.messages:
-            # 智能判断 role 和 content
+            # Intelligently determine role and content
             role, content = self._determine_role_and_content(
                 msg.speaker_name, 
                 msg.content,
@@ -174,27 +174,27 @@ class OnlineAPIAdapter(BaseAdapter):
                 perspective
             )
             
-            # 基础消息
+            # Base message
             message = {
                 "role": role,
                 "content": content,
             }
             
-            # 根据不同系统的需求添加额外字段
+            # Add extra fields based on different system requirements
             if format_type == "mem0":
-                # Mem0 格式：需要 timestamp
+                # Mem0 format: needs timestamp
                 if msg.timestamp:
                     from common_utils.datetime_utils import to_iso_format
                     message["timestamp"] = to_iso_format(msg.timestamp)
             
             elif format_type == "memos":
-                # Memos 格式：需要 chat_time
+                # Memos format: needs chat_time
                 if msg.timestamp:
                     from common_utils.datetime_utils import to_iso_format
                     message["chat_time"] = to_iso_format(msg.timestamp)
             
             elif format_type == "memu":
-                # Memu 格式：需要 created_at
+                # Memu format: needs created_at
                 if msg.timestamp:
                     from common_utils.datetime_utils import to_iso_format
                     message["created_at"] = to_iso_format(msg.timestamp)
@@ -212,117 +212,117 @@ class OnlineAPIAdapter(BaseAdapter):
         perspective: Optional[str] = None
     ) -> tuple:
         """
-        智能判断消息的 role 和 content
+        Intelligently determine message role and content.
         
-        对于只支持 user/assistant 的系统（如 Memos），需要特殊处理：
-        1. 如果 speaker 是标准角色（user/assistant 及其变体），直接使用
-        2. 如果是自定义名称，根据 perspective 转换：
-           - 从 speaker_a 视角：speaker_a 的消息是 "user"，speaker_b 是 "assistant"
-           - 从 speaker_b 视角：speaker_b 的消息是 "user"，speaker_a 是 "assistant"
-        3. Content 对于自定义 speaker，需要加上 "speaker: " 前缀
+        For systems that only support user/assistant (e.g., Memos), special handling is needed:
+        1. If speaker is standard role (user/assistant and variants), use directly
+        2. If custom name, convert based on perspective:
+           - From speaker_a perspective: speaker_a messages are "user", speaker_b are "assistant"
+           - From speaker_b perspective: speaker_b messages are "user", speaker_a are "assistant"
+        3. Content for custom speakers needs "speaker: " prefix
         
         Args:
-            speaker_name: 说话者名称
-            content: 消息内容
-            speaker_a: 对话中的 speaker_a
-            speaker_b: 对话中的 speaker_b
-            perspective: 视角（用于双视角系统）
+            speaker_name: Speaker name
+            content: Message content
+            speaker_a: speaker_a in conversation
+            speaker_b: speaker_b in conversation
+            perspective: Perspective (for dual-perspective systems)
         
         Returns:
-            (role, content) 元组
+            (role, content) tuple
         """
-        # 情况1: 标准角色（user/assistant 及其变体）
+        # Case 1: Standard roles (user/assistant and variants)
         speaker_lower = speaker_name.lower()
         
-        # 检查是否是标准角色或其变体
+        # Check if standard role or variant
         if speaker_lower in ["user", "assistant"]:
-            # 完全匹配: "user", "User", "assistant", "Assistant"
+            # Exact match: "user", "User", "assistant", "Assistant"
             return speaker_lower, content
         elif speaker_lower.startswith("user"):
-            # 变体: "user_123", "User_456" 等
+            # Variants: "user_123", "User_456", etc.
             return "user", content
         elif speaker_lower.startswith("assistant"):
-            # 变体: "assistant_123", "Assistant_456" 等
+            # Variants: "assistant_123", "Assistant_456", etc.
             return "assistant", content
         
-        # 情况2: 自定义 speaker，需要转换
-        # 默认行为：speaker_a 是 user，speaker_b 是 assistant
+        # Case 2: Custom speaker, needs conversion
+        # Default behavior: speaker_a is user, speaker_b is assistant
         if perspective == "speaker_b":
-            # 从 speaker_b 的视角
+            # From speaker_b's perspective
             if speaker_name == speaker_b:
                 role = "user"
             elif speaker_name == speaker_a:
                 role = "assistant"
             else:
-                # 未知 speaker，默认为 assistant
+                # Unknown speaker, default to assistant
                 role = "assistant"
         else:
-            # 从 speaker_a 的视角（默认）
+            # From speaker_a's perspective (default)
             if speaker_name == speaker_a:
                 role = "user"
             elif speaker_name == speaker_b:
                 role = "assistant"
             else:
-                # 未知 speaker，默认为 user
+                # Unknown speaker, default to user
                 role = "user"
         
-        # 对于自定义 speaker，content 需要加上前缀
+        # For custom speakers, content needs prefix
         formatted_content = f"{speaker_name}: {content}"
         
         return role, formatted_content
     
     def _extract_user_id(self, conversation: Conversation, speaker: str = "speaker_a") -> str:
         """
-        从 Conversation 中提取 user_id（用于在线 API）
+        Extract user_id from Conversation (for online API).
         
-        逻辑：结合 conversation_id 和 speaker 名字，确保会话隔离
+        Logic: Combine conversation_id and speaker name to ensure conversation isolation.
         
         Args:
-            conversation: 标准对话对象
-            speaker: 说话者标识（speaker_a 或 speaker_b）
+            conversation: Standard conversation object
+            speaker: Speaker identifier (speaker_a or speaker_b)
         
         Returns:
-            user_id 字符串，格式：{conv_id}_{speaker_name}
+            user_id string, format: {conv_id}_{speaker_name}
         
-        示例：
+        Examples:
             - LoCoMo: speaker_a="Caroline" → user_id="locomo_0_Caroline"
             - PersonaMem: speaker_a="Kanoa Manu" → user_id="personamem_0_Kanoa_Manu"
-            - 无 speaker: → user_id="locomo_0_speaker_a"
+            - No speaker: → user_id="locomo_0_speaker_a"
         
-        设计原因：
-            - 包含 conv_id：确保不同会话的记忆隔离（评测准确性）
-            - 包含 speaker 名字：后台查看更直观（如 Caroline vs speaker_a）
-            - 空格转下划线：避免 user_id 中出现空格
+        Design rationale:
+            - Include conv_id: Ensure memory isolation between conversations (evaluation accuracy)
+            - Include speaker name: More intuitive for backend viewing (e.g., Caroline vs speaker_a)
+            - Replace spaces with underscores: Avoid spaces in user_id
         """
         conv_id = conversation.conversation_id
         speaker_name = conversation.metadata.get(speaker)
         
         if speaker_name:
-            # 有 speaker 名字：将空格替换为下划线
+            # Has speaker name: replace spaces with underscores
             speaker_name_normalized = speaker_name.replace(" ", "_")
             user_id = f"{conv_id}_{speaker_name_normalized}"
         else:
-            # 没有 speaker 名字：locomo_0_speaker_a
+            # No speaker name: locomo_0_speaker_a
             user_id = f"{conv_id}_{speaker}"
         
         return user_id
     
     def _get_user_id_from_conversation_id(self, conversation_id: str) -> str:
         """
-        从 conversation_id 推导 user_id（简化版）
+        Derive user_id from conversation_id (simplified version).
         
         Args:
-            conversation_id: 对话 ID
+            conversation_id: Conversation ID
         
         Returns:
-            user_id 字符串
+            user_id string
         """
-        # 简化实现：直接使用 conversation_id
-        # 实际使用时可能需要更复杂的映射逻辑
+        # Simplified implementation: directly use conversation_id
+        # May need more complex mapping logic in actual use
         return conversation_id
     
     def get_system_info(self) -> Dict[str, Any]:
-        """返回系统信息"""
+        """Return system info."""
         return {
             "name": self.__class__.__name__,
             "type": "online_api",

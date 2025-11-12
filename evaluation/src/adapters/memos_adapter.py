@@ -1,7 +1,6 @@
 """
-Memos Adapter
-
-适配 Memos 在线 API 的评测框架。
+Memos Adapter - adapt Memos online API for evaluation framework.
+Reference: https://www.memos.so/
 """
 import json
 import time
@@ -19,20 +18,20 @@ from evaluation.src.core.data_models import Conversation, SearchResult
 @register_adapter("memos")
 class MemosAdapter(OnlineAPIAdapter):
     """
-    Memos 在线 API 适配器
+    Memos online API adapter.
     
-    支持：
-    - 记忆摄入（支持对话上下文）
-    - 记忆检索
+    Supports:
+    - Memory ingestion (supports conversation context)
+    - Memory retrieval
     
-    官方 API 支持的参数：
-    - user_id (必需) - 格式：{conv_id}_{speaker}，已包含会话信息
-    - query (必需)
-    - memory_limit_number (可选，默认 6)
+    Official API supported parameters:
+    - user_id (required) - Format: {conv_id}_{speaker}, already contains session info
+    - query (required)
+    - memory_limit_number (optional, default 6)
     
-    注意：不使用 conversation_id 参数，因为 user_id 已经包含了会话信息
+    Note: Does not use conversation_id parameter, as user_id already contains session info
     
-    配置示例：
+    Config example:
     ```yaml
     adapter: "memos"
     api_url: "${MEMOS_URL}"
@@ -43,7 +42,7 @@ class MemosAdapter(OnlineAPIAdapter):
     def __init__(self, config: dict, output_dir: Path = None):
         super().__init__(config, output_dir)
         
-        # 获取 API 配置
+        # Get API configuration
         self.api_url = config.get("api_url", "")
         if not self.api_url:
             raise ValueError("Memos API URL is required. Set 'api_url' in config.")
@@ -57,8 +56,8 @@ class MemosAdapter(OnlineAPIAdapter):
             "Authorization": api_key
         }
         
-        # 检索配置（只保留 batch_size 和 max_retries，其他参数不被官方 API 支持）
-        self.batch_size = config.get("batch_size", 9999)  # Memos 支持大批量
+        # Retrieval configuration (only keep batch_size and max_retries, other params not supported by official API)
+        self.batch_size = config.get("batch_size", 9999)  # Memos supports large batches
         self.max_retries = config.get("max_retries", 5)
         
         self.console = Console()
@@ -71,12 +70,12 @@ class MemosAdapter(OnlineAPIAdapter):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        摄入对话数据到 Memos
+        Ingest conversations into Memos.
         
-        Memos API 特点：
-        - 需要 user_id 和 conversation_id
-        - 支持大批量添加
-        - 消息需要包含 chat_time
+        Memos API specifics:
+        - Requires user_id and conversation_id
+        - Supports large batch addition
+        - Messages need to include chat_time
         """
         self.console.print(f"\n{'='*60}", style="bold cyan")
         self.console.print(f"Stage 1: Adding to Memos", style="bold cyan")
@@ -88,7 +87,7 @@ class MemosAdapter(OnlineAPIAdapter):
             conv_id = conv.conversation_id
             conversation_ids.append(conv_id)
             
-            # 🔥 检测是否需要双视角处理
+            # Detect if dual perspective handling is needed
             speaker_a = conv.metadata.get("speaker_a", "")
             speaker_b = conv.metadata.get("speaker_b", "")
             need_dual_perspective = self._need_dual_perspective(speaker_a, speaker_b)
@@ -96,11 +95,11 @@ class MemosAdapter(OnlineAPIAdapter):
             self.console.print(f"\n📥 Adding conversation: {conv_id}", style="cyan")
             
             if need_dual_perspective:
-                # 双视角处理（Locomo 风格数据）
+                # Dual perspective handling (LoCoMo style data)
                 self.console.print(f"   Mode: Dual Perspective", style="dim")
                 self._add_dual_perspective(conv, conv_id)
             else:
-                # 单视角处理（标准 user/assistant 数据）
+                # Single perspective handling (standard user/assistant data)
                 self.console.print(f"   Mode: Single Perspective", style="dim")
                 self._add_single_perspective(conv, conv_id)
             
@@ -108,7 +107,7 @@ class MemosAdapter(OnlineAPIAdapter):
         
         self.console.print(f"\n✅ All conversations added to Memos", style="bold green")
         
-        # 返回元数据
+        # Return metadata
         return {
             "type": "online_api",
             "system": "memos",
@@ -117,35 +116,35 @@ class MemosAdapter(OnlineAPIAdapter):
     
     def _need_dual_perspective(self, speaker_a: str, speaker_b: str) -> bool:
         """
-        判断是否需要双视角处理
+        Determine if dual perspective handling is needed.
         
-        单视角情况（不需要双视角）:
-        - 标准角色: "user"/"assistant"
-        - 大小写变体: "User"/"Assistant"
-        - 带后缀: "user_123"/"assistant_456"
+        Single perspective (no dual perspective needed):
+        - Standard roles: "user"/"assistant"
+        - Case variants: "User"/"Assistant"
+        - With suffix: "user_123"/"assistant_456"
         
-        双视角情况（需要双视角）:
-        - 自定义名称: "Elena Rodriguez"/"Alex"
+        Dual perspective (dual perspective needed):
+        - Custom names: "Elena Rodriguez"/"Alex"
         """
         speaker_a_lower = speaker_a.lower()
         speaker_b_lower = speaker_b.lower()
         
-        # 检查是否是 user/assistant 相关的名称（放松条件）
+        # Check if user/assistant related names (relaxed condition)
         def is_standard_role(speaker: str) -> bool:
             speaker = speaker.lower()
-            # 完全匹配
+            # Exact match
             if speaker in ["user", "assistant"]:
                 return True
-            # 以 user 或 assistant 开头（处理 user_123, assistant_456 等）
+            # Starts with user or assistant (handles user_123, assistant_456, etc.)
             if speaker.startswith("user") or speaker.startswith("assistant"):
                 return True
             return False
         
-        # 只有当两个 speaker 都不是标准角色时，才需要双视角
+        # Only need dual perspective when both speakers are not standard roles
         return not (is_standard_role(speaker_a) or is_standard_role(speaker_b))
     
     def _add_single_perspective(self, conv: Conversation, conv_id: str):
-        """单视角添加（用于标准 user/assistant 数据）"""
+        """Single perspective addition (for standard user/assistant data)."""
         messages = self._conversation_to_messages(conv, format_type="memos")
         user_id = self._extract_user_id(conv, speaker="speaker_a")
         
@@ -155,8 +154,8 @@ class MemosAdapter(OnlineAPIAdapter):
         self._send_messages_to_api(messages, user_id, conv_id)
     
     def _add_dual_perspective(self, conv: Conversation, conv_id: str):
-        """双视角添加（用于 Locomo 风格数据）"""
-        # 从 speaker_a 的视角
+        """Dual perspective addition (for LoCoMo style data)."""
+        # From speaker_a's perspective
         speaker_a_messages = self._conversation_to_messages(
             conv, 
             format_type="memos",
@@ -164,7 +163,7 @@ class MemosAdapter(OnlineAPIAdapter):
         )
         speaker_a_id = self._extract_user_id(conv, speaker="speaker_a")
         
-        # 从 speaker_b 的视角
+        # From speaker_b's perspective
         speaker_b_messages = self._conversation_to_messages(
             conv,
             format_type="memos",
@@ -177,12 +176,12 @@ class MemosAdapter(OnlineAPIAdapter):
         self.console.print(f"   Speaker B ID: {speaker_b_id}", style="dim")
         self.console.print(f"   Speaker B Messages: {len(speaker_b_messages)}", style="dim")
         
-        # 分别发送
+        # Send separately
         self._send_messages_to_api(speaker_a_messages, speaker_a_id, conv_id)
         self._send_messages_to_api(speaker_b_messages, speaker_b_id, conv_id)
     
     def _send_messages_to_api(self, messages: List[Dict], user_id: str, conv_id: str):
-        """发送消息到 Memos API"""
+        """Send messages to Memos API."""
         url = f"{self.api_url}/add/message"
         
         for i in range(0, len(messages), self.batch_size):
@@ -197,7 +196,7 @@ class MemosAdapter(OnlineAPIAdapter):
                 ensure_ascii=False
             )
             
-            # 重试机制
+            # Retry mechanism
             for attempt in range(self.max_retries):
                 try:
                     response = requests.post(url, data=payload, headers=self.headers, timeout=60)
@@ -223,27 +222,27 @@ class MemosAdapter(OnlineAPIAdapter):
     
     def _search_single_user(self, query: str, user_id: str, top_k: int) -> Dict[str, Any]:
         """
-        单用户搜索（内部方法）
+        Single user search (internal method).
         
         Args:
-            query: 查询文本
-            user_id: 用户ID（格式：{conv_id}_{speaker}，已包含会话信息）
-            top_k: 返回记忆数量
+            query: Query text
+            user_id: User ID (format: {conv_id}_{speaker}, already contains session info)
+            top_k: Number of memories to return
         
         Returns:
-            搜索结果字典：
+            Search result dict:
             {
                 "text_mem": [{"memories": [...]}],
                 "pref_string": "Explicit Preference:\n1. ..."
             }
         
-        注意：
-            不需要传递 conversation_id 参数，因为 user_id 已经包含了会话信息。
-            例如：user_id="locomo_0_Caroline" 已经唯一标识了 locomo_0 这个会话。
+        Note:
+            No need to pass conversation_id parameter, as user_id already contains session info.
+            Example: user_id="locomo_0_Caroline" uniquely identifies the locomo_0 conversation.
         """
         url = f"{self.api_url}/search/memory"
         
-        # 只使用官方必需的参数
+        # Only use officially required parameters
         payload_dict = {
             "query": query,
             "user_id": user_id,
@@ -252,7 +251,7 @@ class MemosAdapter(OnlineAPIAdapter):
         
         payload = json.dumps(payload_dict, ensure_ascii=False)
         
-        # 重试机制
+        # Retry mechanism
         for attempt in range(self.max_retries):
             try:
                 response = requests.post(url, data=payload, headers=self.headers, timeout=60)
@@ -269,11 +268,11 @@ class MemosAdapter(OnlineAPIAdapter):
                 pref_mem_res = data.get("preference_detail_list", [])
                 preference_note = data.get("preference_note", "")
                 
-                # 标准化字段名：将 memory_value 重命名为 memory
+                # Standardize field names: rename memory_value to memory
                 for i in text_mem_res:
                     i.update({"memory": i.pop("memory_value", i.get("memory", ""))})
                 
-                # 格式化偏好字符串
+                # Format preference string
                 explicit_prefs = [
                     p["preference"]
                     for p in pref_mem_res
@@ -316,16 +315,16 @@ class MemosAdapter(OnlineAPIAdapter):
         **kwargs
     ) -> SearchResult:
         """
-        从 Memos 检索相关记忆
+        Retrieve relevant memories from Memos.
         
-        Memos 特点：
-        - 支持偏好提取（explicit/implicit preferences）
-        - 支持多种检索模式
-        - 🔥 支持双视角搜索（Locomo风格数据）
+        Memos specifics:
+        - Supports preference extraction (explicit/implicit preferences)
+        - Supports multiple retrieval modes
+        - Supports dual perspective search (LoCoMo style data)
         """
         top_k = kwargs.get("top_k", 10)
         
-        # 🔥 从 kwargs 直接获取对话信息（不使用缓存）
+        # Get conversation info directly from kwargs (don't use cache)
         conversation = kwargs.get("conversation")
         if conversation:
             speaker_a = conversation.metadata.get("speaker_a", "")
@@ -334,7 +333,7 @@ class MemosAdapter(OnlineAPIAdapter):
             speaker_b_user_id = self._extract_user_id(conversation, speaker="speaker_b")
             need_dual_perspective = self._need_dual_perspective(speaker_a, speaker_b)
         else:
-            # 回退方案：使用默认 user_id
+            # Fallback: use default user_id
             speaker_a_user_id = f"{conversation_id}_speaker_a"
             speaker_b_user_id = f"{conversation_id}_speaker_b"
             speaker_a = "speaker_a"
@@ -342,13 +341,13 @@ class MemosAdapter(OnlineAPIAdapter):
             need_dual_perspective = False
         
         if need_dual_perspective:
-            # 🔥 双视角搜索：从两个 speaker 的视角分别搜索
+            # Dual perspective search: search from both speakers' perspectives separately
             return await self._search_dual_perspective(
                 query, conversation_id, speaker_a, speaker_b,
                 speaker_a_user_id, speaker_b_user_id, top_k
             )
         else:
-            # 单视角搜索（标准 user/assistant 数据）
+            # Single perspective search (standard user/assistant data)
             return await self._search_single_perspective(
                 query, conversation_id, speaker_a_user_id, top_k
             )
@@ -356,7 +355,7 @@ class MemosAdapter(OnlineAPIAdapter):
     async def _search_single_perspective(
         self, query: str, conversation_id: str, user_id: str, top_k: int
     ) -> SearchResult:
-        """单视角搜索（用于标准 user/assistant 数据）"""
+        """Single perspective search (for standard user/assistant data)."""
         
         try:
             search_data = self._search_single_user(query, user_id, top_k)
@@ -369,14 +368,14 @@ class MemosAdapter(OnlineAPIAdapter):
                 retrieval_metadata={"error": str(e)}
             )
         
-        # 转换为标准 SearchResult 格式
+        # Convert to standard SearchResult format
         search_results = []
         for item in search_data["text_mem"][0]["memories"]:
             created_at = item.get("memory_time") or item.get("create_time", "")
             search_results.append({
                 "content": item.get("memory", ""),
                 "score": item.get("relativity", item.get("score", 0.0)),
-                "user_id": user_id,  # 🔥 添加 user_id 标记记忆来源
+                "user_id": user_id,
                 "metadata": {
                     "memory_id": item.get("id", ""),
                     "created_at": str(created_at) if created_at else "",
@@ -386,7 +385,7 @@ class MemosAdapter(OnlineAPIAdapter):
                 }
             })
         
-        # 偏好信息已经格式化好了
+        # Preference information already formatted
         pref_string = search_data.get("pref_string", "")
         
         return SearchResult(
@@ -397,7 +396,7 @@ class MemosAdapter(OnlineAPIAdapter):
                 "system": "memos",
                 "preferences": {"pref_string": pref_string},
                 "top_k": top_k,
-                "user_ids": [user_id],  # 单视角：只有一个 user_id
+                "user_ids": [user_id],
             }
         )
     
@@ -412,13 +411,13 @@ class MemosAdapter(OnlineAPIAdapter):
         top_k: int
     ) -> SearchResult:
         """
-        双视角搜索（用于自定义 speaker 名称的数据）
+        Dual perspective search (for data with custom speaker names).
         
-        同时搜索两个 speaker 的记忆并合并结果
+        Search memories for both speakers simultaneously and merge results.
         """
         
         try:
-            # 分别搜索两个 user_id
+            # Search both user_ids separately
             search_a_results = self._search_single_user(query, speaker_a_user_id, top_k)
             search_b_results = self._search_single_user(query, speaker_b_user_id, top_k)
         except Exception as e:
@@ -434,15 +433,15 @@ class MemosAdapter(OnlineAPIAdapter):
                 }
             )
         
-        # 🔥 构建详细的 results 列表（为每条记忆添加 user_id）
+        # Build detailed results list (add user_id to each memory)
         all_results = []
         
-        # Speaker A 的记忆
+        # Speaker A's memories
         for memory in search_a_results["text_mem"][0]["memories"]:
             all_results.append({
                 "content": memory.get("memory", ""),
-                "score": memory.get("relativity", 0.0),  # 🔥 修复：使用 relativity 字段
-                "user_id": speaker_a_user_id,  # 标记来源
+                "score": memory.get("relativity", 0.0),
+                "user_id": speaker_a_user_id,
                 "metadata": {
                     "memory_id": memory.get("memory_id", ""),
                     "created_at": memory.get("created_at", ""),
@@ -452,12 +451,12 @@ class MemosAdapter(OnlineAPIAdapter):
                 }
             })
         
-        # Speaker B 的记忆
+        # Speaker B's memories
         for memory in search_b_results["text_mem"][0]["memories"]:
             all_results.append({
                 "content": memory.get("memory", ""),
-                "score": memory.get("relativity", 0.0),  # 🔥 修复：使用 relativity 字段
-                "user_id": speaker_b_user_id,  # 标记来源
+                "score": memory.get("relativity", 0.0),
+                "user_id": speaker_b_user_id,
                 "metadata": {
                     "memory_id": memory.get("memory_id", ""),
                     "created_at": memory.get("created_at", ""),
@@ -467,7 +466,7 @@ class MemosAdapter(OnlineAPIAdapter):
                 }
             })
         
-        # 合并两个 speaker 的记忆和偏好（用于 formatted_context）
+        # Merge memories and preferences from both speakers (for formatted_context)
         speaker_a_context = (
             "\n".join([i["memory"] for i in search_a_results["text_mem"][0]["memories"]])
             + f"\n{search_a_results.get('pref_string', '')}"
@@ -477,7 +476,7 @@ class MemosAdapter(OnlineAPIAdapter):
             + f"\n{search_b_results.get('pref_string', '')}"
         )
         
-        # 使用 default template 格式化
+        # Format using default template
         template = self._prompts["online_api"].get("templates", {}).get("default", "")
         formatted_context = template.format(
             speaker_1=speaker_a,
@@ -489,11 +488,11 @@ class MemosAdapter(OnlineAPIAdapter):
         return SearchResult(
             query=query,
             conversation_id=conversation_id,
-            results=all_results,  # 🔥 返回详细的记忆列表（每条带 user_id）
+            results=all_results,
             retrieval_metadata={
                 "system": "memos",
                 "dual_perspective": True,
-                "formatted_context": formatted_context,  # 套用 template 后的结果
+                "formatted_context": formatted_context,
                 "top_k": top_k,
                 "user_ids": [speaker_a_user_id, speaker_b_user_id],
                 "preferences": {
@@ -504,7 +503,7 @@ class MemosAdapter(OnlineAPIAdapter):
         )
     
     def get_system_info(self) -> Dict[str, Any]:
-        """返回系统信息"""
+        """Return system info."""
         return {
             "name": "Memos",
             "type": "online_api",

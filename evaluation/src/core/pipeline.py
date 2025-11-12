@@ -1,7 +1,7 @@
 """
-Pipeline 核心
+Pipeline core module.
 
-评测流程的编排器，负责协调 Add → Search → Answer → Evaluate 四个阶段。
+Orchestrates the evaluation workflow across four stages: Add → Search → Answer → Evaluate.
 """
 import time
 from pathlib import Path
@@ -16,10 +16,10 @@ from evaluation.src.utils.logger import setup_logger, get_console
 from evaluation.src.utils.saver import ResultSaver
 from evaluation.src.utils.checkpoint import CheckpointManager
 
-# 导入答案生成所需的组件
+# Import components for answer generation
 from memory_layer.llm.llm_provider import LLMProvider
 
-# 导入各个阶段的执行函数
+# Import stage execution functions
 from evaluation.src.core.stages.add_stage import run_add_stage
 from evaluation.src.core.stages.search_stage import run_search_stage
 from evaluation.src.core.stages.answer_stage import run_answer_stage
@@ -28,13 +28,13 @@ from evaluation.src.core.stages.evaluate_stage import run_evaluate_stage
 
 class Pipeline:
     """
-    评测 Pipeline
+    Evaluation Pipeline.
     
-    四阶段流程：
-    1. Add: 摄入对话数据并构建索引
-    2. Search: 检索相关记忆
-    3. Answer: 生成答案
-    4. Evaluate: 评估答案质量
+    Four-stage workflow:
+    1. Add: Ingest conversation data and build indices
+    2. Search: Retrieve relevant memories
+    3. Answer: Generate answers
+    4. Evaluate: Evaluate answer quality
     """
     
     def __init__(
@@ -48,16 +48,16 @@ class Pipeline:
         filter_categories: Optional[List[int]] = None,
     ):
         """
-        初始化 Pipeline
+        Initialize Pipeline.
         
         Args:
-            adapter: 系统适配器
-            evaluator: 评估器
-            llm_provider: LLM Provider（用于答案生成）
-            output_dir: 输出目录
-            run_name: 运行名称（用于区分不同运行）
-            use_checkpoint: 是否启用断点续传
-            filter_categories: 需要过滤掉的问题类别列表（如 [5] 表示过滤掉 Category 5）
+            adapter: System adapter
+            evaluator: Evaluator
+            llm_provider: LLM Provider for answer generation
+            output_dir: Output directory
+            run_name: Run name to distinguish different runs
+            use_checkpoint: Enable checkpoint/resume functionality
+            filter_categories: List of question categories to filter out (e.g., [5] filters Category 5)
         """
         self.adapter = adapter
         self.evaluator = evaluator
@@ -69,12 +69,12 @@ class Pipeline:
         self.saver = ResultSaver(self.output_dir)
         self.console = get_console()
         
-        # 断点续传支持
+        # Checkpoint/resume support
         self.use_checkpoint = use_checkpoint
         self.checkpoint = CheckpointManager(output_dir=output_dir, run_name=run_name) if use_checkpoint else None
         self.completed_stages: set = set()
         
-        # 问题类别过滤配置（从数据集配置中读取）
+        # Question category filter configuration (read from dataset config)
         self.filter_categories = filter_categories or []
     
     async def run(
@@ -86,18 +86,18 @@ class Pipeline:
         smoke_questions: int = 3,
     ) -> Dict[str, Any]:
         """
-        运行完整 Pipeline
+        Run complete Pipeline.
         
         Args:
-            dataset: 标准格式数据集
-            stages: 要执行的阶段列表，None 表示全部
-                   可选值: ["add", "search", "answer", "evaluate"]
-            smoke_test: 是否为冒烟测试
-            smoke_messages: 冒烟测试时的消息数量（默认10）
-            smoke_questions: 冒烟测试时的问题数量（默认3）
+            dataset: Standard format dataset
+            stages: List of stages to execute, None means all
+                   Options: ["add", "search", "answer", "evaluate"]
+            smoke_test: Enable smoke test mode
+            smoke_messages: Number of messages in smoke test (default 10)
+            smoke_questions: Number of questions in smoke test (default 3)
             
         Returns:
-            评测结果字典
+            Evaluation results dictionary
         """
         start_time = time.time()
         
@@ -111,7 +111,7 @@ class Pipeline:
             self.console.print(f"[yellow]🧪 Smoke Test Mode: {smoke_messages} messages, {smoke_questions} questions[/yellow]")
         self.console.print(f"{'='*60}\n", style="bold cyan")
         
-        # 冒烟测试：只处理第一个对话的前 K 条消息和前 K 个问题
+        # Smoke test: only process first K messages and questions from first conversation
         if smoke_test:
             dataset = self._apply_smoke_test(dataset, smoke_messages, smoke_questions)
             self.console.print(f"[yellow]✂️  Smoke test applied:[/yellow]")
@@ -119,14 +119,14 @@ class Pipeline:
             self.console.print(f"[yellow]   - Messages: {len(dataset.conversations[0].messages)}[/yellow]")
             self.console.print(f"[yellow]   - Questions: {len(dataset.qa_pairs)}[/yellow]\n")
         
-        # 根据配置过滤问题类别（如过滤掉 Category 5 对抗性问题）
+        # Filter question categories based on config (e.g., filter out Category 5 adversarial questions)
         original_qa_count = len(dataset.qa_pairs)
         
         if self.filter_categories:
-            # 将配置中的类别统一转为字符串（兼容 int 和 str 配置）
+            # Normalize categories to strings (support both int and str configs)
             filter_set = {str(cat) for cat in self.filter_categories}
             
-            # 过滤掉指定类别的问题
+            # Filter out specified categories
             dataset.qa_pairs = [
                 qa for qa in dataset.qa_pairs 
                 if qa.category not in filter_set
@@ -141,7 +141,7 @@ class Pipeline:
                 )
                 self.console.print(f"[dim]   Remaining questions: {len(dataset.qa_pairs)}[/dim]\n")
         
-        # 尝试加载 checkpoint
+        # Try loading checkpoint
         search_results_data = None
         answer_results_data = None
         
@@ -149,20 +149,20 @@ class Pipeline:
             checkpoint_data = self.checkpoint.load_checkpoint()
             if checkpoint_data:
                 self.completed_stages = set(checkpoint_data.get('completed_stages', []))
-                # 加载已保存的中间结果
+                # Load saved intermediate results
                 if 'search_results' in checkpoint_data:
                     search_results_data = checkpoint_data['search_results']
                 if 'answer_results' in checkpoint_data:
                     answer_results_data = checkpoint_data['answer_results']
         
-        # 默认执行所有阶段
+        # Default: execute all stages
         if stages is None:
             stages = ["add", "search", "answer", "evaluate"]
         
         results = {}
         
-        # ===== Stage 1: Add =====
-        add_just_completed = False  # 标记 add 是否刚刚完成
+        # Stage 1: Add
+        add_just_completed = False  # Track if add just completed
         
         if "add" in stages and "add" not in self.completed_stages:
             self.logger.info("Starting Stage 1: Add")
@@ -177,24 +177,24 @@ class Pipeline:
                 completed_stages=self.completed_stages,
             )
             results.update(stage_results)
-            add_just_completed = True  # Add 刚刚完成
+            add_just_completed = True  # Add just completed
             
         elif "add" in self.completed_stages:
             self.console.print("\n[yellow]⏭️  Skip Add stage (already completed)[/yellow]")
-            # 重新构建索引元数据（由 adapter 负责，仅本地系统需要）
-            # 对于在线 API，返回 None，但仍需设置 results["index"]
+            # Rebuild index metadata (handled by adapter, only needed for local systems)
+            # For online APIs, returns None but still need to set results["index"]
             index = self.adapter.build_lazy_index(dataset.conversations, self.output_dir)
-            results["index"] = index  # 即使是 None 也要设置
+            results["index"] = index  # Set even if None
         else:
-            # 重新构建索引元数据（由 adapter 负责，仅本地系统需要）
-            # 对于在线 API，返回 None，但仍需设置 results["index"]
+            # Rebuild index metadata (handled by adapter, only needed for local systems)
+            # For online APIs, returns None but still need to set results["index"]
             index = self.adapter.build_lazy_index(dataset.conversations, self.output_dir)
-            results["index"] = index  # 即使是 None 也要设置
+            results["index"] = index  # Set even if None
             if index is not None:
                 self.logger.info("⏭️  Skipped Stage 1, using lazy loading")
         
-        # ⏰ Post-Add Wait: 对于在线 API 系统，等待后台索引构建完成
-        # 只有当 add 刚刚完成时才等待
+        # Post-Add Wait: for online API systems, wait for backend indexing to complete
+        # Only wait if add just completed
         if add_just_completed:
             wait_seconds = self.adapter.config.get("post_add_wait_seconds", 0)
             if wait_seconds > 0 and "search" in stages:
@@ -203,7 +203,7 @@ class Pipeline:
                 )
                 self.logger.info(f"⏰ Waiting {wait_seconds}s for backend indexing")
                 
-                # 显示倒计时进度条
+                # Show countdown progress bar
                 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn
                 with Progress(
                     SpinnerColumn(),
@@ -224,7 +224,7 @@ class Pipeline:
                 self.console.print(f"[green]✅ Wait completed, ready for search[/green]\n")
                 self.logger.info("✅ Post-add wait completed")
         
-        # ===== Stage 2: Search =====
+        # Stage 2: Search
         if "search" in stages and "search" not in self.completed_stages:
             self.logger.info("Starting Stage 2: Search")
             
@@ -232,7 +232,7 @@ class Pipeline:
                 adapter=self.adapter,
                 qa_pairs=dataset.qa_pairs,
                 index=results["index"],
-                conversations=dataset.conversations,  # 传递 conversations 用于重建缓存
+                conversations=dataset.conversations,  # Pass conversations for cache rebuilding
                 checkpoint_manager=self.checkpoint,
                 logger=self.logger,
             )
@@ -244,7 +244,7 @@ class Pipeline:
             results["search_results"] = search_results
             self.logger.info("✅ Stage 2 completed")
             
-            # 保存 checkpoint
+            # Save checkpoint
             self.completed_stages.add("search")
             if self.checkpoint:
                 search_results_data = [self._search_result_to_dict(sr) for sr in search_results]
@@ -255,16 +255,16 @@ class Pipeline:
         elif "search" in self.completed_stages:
             self.console.print(f"\n[yellow]⏭️  Skip Search stage (already completed)[/yellow]")
             if search_results_data:
-                # 从 checkpoint 加载
+                # Load from checkpoint
                 search_results = [self._dict_to_search_result(d) for d in search_results_data]
                 results["search_results"] = search_results
             elif self.saver.file_exists("search_results.json"):
-                # 从文件加载
+                # Load from file
                 search_data = self.saver.load_json("search_results.json")
                 search_results = [self._dict_to_search_result(d) for d in search_data]
                 results["search_results"] = search_results
         elif "answer" in stages or "eval" in stages:
-            # 只有当后续阶段需要 search_results 时，才尝试加载
+            # Only try loading when subsequent stages need search_results
             if self.saver.file_exists("search_results.json"):
                 search_data = self.saver.load_json("search_results.json")
                 search_results = [self._dict_to_search_result(d) for d in search_data]
@@ -273,10 +273,10 @@ class Pipeline:
             else:
                 raise FileNotFoundError("Search results not found. Please run 'search' stage first.")
         else:
-            # 不需要 search_results（例如只运行 add 阶段）
+            # Don't need search_results (e.g., only running add stage)
             search_results = None
         
-        # ===== Stage 3: Answer =====
+        # Stage 3: Answer
         if "answer" in stages and "answer" not in self.completed_stages:
             self.logger.info("Starting Stage 3: Answer")
             
@@ -295,7 +295,7 @@ class Pipeline:
             results["answer_results"] = answer_results
             self.logger.info("✅ Stage 3 completed")
             
-            # 保存 checkpoint
+            # Save checkpoint
             self.completed_stages.add("answer")
             if self.checkpoint:
                 answer_results_dict = [self._answer_result_to_dict(ar) for ar in answer_results]
@@ -307,16 +307,16 @@ class Pipeline:
         elif "answer" in self.completed_stages:
             self.console.print(f"\n[yellow]⏭️  Skip Answer stage (already completed)[/yellow]")
             if answer_results_data:
-                # 从 checkpoint 加载
+                # Load from checkpoint
                 answer_results = [self._dict_to_answer_result(d) for d in answer_results_data]
                 results["answer_results"] = answer_results
             elif self.saver.file_exists("answer_results.json"):
-                # 从文件加载
+                # Load from file
                 answer_data = self.saver.load_json("answer_results.json")
                 answer_results = [self._dict_to_answer_result(d) for d in answer_data]
                 results["answer_results"] = answer_results
         elif "evaluate" in stages:
-            # 只有当 evaluate 阶段需要 answer_results 时，才尝试加载
+            # Only try loading when evaluate stage needs answer_results
             if self.saver.file_exists("answer_results.json"):
                 answer_data = self.saver.load_json("answer_results.json")
                 answer_results = [self._dict_to_answer_result(d) for d in answer_data]
@@ -325,10 +325,10 @@ class Pipeline:
             else:
                 raise FileNotFoundError("Answer results not found. Please run 'answer' stage first.")
         else:
-            # 不需要 answer_results（例如只运行 add 或 search）
+            # Don't need answer_results (e.g., only running add or search)
             answer_results = None
         
-        # ===== Stage 4: Evaluate =====
+        # Stage 4: Evaluate
         if "evaluate" in stages and "evaluate" not in self.completed_stages:
             eval_result = await run_evaluate_stage(
                 evaluator=self.evaluator,
@@ -343,7 +343,7 @@ class Pipeline:
             )
             results["eval_result"] = eval_result
             
-            # 保存 checkpoint
+            # Save checkpoint
             self.completed_stages.add("evaluate")
             if self.checkpoint:
                 self.checkpoint.save_checkpoint(
@@ -355,7 +355,7 @@ class Pipeline:
         elif "evaluate" in self.completed_stages:
             self.console.print("\n[yellow]⏭️  Skip Evaluate stage (already completed)[/yellow]")
         
-        # 生成报告
+        # Generate report
         elapsed_time = time.time() - start_time
         self._generate_report(results, elapsed_time)
         
@@ -368,28 +368,28 @@ class Pipeline:
         num_questions: int
     ) -> Dataset:
         """
-        应用冒烟测试：只保留第一个对话的前 N 条消息和前 M 个问题
+        Apply smoke test: keep only first N messages and M questions from first conversation.
         
-        这样可以快速验证完整流程（Add → Search → Answer → Evaluate），
-        但只使用少量数据，节省时间。
+        This allows quick validation of the complete workflow (Add → Search → Answer → Evaluate)
+        using only a small subset of data to save time.
         
         Args:
-            dataset: 原始数据集
-            num_messages: 保留的消息数量（用于 Add 阶段），0 表示所有消息
-            num_questions: 保留的问题数量（用于 Search/Answer/Evaluate 阶段），0 表示所有问题
+            dataset: Original dataset
+            num_messages: Number of messages to keep (for Add stage), 0 means all
+            num_questions: Number of questions to keep (for Search/Answer/Evaluate stages), 0 means all
             
         Returns:
-            裁剪后的数据集
+            Trimmed dataset
         """
         if not dataset.conversations:
             return dataset
         
-        # 只保留第一个对话
+        # Keep only first conversation
         first_conv = dataset.conversations[0]
         conv_id = first_conv.conversation_id
         
-        # 截取前 N 条消息（用于 Add）
-        # 0 表示保留所有消息
+        # Trim to first N messages (for Add)
+        # 0 means keep all messages
         if num_messages > 0:
             total_messages = len(first_conv.messages)
             first_conv.messages = first_conv.messages[:num_messages]
@@ -397,7 +397,7 @@ class Pipeline:
         else:
             msg_desc = f"{len(first_conv.messages)} (all)"
         
-        # 0 表示保留所有问题
+        # 0 means keep all questions
         conv_qa_pairs = [
             qa for qa in dataset.qa_pairs 
             if qa.metadata.get("conversation_id") == conv_id
@@ -429,20 +429,20 @@ class Pipeline:
         )
     
     def _generate_report(self, results: Dict[str, Any], elapsed_time: float):
-        """生成评测报告"""
+        """Generate evaluation report."""
         report_lines = []
         report_lines.append("=" * 60)
         report_lines.append("📊 Evaluation Report")
         report_lines.append("=" * 60)
         report_lines.append("")
         
-        # 系统信息
+        # System information
         system_info = self.adapter.get_system_info()
         report_lines.append(f"System: {system_info['name']}")
         report_lines.append(f"Time Elapsed: {elapsed_time:.2f}s")
         report_lines.append("")
         
-        # 评估结果
+        # Evaluation results
         if "eval_result" in results:
             eval_result = results["eval_result"]
             report_lines.append(f"Total Questions: {eval_result.total_questions}")
@@ -454,18 +454,18 @@ class Pipeline:
         
         report_text = "\n".join(report_lines)
         
-        # 保存报告
+        # Save report
         report_path = self.output_dir / "report.txt"
         with open(report_path, "w") as f:
             f.write(report_text)
         
-        # 打印到控制台
+        # Print to console
         self.console.print("\n" + report_text, style="bold green")
         self.logger.info(f"Report saved to: {report_path}")
     
-    # 序列化辅助方法
+    # Serialization helper methods
     def _search_result_to_dict(self, sr: SearchResult) -> dict:
-        """将 SearchResult 对象转换为字典"""
+        """Convert SearchResult object to dictionary."""
         return {
             "query": sr.query,
             "conversation_id": sr.conversation_id,
@@ -474,12 +474,12 @@ class Pipeline:
         }
     
     def _dict_to_search_result(self, d: dict) -> SearchResult:
-        """将字典转换为 SearchResult 对象"""
+        """Convert dictionary to SearchResult object."""
         return SearchResult(**d)
     
     def _answer_result_to_dict(self, ar: AnswerResult) -> dict:
-        """将 AnswerResult 对象转换为字典"""
-        # 处理空的 search_results
+        """Convert AnswerResult object to dictionary."""
+        # Handle empty search_results
         return {
             "question_id": ar.question_id,
             "question": ar.question,
@@ -492,11 +492,11 @@ class Pipeline:
         }
     
     def _dict_to_answer_result(self, d: dict) -> AnswerResult:
-        """将字典转换为 AnswerResult 对象"""
+        """Convert dictionary to AnswerResult object."""
         return AnswerResult(**d)
     
     def _eval_result_to_dict(self, er: EvaluationResult) -> dict:
-        """将 EvaluationResult 对象转换为字典"""
+        """Convert EvaluationResult object to dictionary."""
         return {
             "total_questions": er.total_questions,
             "correct": er.correct,

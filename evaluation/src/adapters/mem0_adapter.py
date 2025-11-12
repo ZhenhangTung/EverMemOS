@@ -1,12 +1,10 @@
 """
-Mem0 Adapter
+Mem0 Adapter - adapt Mem0 online API for evaluation framework.
+Reference: https://mem0.ai/
 
-适配 Mem0 在线 API 的评测框架。
-参考：https://mem0.ai/
-
-关键特性：
-- 双视角处理：为 speaker_a 和 speaker_b 分别存储和检索记忆
-- 支持自定义指令（custom_instructions）
+Key features:
+- Dual-perspective handling: separate storage and retrieval for speaker_a and speaker_b
+- Supports custom instructions
 """
 import json
 import time
@@ -23,12 +21,12 @@ from evaluation.src.core.data_models import Conversation, SearchResult
 @register_adapter("mem0")
 class Mem0Adapter(OnlineAPIAdapter):
     """
-    Mem0 在线 API 适配器
+    Mem0 online API adapter.
     
-    支持：
-    - 标准记忆存储和检索
+    Supports:
+    - Standard memory storage and retrieval
     
-    配置示例：
+    Config example:
     ```yaml
     adapter: "mem0"
     api_key: "${MEM0_API_KEY}"
@@ -39,7 +37,7 @@ class Mem0Adapter(OnlineAPIAdapter):
     def __init__(self, config: dict, output_dir: Path = None):
         super().__init__(config, output_dir)
         
-        # 导入 Mem0 客户端
+        # Import Mem0 client
         try:
             from mem0 import MemoryClient
         except ImportError:
@@ -48,7 +46,7 @@ class Mem0Adapter(OnlineAPIAdapter):
                 "Please install: pip install mem0ai"
             )
         
-        # 初始化 Mem0 客户端
+        # Initialize Mem0 client
         api_key = config.get("api_key", "")
         if not api_key:
             raise ValueError("Mem0 API key is required. Set 'api_key' in config.")
@@ -59,11 +57,11 @@ class Mem0Adapter(OnlineAPIAdapter):
         self.max_content_length = config.get("max_content_length", 8000)
         self.console = Console()
         
-        # 设置 custom instructions（从 prompts.yaml 加载）
-        # 优先使用 config 中的设置（向后兼容），否则从 prompts 加载
+        # Set custom instructions (loaded from prompts.yaml)
+        # Prioritize config settings (backward compatible), otherwise load from prompts
         custom_instructions = config.get("custom_instructions", None)
         if not custom_instructions:
-            # 从 prompts.yaml 加载
+            # Load from prompts.yaml
             custom_instructions = self._prompts.get("add_stage", {}).get("mem0", {}).get("custom_instructions", None)
             print(f"   ✅ Custom instructions set (from prompts.yaml)")
         
@@ -79,13 +77,13 @@ class Mem0Adapter(OnlineAPIAdapter):
     
     async def prepare(self, conversations: List[Conversation], **kwargs) -> None:
         """
-        准备阶段：更新项目配置和清理已有数据
+        Preparation stage: update project configuration and clean existing data.
         
         Args:
-            conversations: 标准格式的对话列表
-            **kwargs: 额外参数
+            conversations: Standard format conversation list
+            **kwargs: Extra parameters
         """
-        # 检查是否需要清理已有数据
+        # Check if need to clean existing data
         clean_before_add = self.config.get("clean_before_add", False)
         
         if not clean_before_add:
@@ -96,11 +94,11 @@ class Mem0Adapter(OnlineAPIAdapter):
         self.console.print(f"Preparation: Cleaning existing data", style="bold yellow")
         self.console.print(f"{'='*60}", style="bold yellow")
         
-        # 收集所有需要清理的 user_id
+        # Collect all user_ids to clean
         user_ids_to_clean = set()
         
         for conv in conversations:
-            # 获取 speaker_a 和 speaker_b 的 user_id
+            # Get user_id for speaker_a and speaker_b
             speaker_a = conv.metadata.get("speaker_a", "")
             speaker_b = conv.metadata.get("speaker_b", "")
             
@@ -111,7 +109,7 @@ class Mem0Adapter(OnlineAPIAdapter):
             if need_dual:
                 user_ids_to_clean.add(self._extract_user_id(conv, speaker="speaker_b"))
         
-        # 清理所有用户数据
+        # Clean all user data
         self.console.print(f"\n🗑️  Cleaning data for {len(user_ids_to_clean)} user(s)...", style="yellow")
         
         cleaned_count = 0
@@ -133,27 +131,27 @@ class Mem0Adapter(OnlineAPIAdapter):
     
     def _need_dual_perspective(self, speaker_a: str, speaker_b: str) -> bool:
         """
-        判断是否需要双视角处理
+        Determine if dual-perspective handling is needed.
         
-        单视角情况（不需要双视角）:
-        - 标准角色: "user"/"assistant"
-        - 大小写变体: "User"/"Assistant"
-        - 带后缀: "user_123"/"assistant_456"
+        Single perspective (no dual-perspective needed):
+        - Standard roles: "user"/"assistant"
+        - Case variants: "User"/"Assistant"
+        - With suffix: "user_123"/"assistant_456"
         
-        双视角情况（需要双视角）:
-        - 自定义名称: "Elena Rodriguez"/"Alex"
+        Dual perspective (dual-perspective needed):
+        - Custom names: "Elena Rodriguez"/"Alex"
         """
         def is_standard_role(speaker: str) -> bool:
             speaker = speaker.lower()
-            # 完全匹配
+            # Exact match
             if speaker in ["user", "assistant"]:
                 return True
-            # 以 user 或 assistant 开头
+            # Starts with user or assistant
             if speaker.startswith("user") or speaker.startswith("assistant"):
                 return True
             return False
         
-        # 只有当两个 speaker 都不是标准角色时，才需要双视角
+        # Only need dual perspective when both speakers are not standard roles
         return not (is_standard_role(speaker_a) or is_standard_role(speaker_b))
     
     async def add(
@@ -162,18 +160,18 @@ class Mem0Adapter(OnlineAPIAdapter):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        摄入对话数据到 Mem0
+        Ingest conversations into Mem0.
         
-        关键特性：
-        - 支持单视角和双视角处理
-        - 单视角：标准 user/assistant 数据
-        - 双视角：自定义 speaker 名称，为每个 speaker 分别存储记忆
+        Key features:
+        - Supports single and dual perspective handling
+        - Single perspective: standard user/assistant data
+        - Dual perspective: custom speaker names, stores memories separately for each speaker
         
-        Mem0 API 特点：
-        - 需要 user_id 来区分不同用户
-        - 支持批量添加（建议 batch_size=2）
-        - 支持图记忆（可选）
-        - 需要时间戳（Unix timestamp）
+        Mem0 API specifics:
+        - Requires user_id to distinguish different users
+        - Supports batch addition (recommended batch_size=2)
+        - Supports graph memory (optional)
+        - Requires timestamp (Unix timestamp)
         """
         self.console.print(f"\n{'='*60}", style="bold cyan")
         self.console.print(f"Stage 1: Adding to Mem0 (Dual Perspective)", style="bold cyan")
@@ -185,18 +183,18 @@ class Mem0Adapter(OnlineAPIAdapter):
             conv_id = conv.conversation_id
             conversation_ids.append(conv_id)
             
-            # 获取 speaker 信息
+            # Get speaker information
             speaker_a = conv.metadata.get("speaker_a", "")
             speaker_b = conv.metadata.get("speaker_b", "")
             
-            # 获取 user_id（从 metadata 中提取，已在数据加载时设置好）
+            # Get user_id (extracted from metadata, already set during data loading)
             speaker_a_user_id = self._extract_user_id(conv, speaker="speaker_a")
             speaker_b_user_id = self._extract_user_id(conv, speaker="speaker_b")
             
-            # 🔥 检测是否需要双视角处理
+            # Detect if dual perspective handling is needed
             need_dual_perspective = self._need_dual_perspective(speaker_a, speaker_b)
             
-            # 获取时间戳（使用第一条消息的时间）
+            # Get timestamp (using first message's time)
             timestamp = None
             is_fake_timestamp = False
             if conv.messages and conv.messages[0].timestamp:
@@ -208,11 +206,11 @@ class Mem0Adapter(OnlineAPIAdapter):
                 self.console.print(f"   ⚠️  Using fake timestamp (original data has no timestamp)", style="yellow")
             
             if need_dual_perspective:
-                # 双视角处理（Locomo 风格数据）
+                # Dual perspective handling (LoCoMo style data)
                 self.console.print(f"   Mode: Dual Perspective", style="dim")
                 await self._add_dual_perspective(conv, speaker_a, speaker_b, speaker_a_user_id, speaker_b_user_id, timestamp)
             else:
-                # 单视角处理（标准 user/assistant 数据）
+                # Single perspective handling (standard user/assistant data)
                 self.console.print(f"   Mode: Single Perspective", style="dim")
                 await self._add_single_perspective(conv, speaker_a_user_id, timestamp)
             
@@ -220,7 +218,7 @@ class Mem0Adapter(OnlineAPIAdapter):
         
         self.console.print(f"\n✅ All conversations added to Mem0", style="bold green")
         
-        # 返回元数据（在线 API 不需要本地索引）
+        # Return metadata (online API doesn't need local index)
         return {
             "type": "online_api",
             "system": "mem0",
@@ -228,20 +226,20 @@ class Mem0Adapter(OnlineAPIAdapter):
         }
     
     async def _add_single_perspective(self, conv: Conversation, user_id: str, timestamp: int):
-        """单视角添加（用于标准 user/assistant 数据）"""
+        """Single perspective addition (for standard user/assistant data)."""
         messages = []
         truncated_count = 0
         
         for msg in conv.messages:
-            # 标准格式：直接使用 speaker_name: content
+            # Standard format: directly use speaker_name: content
             content = f"{msg.speaker_name}: {msg.content}"
             
-            # 截断过长的内容（Mem0 API 限制）
+            # Truncate overly long content (Mem0 API limit)
             if len(content) > self.max_content_length:
                 content = content[:self.max_content_length]
                 truncated_count += 1
             
-            # 判断 role（user 或 assistant）
+            # Determine role (user or assistant)
             role = "user" if msg.speaker_name.lower().startswith("user") else "assistant"
             messages.append({"role": role, "content": content})
         
@@ -261,27 +259,27 @@ class Mem0Adapter(OnlineAPIAdapter):
         speaker_b_user_id: str,
         timestamp: int
     ):
-        """双视角添加（用于自定义 speaker 名称的数据）"""
-        # 分别构造两个视角的消息列表
+        """Dual perspective addition (for data with custom speaker names)."""
+        # Construct message lists for both perspectives separately
         speaker_a_messages = []
         speaker_b_messages = []
         truncated_count = 0
         
         for msg in conv.messages:
-            # 格式：speaker_name: content
+            # Format: speaker_name: content
             content = f"{msg.speaker_name}: {msg.content}"
             
-            # 截断过长的内容（Mem0 API 限制）
+            # Truncate overly long content (Mem0 API limit)
             if len(content) > self.max_content_length:
                 content = content[:self.max_content_length]
                 truncated_count += 1
             
             if msg.speaker_name == speaker_a:
-                # speaker_a 说的话
+                # What speaker_a said
                 speaker_a_messages.append({"role": "user", "content": content})
                 speaker_b_messages.append({"role": "assistant", "content": content})
             elif msg.speaker_name == speaker_b:
-                # speaker_b 说的话
+                # What speaker_b said
                 speaker_a_messages.append({"role": "assistant", "content": content})
                 speaker_b_messages.append({"role": "user", "content": content})
         
@@ -292,7 +290,7 @@ class Mem0Adapter(OnlineAPIAdapter):
         if truncated_count > 0:
             self.console.print(f"   ⚠️  Truncated {truncated_count} messages (>{self.max_content_length} chars)", style="yellow")
         
-        # 分别为两个 user_id 添加消息
+        # Add messages for both user_ids separately
         await self._add_messages_for_user(
             speaker_a_messages, 
             speaker_a_user_id, 
@@ -314,18 +312,18 @@ class Mem0Adapter(OnlineAPIAdapter):
         description: str
     ):
         """
-        为单个用户添加消息（带批量和重试）
+        Add messages for a single user (with batching and retry).
         
         Args:
-            messages: 消息列表
-            user_id: 用户 ID
-            timestamp: Unix 时间戳
-            description: 描述（用于日志）
+            messages: Message list
+            user_id: User ID
+            timestamp: Unix timestamp
+            description: Description (for logging)
         """
         for i in range(0, len(messages), self.batch_size):
             batch_messages = messages[i : i + self.batch_size]
             
-            # 重试机制
+            # Retry mechanism
             for attempt in range(self.max_retries):
                 try:
                     self.client.add(
@@ -356,25 +354,25 @@ class Mem0Adapter(OnlineAPIAdapter):
         **kwargs
     ) -> SearchResult:
         """
-        从 Mem0 检索相关记忆
+        Retrieve relevant memories from Mem0.
         
-        关键特性：
-        - 智能判断是否需要双视角搜索
-        - 单视角：搜索一个 user_id
-        - 双视角：同时搜索 speaker_a 和 speaker_b，合并结果
+        Key features:
+        - Intelligently determine if dual perspective search is needed
+        - Single perspective: search one user_id
+        - Dual perspective: search both speaker_a and speaker_b simultaneously, merge results
         
         Args:
-            query: 查询文本
-            conversation_id: 对话 ID
-            index: 索引元数据（包含 conversation_ids）
-            **kwargs: 可选参数，如 top_k, conversation（用于重建缓存）
+            query: Query text
+            conversation_id: Conversation ID
+            index: Index metadata (contains conversation_ids)
+            **kwargs: Optional parameters, such as top_k, conversation (for rebuilding cache)
         
         Returns:
-            标准格式的检索结果
+            Standard format search result
         """
         top_k = kwargs.get("top_k", 10)
         
-        # 🔥 从 kwargs 直接获取对话信息（不使用缓存）
+        # Get conversation info directly from kwargs (don't use cache)
         conversation = kwargs.get("conversation")
         if conversation:
             speaker_a = conversation.metadata.get("speaker_a", "")
@@ -383,7 +381,7 @@ class Mem0Adapter(OnlineAPIAdapter):
             speaker_b_user_id = self._extract_user_id(conversation, speaker="speaker_b")
             need_dual_perspective = self._need_dual_perspective(speaker_a, speaker_b)
         else:
-            # 回退方案：使用默认 user_id
+            # Fallback: use default user_id
             speaker_a_user_id = f"{conversation_id}_speaker_a"
             speaker_b_user_id = f"{conversation_id}_speaker_b"
             speaker_a = "speaker_a"
@@ -391,13 +389,13 @@ class Mem0Adapter(OnlineAPIAdapter):
             need_dual_perspective = False
         
         if need_dual_perspective:
-            # 🔥 双视角搜索：从两个 speaker 的视角分别搜索
+            # Dual perspective search: search from both speakers' perspectives separately
             return await self._search_dual_perspective(
                 query, conversation_id, speaker_a, speaker_b, 
                 speaker_a_user_id, speaker_b_user_id, top_k
             )
         else:
-            # 单视角搜索（标准 user/assistant 数据）
+            # Single perspective search (standard user/assistant data)
             return await self._search_single_perspective(
                 query, conversation_id, speaker_a_user_id, top_k
             )
@@ -405,7 +403,7 @@ class Mem0Adapter(OnlineAPIAdapter):
     async def _search_single_perspective(
         self, query: str, conversation_id: str, user_id: str, top_k: int
     ) -> SearchResult:
-        """单视角搜索（用于标准 user/assistant 数据）"""
+        """Single perspective search (for standard user/assistant data)."""
         
         try:
             results = self.client.search(
@@ -415,7 +413,7 @@ class Mem0Adapter(OnlineAPIAdapter):
                 filters={"AND": [{"user_id": f"{user_id}"}]},
             )
             
-            # 🔍 Debug: 打印原始搜索结果
+            # Debug: print raw search results
             self.console.print(f"\n[DEBUG] Mem0 Search Results (Single):", style="yellow")
             self.console.print(f"  Query: {query}", style="dim")
             self.console.print(f"  User ID: {user_id}", style="dim")
@@ -430,13 +428,13 @@ class Mem0Adapter(OnlineAPIAdapter):
                 retrieval_metadata={"error": str(e)}
             )
         
-        # 🔥 构建详细的 results 列表（为每条记忆添加 user_id）
+        # Build detailed results list (add user_id to each memory)
         memory_results = []
         for memory in results.get("results", []):
             memory_results.append({
                 "content": f"{memory['created_at']}: {memory['memory']}",
                 "score": memory.get("score", 0.0),
-                "user_id": user_id,  # 标记来源
+                "user_id": user_id,
                 "metadata": {
                     "id": memory.get("id", ""),
                     "created_at": memory.get("created_at", ""),
@@ -448,7 +446,7 @@ class Mem0Adapter(OnlineAPIAdapter):
         return SearchResult(
             query=query,
             conversation_id=conversation_id,
-            results=memory_results,  # 🔥 返回详细的记忆列表（每条带 user_id）
+            results=memory_results,
             retrieval_metadata={
                 "system": "mem0",
                 "top_k": top_k,
@@ -467,9 +465,9 @@ class Mem0Adapter(OnlineAPIAdapter):
         speaker_b_user_id: str,
         top_k: int
     ) -> SearchResult:
-        """双视角搜索（用于自定义 speaker 名称的数据）"""
+        """Dual perspective search (for data with custom speaker names)."""
         
-        # 双视角搜索：分别搜索两个 user_id
+        # Dual perspective search: search both user_ids separately
         try:
             search_speaker_a_results = self.client.search(
                 query=query,
@@ -484,7 +482,7 @@ class Mem0Adapter(OnlineAPIAdapter):
                 filters={"AND": [{"user_id": f"{speaker_b_user_id}"}]},
             )
             
-            # 🔍 Debug: 打印原始搜索结果
+            # Debug: print raw search results
             self.console.print(f"\n[DEBUG] Mem0 Search Results (Dual):", style="yellow")
             self.console.print(f"  Query: {query}", style="dim")
             self.console.print(f"  Speaker A ({speaker_a}, user_id={speaker_a_user_id}):", style="dim")
@@ -501,15 +499,15 @@ class Mem0Adapter(OnlineAPIAdapter):
                 retrieval_metadata={"error": str(e)}
             )
         
-        # 🔥 构建详细的 results 列表（为每条记忆添加 user_id）
+        # Build detailed results list (add user_id to each memory)
         all_results = []
         
-        # Speaker A 的记忆
+        # Speaker A's memories
         for memory in search_speaker_a_results.get("results", []):
             all_results.append({
                 "content": f"{memory['created_at']}: {memory['memory']}",
                 "score": memory.get("score", 0.0),
-                "user_id": speaker_a_user_id,  # 标记来源
+                "user_id": speaker_a_user_id,
                 "metadata": {
                     "id": memory.get("id", ""),
                     "created_at": memory.get("created_at", ""),
@@ -518,12 +516,12 @@ class Mem0Adapter(OnlineAPIAdapter):
                 }
             })
         
-        # Speaker B 的记忆
+        # Speaker B's memories
         for memory in search_speaker_b_results.get("results", []):
             all_results.append({
                 "content": f"{memory['created_at']}: {memory['memory']}",
                 "score": memory.get("score", 0.0),
-                "user_id": speaker_b_user_id,  # 标记来源
+                "user_id": speaker_b_user_id,
                 "metadata": {
                     "id": memory.get("id", ""),
                     "created_at": memory.get("created_at", ""),
@@ -532,7 +530,7 @@ class Mem0Adapter(OnlineAPIAdapter):
                 }
             })
         
-        # 格式化记忆（用于 formatted_context）
+        # Format memories (for formatted_context)
         speaker_a_memories = [
             f"{memory['created_at']}: {memory['memory']}"
             for memory in search_speaker_a_results.get("results", [])
@@ -542,11 +540,11 @@ class Mem0Adapter(OnlineAPIAdapter):
             for memory in search_speaker_b_results.get("results", [])
         ]
         
-        # 格式化 memories 为可读文本（而不是 JSON 数组）
+        # Format memories as readable text (not JSON array)
         speaker_a_memories_text = "\n".join(speaker_a_memories) if speaker_a_memories else "(No memories found)"
         speaker_b_memories_text = "\n".join(speaker_b_memories) if speaker_b_memories else "(No memories found)"
         
-        # 使用标准 default template
+        # Use standard default template
         template = self._prompts["online_api"].get("templates", {}).get("default", "")
         context = template.format(
             speaker_1=speaker_a,
@@ -555,17 +553,17 @@ class Mem0Adapter(OnlineAPIAdapter):
             speaker_2_memories=speaker_b_memories_text,
         )
         
-        # 返回结果
+        # Return results
         return SearchResult(
             query=query,
             conversation_id=conversation_id,
-            results=all_results,  # 🔥 返回详细的记忆列表（每条带 user_id）
+            results=all_results,
             retrieval_metadata={
                 "system": "mem0",
                 "top_k": top_k,
                 "dual_perspective": True,
                 "user_ids": [speaker_a_user_id, speaker_b_user_id],
-                "formatted_context": context,  # 🔥 套用 template 后的最终结果
+                "formatted_context": context,
                 "speaker_a_memories_count": len(speaker_a_memories),
                 "speaker_b_memories_count": len(speaker_b_memories),
             }
@@ -573,14 +571,14 @@ class Mem0Adapter(OnlineAPIAdapter):
     
     def _get_answer_prompt(self) -> str:
         """
-        返回 answer prompt
+        Return answer prompt.
         
-        使用通用 default prompt（从 YAML 加载）
+        Uses generic default prompt (loaded from YAML).
         """
         return self._prompts["online_api"]["default"]["answer_prompt"]
     
     def get_system_info(self) -> Dict[str, Any]:
-        """返回系统信息"""
+        """Return system info."""
         return {
             "name": "Mem0",
             "type": "online_api",

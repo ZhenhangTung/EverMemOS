@@ -1,8 +1,7 @@
 """
-Memu Adapter
-
-适配 Memu 在线 API 的评测框架。
-使用 HTTP RESTful API 而不是 Python SDK，避免依赖冲突。
+Memu Adapter - adapt Memu online API for evaluation framework.
+Uses HTTP RESTful API instead of Python SDK to avoid dependency conflicts.
+Reference: https://memu.so/
 """
 import json
 import time
@@ -20,31 +19,31 @@ from evaluation.src.core.data_models import Conversation, SearchResult
 @register_adapter("memu")
 class MemuAdapter(OnlineAPIAdapter):
     """
-    Memu 在线 API 适配器
+    Memu online API adapter.
     
-    使用 HTTP RESTful API 直接调用，避免 Python SDK 依赖冲突。
+    Uses HTTP RESTful API directly to avoid Python SDK dependency conflicts.
     
-    支持：
-    - 记忆摄入（基于对话上下文）
-    - 异步任务状态监控
-    - 记忆检索
+    Supports:
+    - Memory ingestion (based on conversation context)
+    - Async task status monitoring
+    - Memory retrieval
     
-    配置示例：
+    Config example:
     ```yaml
     adapter: "memu"
     api_key: "${MEMU_API_KEY}"
-    base_url: "https://api.memu.so"  # 可选，默认使用官方 API
-    agent_id: "default_agent"  # 可选，默认 agent ID
-    agent_name: "Assistant"  # 可选，默认 agent 名称
-    task_check_interval: 3  # 可选，任务状态检查间隔（秒）
-    task_timeout: 90  # 可选，任务超时时间（秒）
+    base_url: "https://api.memu.so"  # Optional, defaults to official API
+    agent_id: "default_agent"  # Optional, default agent ID
+    agent_name: "Assistant"  # Optional, default agent name
+    task_check_interval: 3  # Optional, task status check interval (seconds)
+    task_timeout: 90  # Optional, task timeout (seconds)
     ```
     """
     
     def __init__(self, config: dict, output_dir: Path = None):
         super().__init__(config, output_dir)
         
-        # 获取配置
+        # Get configuration
         api_key = config.get("api_key", "")
         if not api_key:
             raise ValueError("Memu API key is required. Set 'api_key' in config.")
@@ -72,32 +71,32 @@ class MemuAdapter(OnlineAPIAdapter):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        摄入对话数据到 Memu
+        Ingest conversations into Memu.
         
-        Memu API 特点：
-        - 使用 HTTP RESTful API 提交记忆
-        - 返回异步任务 ID，需要轮询状态
-        - 任务完成后才能搜索
-        - 支持双视角处理（为两个 speaker 分别存储记忆）
+        Memu API specifics:
+        - Uses HTTP RESTful API to submit memories
+        - Returns async task ID, needs polling for status
+        - Search only available after task completion
+        - Supports dual perspective handling (stores memories separately for two speakers)
         """
         self.console.print(f"\n{'='*60}", style="bold cyan")
         self.console.print(f"Stage 1: Adding to Memu", style="bold cyan")
         self.console.print(f"{'='*60}", style="bold cyan")
         
         conversation_ids = []
-        task_ids = []  # 收集所有任务 ID
+        task_ids = []
         
         for conv in conversations:
             conv_id = conv.conversation_id
             conversation_ids.append(conv_id)
             
-            # 获取双视角信息
+            # Get dual perspective information
             speaker_a = conv.metadata.get("speaker_a", "User")
             speaker_b = conv.metadata.get("speaker_b", "Assistant")
             speaker_a_user_id = self._extract_user_id(conv, speaker="speaker_a")
             speaker_b_user_id = self._extract_user_id(conv, speaker="speaker_b")
             
-            # 判断是否需要双视角
+            # Determine if dual perspective is needed
             need_dual_perspective = self._need_dual_perspective(speaker_a, speaker_b)
             
             self.console.print(f"\n📥 Adding conversation: {conv_id}", style="cyan")
@@ -105,7 +104,7 @@ class MemuAdapter(OnlineAPIAdapter):
             self.console.print(f"   Speaker B: {speaker_b} ({speaker_b_user_id})", style="dim")
             self.console.print(f"   Dual Perspective: {need_dual_perspective}", style="dim")
             
-            # 获取 session_date（ISO 格式日期）
+            # Get session_date (ISO format date)
             session_date = None
             if conv.messages and conv.messages[0].timestamp:
                 session_date = conv.messages[0].timestamp.strftime("%Y-%m-%d")
@@ -113,9 +112,9 @@ class MemuAdapter(OnlineAPIAdapter):
                 from datetime import datetime
                 session_date = datetime.now().strftime("%Y-%m-%d")
             
-            # 根据视角需求添加记忆
+            # Add memories based on perspective needs
             if need_dual_perspective:
-                # 双视角：分别为 speaker_a 和 speaker_b 添加记忆
+                # Dual perspective: add memories separately for speaker_a and speaker_b
                 task_id_a = await self._add_single_user(
                     conv, speaker_a_user_id, speaker_a, session_date, perspective="speaker_a"
                 )
@@ -127,21 +126,21 @@ class MemuAdapter(OnlineAPIAdapter):
                 if task_id_b:
                     task_ids.append(task_id_b)
             else:
-                # 单视角：只为 speaker_a 添加记忆
+                # Single perspective: only add memories for speaker_a
                 task_id = await self._add_single_user(
                     conv, speaker_a_user_id, speaker_a, session_date, perspective="speaker_a"
                 )
                 if task_id:
                     task_ids.append(task_id)
         
-        # 等待所有任务完成
+        # Wait for all tasks to complete
         if task_ids:
             self.console.print(f"\n⏳ Waiting for {len(task_ids)} task(s) to complete...", style="bold yellow")
             self._wait_for_all_tasks(task_ids)
         
         self.console.print(f"\n✅ All conversations added to Memu", style="bold green")
         
-        # 返回元数据
+        # Return metadata
         return {
             "type": "online_api",
             "system": "memu",
@@ -151,22 +150,22 @@ class MemuAdapter(OnlineAPIAdapter):
     
     def _need_dual_perspective(self, speaker_a: str, speaker_b: str) -> bool:
         """
-        判断是否需要双视角处理
+        Determine if dual perspective handling is needed.
         
-        单视角情况（不需要双视角）:
-        - 标准角色: "user"/"assistant"
-        - 大小写变体: "User"/"Assistant"
-        - 带后缀: "user_123"/"assistant_456"
+        Single perspective (no dual perspective needed):
+        - Standard roles: "user"/"assistant"
+        - Case variants: "User"/"Assistant"
+        - With suffix: "user_123"/"assistant_456"
         
-        双视角情况（需要双视角）:
-        - 自定义名称: "Caroline"/"Manu"
+        Dual perspective (dual perspective needed):
+        - Custom names: "Caroline"/"Manu"
         """
         def is_standard_role(speaker: str) -> bool:
             speaker = speaker.lower()
-            # 完全匹配
+            # Exact match
             if speaker in ["user", "assistant"]:
                 return True
-            # 以 user 或 assistant 开头
+            # Starts with user or assistant
             if speaker.startswith("user") or speaker.startswith("assistant"):
                 return True
             return False
@@ -182,25 +181,25 @@ class MemuAdapter(OnlineAPIAdapter):
         perspective: str
     ) -> str:
         """
-        为单个用户添加记忆
+        Add memories for a single user.
         
         Args:
-            conv: 对话对象
-            user_id: 用户 ID
-            user_name: 用户名称
-            session_date: 会话日期
-            perspective: 视角（speaker_a 或 speaker_b）
+            conv: Conversation object
+            user_id: User ID
+            user_name: User name
+            session_date: Session date
+            perspective: Perspective (speaker_a or speaker_b)
         
         Returns:
-            task_id: 任务 ID（如果成功）
+            task_id: Task ID (if successful)
         """
-        # 转换为 Memu API 格式（指定视角）
+        # Convert to Memu API format (with specified perspective)
         base_messages = self._conversation_to_messages(conv, format_type="basic", perspective=perspective)
         
-        # 添加 Memu API 需要的额外字段
+        # Add extra fields required by Memu API
         conversation_messages = []
         for i, msg in enumerate(conv.messages):
-            # 构造消息时间（ISO 格式）
+            # Construct message time (ISO format)
             msg_time = msg.timestamp.isoformat() + "Z" if msg.timestamp else None
             
             conversation_messages.append({
@@ -212,7 +211,7 @@ class MemuAdapter(OnlineAPIAdapter):
         
         self.console.print(f"   📤 Adding for {user_name} ({user_id}): {len(conversation_messages)} messages", style="dim")
         
-        # 构造请求 payload
+        # Construct request payload
         payload = {
             "conversation": conversation_messages,
             "user_id": user_id,
@@ -222,7 +221,7 @@ class MemuAdapter(OnlineAPIAdapter):
             "session_date": session_date
         }
         
-        # 提交任务（带重试）
+        # Submit task (with retry)
         task_id = None
         for attempt in range(self.max_retries):
             try:
@@ -255,13 +254,13 @@ class MemuAdapter(OnlineAPIAdapter):
     
     def _wait_for_all_tasks(self, task_ids: List[str]) -> bool:
         """
-        等待所有任务完成
+        Wait for all tasks to complete.
         
         Args:
-            task_ids: 任务 ID 列表
+            task_ids: Task ID list
         
         Returns:
-            是否所有任务都成功完成
+            Whether all tasks completed successfully
         """
         if not task_ids:
             return True
@@ -269,7 +268,7 @@ class MemuAdapter(OnlineAPIAdapter):
         start_time = time.time()
         pending_tasks = set(task_ids)
         
-        # 显示进度
+        # Show progress
         total_tasks = len(task_ids)
         
         while time.time() - start_time < self.task_timeout:
@@ -284,7 +283,7 @@ class MemuAdapter(OnlineAPIAdapter):
                     result = response.json()
                     status = result.get("status")
                     
-                    # Memu API 返回大写状态：PENDING/PROCESSING/SUCCESS/FAILED
+                    # Memu API returns uppercase status: PENDING/PROCESSING/SUCCESS/FAILED
                     if status in ["SUCCESS", "COMPLETED"]:
                         completed_in_round.append(task_id)
                     elif status in ["FAILED", "FAILURE"]:
@@ -300,11 +299,11 @@ class MemuAdapter(OnlineAPIAdapter):
                         style="yellow"
                     )
             
-            # 移除已完成/失败的任务
+            # Remove completed/failed tasks
             for task_id in completed_in_round + failed_in_round:
                 pending_tasks.remove(task_id)
             
-            # 更新进度
+            # Update progress
             completed_count = total_tasks - len(pending_tasks)
             if completed_in_round or failed_in_round:
                 self.console.print(
@@ -312,7 +311,7 @@ class MemuAdapter(OnlineAPIAdapter):
                     style="cyan"
                 )
             
-            # 如果所有任务都完成了
+            # If all tasks completed
             if not pending_tasks:
                 self.console.print(
                     f"   ✅ All {total_tasks} tasks completed!",
@@ -320,7 +319,7 @@ class MemuAdapter(OnlineAPIAdapter):
                 )
                 return len(failed_in_round) == 0
             
-            # 等待后重试
+            # Wait before retry
             if pending_tasks:
                 elapsed = time.time() - start_time
                 self.console.print(
@@ -329,7 +328,7 @@ class MemuAdapter(OnlineAPIAdapter):
                 )
                 time.sleep(self.task_check_interval)
         
-        # 超时
+        # Timeout
         self.console.print(
             f"   ⚠️  Timeout: {len(pending_tasks)} task(s) not completed within {self.task_timeout}s",
             style="yellow"
@@ -344,12 +343,12 @@ class MemuAdapter(OnlineAPIAdapter):
         **kwargs
     ) -> SearchResult:
         """
-        从 Memu 检索相关记忆
+        Retrieve relevant memories from Memu.
         
-        使用 HTTP RESTful API 直接调用搜索接口
-        支持双视角搜索
+        Uses HTTP RESTful API to call search interface directly.
+        Supports dual perspective search.
         """
-        # 获取对话信息
+        # Get conversation information
         conversation = kwargs.get("conversation")
         if conversation:
             speaker_a = conversation.metadata.get("speaker_a", "")
@@ -358,7 +357,7 @@ class MemuAdapter(OnlineAPIAdapter):
             speaker_b_user_id = self._extract_user_id(conversation, speaker="speaker_b")
             need_dual = self._need_dual_perspective(speaker_a, speaker_b)
         else:
-            # 回退方案：使用默认 user_id
+            # Fallback: use default user_id
             speaker_a_user_id = f"{conversation_id}_speaker_a"
             speaker_b_user_id = f"{conversation_id}_speaker_b"
             speaker_a = "speaker_a"
@@ -369,13 +368,13 @@ class MemuAdapter(OnlineAPIAdapter):
         min_similarity = kwargs.get("min_similarity", 0.3)
         
         if need_dual:
-            # 双视角搜索
+            # Dual perspective search
             return await self._search_dual_perspective(
                 query, conversation_id, speaker_a, speaker_b, 
                 speaker_a_user_id, speaker_b_user_id, top_k, min_similarity
             )
         else:
-            # 单视角搜索
+            # Single perspective search
             return await self._search_single_perspective(
                 query, conversation_id, speaker_a_user_id, top_k, min_similarity
             )
@@ -388,7 +387,7 @@ class MemuAdapter(OnlineAPIAdapter):
         top_k: int,
         min_similarity: float
     ) -> SearchResult:
-        """单视角搜索"""
+        """Single perspective search."""
         try:
             url = f"{self.base_url}/api/v1/memory/retrieve/related-memory-items"
             payload = {
@@ -415,7 +414,7 @@ class MemuAdapter(OnlineAPIAdapter):
                 }
             )
         
-        # 转换为标准格式
+        # Convert to standard format
         search_results = []
         related_memories = result.get("related_memories", [])
         
@@ -427,7 +426,7 @@ class MemuAdapter(OnlineAPIAdapter):
             search_results.append({
                 "content": content,
                 "score": score,
-                "user_id": user_id,  # 🔥 添加 user_id 标记记忆来源
+                "user_id": user_id,
                 "metadata": {
                     "id": memory.get("memory_id", ""),
                     "category": memory.get("category", ""),
@@ -436,7 +435,7 @@ class MemuAdapter(OnlineAPIAdapter):
                 }
             })
         
-        # 构建定制的 context
+        # Build custom context
         formatted_context = self._build_memu_context(search_results)
         
         return SearchResult(
@@ -464,8 +463,8 @@ class MemuAdapter(OnlineAPIAdapter):
         top_k: int,
         min_similarity: float
     ) -> SearchResult:
-        """双视角搜索"""
-        # 分别搜索两个 user 的记忆
+        """Dual perspective search."""
+        # Search memories for both users separately
         result_a = await self._search_single_perspective(
             query, conversation_id, speaker_a_user_id, top_k, min_similarity
         )
@@ -473,16 +472,16 @@ class MemuAdapter(OnlineAPIAdapter):
             query, conversation_id, speaker_b_user_id, top_k, min_similarity
         )
         
-        # 合并结果
+        # Merge results
         all_results = result_a.results + result_b.results
         
-        # 按分数排序
+        # Sort by score
         all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
         
-        # 只保留 top_k 个
+        # Keep only top_k
         all_results = all_results[:top_k]
         
-        # 构建双视角的 context
+        # Build dual perspective context
         formatted_context = self._build_dual_perspective_context(
             speaker_a, speaker_b, result_a.results, result_b.results
         )
@@ -510,13 +509,13 @@ class MemuAdapter(OnlineAPIAdapter):
         results_b: List[Dict[str, Any]]
     ) -> str:
         """
-        构建双视角的 context，使用 default template
+        Build dual perspective context using default template.
         
-        步骤：
-        1. 为每个 speaker 构建带 happened_at 的记忆列表
-        2. 使用 online_api.templates.default 包装成双视角格式
+        Steps:
+        1. Build memory list with happened_at for each speaker
+        2. Wrap in dual perspective format using online_api.templates.default
         """
-        # 构建 Speaker A 的记忆（带 happened_at 和 category）
+        # Build Speaker A's memories (with happened_at and category)
         speaker_a_memories = []
         if results_a:
             for idx, result in enumerate(results_a[:5], 1):
@@ -541,7 +540,7 @@ class MemuAdapter(OnlineAPIAdapter):
         
         speaker_a_memories_text = "\n".join(speaker_a_memories) if speaker_a_memories else "(No memories found)"
         
-        # 构建 Speaker B 的记忆（带 happened_at 和 category）
+        # Build Speaker B's memories (with happened_at and category)
         speaker_b_memories = []
         if results_b:
             for idx, result in enumerate(results_b[:5], 1):
@@ -566,7 +565,7 @@ class MemuAdapter(OnlineAPIAdapter):
         
         speaker_b_memories_text = "\n".join(speaker_b_memories) if speaker_b_memories else "(No memories found)"
         
-        # 使用 default template 包装
+        # Wrap using default template
         template = self._prompts["online_api"].get("templates", {}).get("default", "")
         return template.format(
             speaker_1=speaker_a,
@@ -577,13 +576,13 @@ class MemuAdapter(OnlineAPIAdapter):
     
     def _build_memu_context(self, search_results: List[Dict[str, Any]]) -> str:
         """
-        为 Memu 构建定制的 context，使用 happened_at 字段显示事件发生时间
+        Build custom context for Memu, using happened_at field to show event occurrence time.
         
         Args:
-            search_results: 搜索结果列表
+            search_results: Search results list
         
         Returns:
-            格式化的 context 字符串
+            Formatted context string
         """
         if not search_results:
             return ""
@@ -594,17 +593,17 @@ class MemuAdapter(OnlineAPIAdapter):
             content = result.get("content", "")
             metadata = result.get("metadata", {})
             
-            # 优先使用 happened_at（事件发生时间），如果没有则使用 created_at
+            # Prioritize happened_at (event occurrence time), otherwise use created_at
             happened_at = metadata.get("happened_at", "")
             category = metadata.get("category", "")
             
-            # 构建每条记忆的格式
+            # Build format for each memory
             memory_text = f"{idx}. {content}"
             
-            # 添加时间和分类信息（如果有的话）
+            # Add time and category information (if available)
             metadata_parts = []
             if happened_at:
-                # 只显示日期部分（YYYY-MM-DD）
+                # Only show date part (YYYY-MM-DD)
                 date_str = happened_at.split("T")[0] if "T" in happened_at else happened_at
                 metadata_parts.append(f"Date: {date_str}")
             if category:
@@ -618,7 +617,7 @@ class MemuAdapter(OnlineAPIAdapter):
         return "\n\n".join(context_parts)
     
     def get_system_info(self) -> Dict[str, Any]:
-        """返回系统信息"""
+        """Return system info."""
         return {
             "name": "Memu",
             "type": "online_api",
