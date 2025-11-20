@@ -196,7 +196,7 @@ class MemoryManager:
         extractor = None
         request = None
 
-        if memory_type == MemoryType.EPISODE_MEMORY:
+        if memory_type == MemoryType.EPISODIC_MEMORY:
             extractor = EpisodeMemoryExtractor(
                 self.episode_memory_extractor_llm_provider
             )

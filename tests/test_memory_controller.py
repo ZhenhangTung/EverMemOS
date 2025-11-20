@@ -14,6 +14,7 @@ Memory Controller API 测试脚本
     
     # 单独测试某个方法
     python tests/test_memory_controller.py --test-method memorize
+    python tests/test_memory_controller.py --test-method fetch_episodic_memory
     python tests/test_memory_controller.py --test-method search_keyword
     python tests/test_memory_controller.py --test-method fetch_profile
 """
@@ -324,13 +325,13 @@ class MemoryControllerTester:
         print(f"\n✅ Memorize 测试完成")
         return status_code, response
 
-    def test_fetch_memories_multiple(self):
-        """测试2: GET /api/v1/memories - 获取用户多条记忆（multiple类型）"""
-        self.print_section("测试2: GET /api/v1/memories - 获取用户多条记忆")
+    def test_fetch_episodic_memory(self):
+        """测试2: GET /api/v1/memories - 获取用户情景记忆（episodic_memory类型）"""
+        self.print_section("测试2: GET /api/v1/memories - 获取用户情景记忆")
 
         params = {
             "user_id": self.user_id,
-            "memory_type": "multiple",
+            "memory_type": "episodic_memory",
             "limit": 10,
             "offset": 0,
         }
@@ -375,10 +376,12 @@ class MemoryControllerTester:
                 ), f"第 {idx} 条记忆的 user_id 应该匹配"
 
             print(
-                f"✅ Fetch Multiple 成功，返回 {result['total_count']} 条记忆，已验证深度结构"
+                f"✅ Fetch Episodic Memory 成功，返回 {result['total_count']} 条情景记忆，已验证深度结构"
             )
         else:
-            print(f"✅ Fetch Multiple 成功，返回 {result['total_count']} 条记忆")
+            print(
+                f"✅ Fetch Episodic Memory 成功，返回 {result['total_count']} 条情景记忆"
+            )
 
         return status_code, response
 
@@ -688,7 +691,7 @@ class MemoryControllerTester:
             test_method: 指定要运行的测试方法，可选值：
                 - all: 运行所有测试
                 - memorize: 测试存储对话记忆
-                - fetch_multiple: 测试获取多条记忆
+                - fetch_episodic_memory: 测试获取情景记忆
                 - fetch_profile: 测试获取用户画像
                 - search_keyword: 测试关键词检索
                 - search_vector: 测试向量检索
@@ -708,7 +711,7 @@ class MemoryControllerTester:
         # 定义测试方法映射
         test_methods = {
             "memorize": self.test_memorize_single_message,
-            "fetch_multiple": self.test_fetch_memories_multiple,
+            "fetch_episodic_memory": self.test_fetch_episodic_memory,
             "fetch_profile": self.test_fetch_memories_profile,
             "search_keyword": self.test_search_memories_keyword,
             "search_vector": self.test_search_memories_vector,
@@ -763,6 +766,7 @@ def parse_args():
 
   # 单独测试某个方法
   python tests/test_memory_controller.py --test-method memorize
+  python tests/test_memory_controller.py --test-method fetch_episodic_memory
   python tests/test_memory_controller.py --test-method search_keyword
   python tests/test_memory_controller.py --test-method fetch_profile
 
@@ -799,7 +803,7 @@ def parse_args():
         choices=[
             "all",
             "memorize",
-            "fetch_multiple",
+            "fetch_episodic_memory",
             "fetch_profile",
             "search_keyword",
             "search_vector",

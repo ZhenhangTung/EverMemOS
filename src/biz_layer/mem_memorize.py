@@ -499,7 +499,7 @@ async def save_memories(
         for m in memory_list
         if isinstance(m, Memory)
         and hasattr(m, 'memory_type')
-        and m.memory_type == MemoryType.EPISODE_MEMORY
+        and m.memory_type == MemoryType.EPISODIC_MEMORY
     ]
     semantic_memories = [m for m in memory_list if isinstance(m, SemanticMemoryItem)]
     event_logs = [m for m in memory_list if isinstance(m, EventLog)]
@@ -757,7 +757,7 @@ async def memorize(request: MemorizeRequest) -> List[Memory]:
 
     # 定义需要提取的记忆类型：先提取个人 episode，再基于 episode 提取语义记忆和事件日志
     memory_types = [
-        MemoryType.EPISODE_MEMORY,
+        MemoryType.EPISODIC_MEMORY,
         MemoryType.SEMANTIC_MEMORY,
         MemoryType.PERSONAL_EVENT_LOG,
     ]
@@ -942,7 +942,7 @@ async def memorize(request: MemorizeRequest) -> List[Memory]:
 
         # 第一阶段：提取个人 episode
         for memory_type in memory_types:
-            if memory_type == MemoryType.EPISODE_MEMORY:
+            if memory_type == MemoryType.EPISODIC_MEMORY:
                 extracted_memories = await memory_manager.extract_memory(
                     memcell_list=memcells,
                     memory_type=memory_type,

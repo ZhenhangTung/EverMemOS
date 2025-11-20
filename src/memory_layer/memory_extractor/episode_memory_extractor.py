@@ -51,7 +51,7 @@ class EpisodeMemory(Memory):
 
     def __post_init__(self):
         """Set memory_type to EPISODE_MEMORY and call parent __post_init__."""
-        self.memory_type = MemoryType.EPISODE_MEMORY
+        self.memory_type = MemoryType.EPISODIC_MEMORY
         super().__post_init__()
 
 
@@ -64,7 +64,7 @@ class EpisodeMemoryExtractor(MemoryExtractor):
     def __init__(
         self, llm_provider: LLMProvider | None = None, use_eval_prompts: bool = False
     ):
-        super().__init__(MemoryType.EPISODE_MEMORY)
+        super().__init__(MemoryType.EPISODIC_MEMORY)
         self.llm_provider = llm_provider
         self.semantic_extractor = SemanticMemoryExtractor(self.llm_provider)
         self.use_eval_prompts = use_eval_prompts
@@ -485,7 +485,7 @@ class EpisodeMemoryExtractor(MemoryExtractor):
                     summary = data["summary"]
 
                     return EpisodeMemory(
-                        memory_type=MemoryType.EPISODE_MEMORY,
+                        memory_type=MemoryType.EPISODIC_MEMORY,
                         user_id=user_id,
                         ori_event_id_list=[
                             memcell.event_id for memcell in request.memcell_list
@@ -525,7 +525,7 @@ class EpisodeMemoryExtractor(MemoryExtractor):
             for user_id in request.user_id_list:
                 if user_id not in participants:
                     memory = EpisodeMemory(
-                        memory_type=MemoryType.EPISODE_MEMORY,
+                        memory_type=MemoryType.EPISODIC_MEMORY,
                         user_id=user_id,
                         ori_event_id_list=[
                             memcell.event_id for memcell in request.memcell_list

@@ -26,6 +26,11 @@ class MemoryType(str, Enum):
     BASE_MEMORY = "base_memory"
     PROFILE = "profile"
     PREFERENCE = "preference"
+
+    # core就是multiple，就是上面三个
+    MULTIPLE = "multiple"  # 多类型查询
+    CORE = "core"  # 核心记忆
+
     EPISODIC_MEMORY = "episodic_memory"
     SEMANTIC_MEMORY = "semantic_memory"
     ENTITY = "entity"
@@ -35,13 +40,7 @@ class MemoryType(str, Enum):
     PERSONAL_SEMANTIC_MEMORY = "personal_semantic_memory"
     PERSONAL_EVENT_LOG = "personal_event_log"
 
-    MULTIPLE = "multiple"  # 多类型查询
-
-    EPISODE_MEMORY = "episode_memory"  # 情节记忆
-
     GROUP_PROFILE = "group_profile"  # 群组画像
-
-    CORE = "core"  # 核心记忆
 
 
 @dataclass
