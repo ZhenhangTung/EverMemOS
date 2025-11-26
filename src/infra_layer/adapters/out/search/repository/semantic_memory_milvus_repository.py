@@ -286,7 +286,7 @@ class SemanticMemoryMilvusRepository(
                                 hit.entity.get("end_time", 0)
                             ),
                             "duration_days": hit.entity.get("duration_days"),
-                            "content": hit.entity.get("content"),
+                            "semantic": hit.entity.get("content"),
                             "evidence": hit.entity.get("evidence"),
                             "search_content": search_content,
                             "metadata": metadata,
