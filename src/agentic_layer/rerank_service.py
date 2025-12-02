@@ -419,5 +419,91 @@ class RerankService(RerankServiceInterface):
                 total_count=getattr(retrieve_response, 'total_count', 0)
             )
 
+    async def _rerank_all_hits(
+        self,
+        query: str,
+        all_hits: List[Dict[str, Any]],
+        top_k: int = None,
+        instruction: str = None,
+    ) -> List[Dict[str, Any]]:
+        """对 all_hits 列表进行重排序，返回 top_k 个结果
+
+        Args:
+            query: 查询文本
+            all_hits: 搜索结果列表，每个元素是 Dict[str, Any]
+            top_k: 返回的最大结果数量，如果为 None 则返回所有结果
+            instruction: 可选的重排序指令
+
+        Returns:
+            重排序后的 hit 列表，每个 hit 包含 relevance_score 和 _rerank_score 字段
+        """
+        if not all_hits:
+            return []
+
+        # 从 all_hits 中提取文本内容用于重排序
+        all_texts = []
+        for hit in all_hits:
+            text = self._extract_text_from_hit(hit)
+            all_texts.append(text)
+
+        if not all_texts:
+            return []
+
+        # 调用重排序 API
+        try:
+            logger.debug(f"开始重排序，查询文本: {query}, 文本数量: {len(all_texts)}")
+            rerank_result = await self._make_rerank_request(query, all_texts, instruction)
+
+            if "results" not in rerank_result:
+                raise RerankError("Invalid rerank API response: missing results field")
+
+            # 解析重排序结果
+            results_meta = rerank_result.get("results", [])
+
+            # 按照重排序后的顺序重新组织 hits
+            reranked_hits = []
+            for item in results_meta:
+                original_idx = item.get("index", 0)
+                score = item.get("relevance_score", 0.0)
+                if 0 <= original_idx < len(all_hits):
+                    hit = all_hits[original_idx].copy()  # 复制 hit 以避免修改原始数据
+                    # 添加重排序分数到 hit 中（同时提供两个字段以兼容不同调用方）
+                    hit['_rerank_score'] = score
+                    hit['relevance_score'] = score
+                    reranked_hits.append(hit)
+
+            # 如果指定了 top_k，则只返回前 top_k 个结果
+            if top_k is not None and top_k > 0:
+                reranked_hits = reranked_hits[:top_k]
+
+            logger.debug(f"重排序完成，返回 {len(reranked_hits)} 个结果")
+            return reranked_hits
+
+        except Exception as e:
+            logger.error(f"Error during reranking all_hits: {e}")
+            # 如果重排序失败，返回原始结果（按原始得分排序）
+            sorted_hits = sorted(
+                all_hits, key=self._extract_score_from_hit, reverse=True
+            )
+            if top_k is not None and top_k > 0:
+                sorted_hits = sorted_hits[:top_k]
+            return sorted_hits
+
+    def _extract_score_from_hit(self, hit: Dict[str, Any]) -> float:
+        """从 hit 中提取得分
+
+        Args:
+            hit: 搜索结果 hit
+
+        Returns:
+            得分
+        """
+        if '_score' in hit:
+            return hit['_score']
+        elif 'score' in hit:
+            return hit['score']
+        return 1.0
+
+
 def get_rerank_service() -> RerankServiceInterface:
     return get_bean("rerank_service")
