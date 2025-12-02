@@ -69,8 +69,8 @@ grep -rn "semantic_memory\|SemanticMemory" evaluation/ --include="*.py" \
 ```
 
 **预期结果**: 
-- `src/api_specs/memory_models.py` 中仅有兼容性别名 `SemanticMemoryRecordModel = ForesightRecordModel`
-- 其他目录无遗漏
+- `src/` 目录无遗漏的旧名称
+- `demo/` 和 `evaluation/` 目录无遗漏
 
 #### 1.3 导入验证
 

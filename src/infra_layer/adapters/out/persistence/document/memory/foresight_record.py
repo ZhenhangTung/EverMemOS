@@ -16,7 +16,7 @@ from beanie import PydanticObjectId
 
 class ForesightRecord(DocumentBase, AuditBase):
     """
-    通用前瞻文档模型 (原 SemanticMemoryRecord)
+    通用前瞻文档模型
 
     统一存储个人或群组情景记忆中提取的前瞻信息。
     当 user_id 存在时代表个人前瞻；当 user_id 为空而 group_id 存在时代表群组前瞻。

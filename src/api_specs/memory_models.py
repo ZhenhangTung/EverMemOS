@@ -32,12 +32,12 @@ class MemoryType(str, Enum):
     CORE = "core"  # 核心记忆
 
     EPISODIC_MEMORY = "episodic_memory"
-    FORESIGHT = "foresight"  # 前瞻记忆 (原 semantic_memory)
+    FORESIGHT = "foresight"  # 前瞻记忆
     ENTITY = "entity"
     RELATION = "relation"
     BEHAVIOR_HISTORY = "behavior_history"
 
-    PERSONAL_FORESIGHT = "personal_foresight"  # 个人前瞻 (原 personal_semantic_memory)
+    PERSONAL_FORESIGHT = "personal_foresight"  # 个人前瞻
     PERSONAL_EVENT_LOG = "personal_event_log"  # 事件日志（原子事实）
 
     GROUP_PROFILE = "group_profile"  # 群组画像
@@ -282,7 +282,7 @@ class EventLogModel:
 
 @dataclass
 class ForesightRecordModel:
-    """前瞻记录模型 (原 SemanticMemoryRecordModel)
+    """前瞻记录模型
 
     从情景记忆中提取的前瞻信息，支持个人和群组前瞻。
     """
@@ -309,10 +309,6 @@ class ForesightRecordModel:
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     metadata: Metadata = field(default_factory=Metadata)
-
-
-# 兼容性别名
-SemanticMemoryRecordModel = ForesightRecordModel
 
 
 # 联合类型定义

@@ -124,7 +124,7 @@ async def test_memory_type_enum():
     print("=" * 60)
     
     try:
-        from agentic_layer.memory_models import MemoryType
+        from api_specs.memory_models import MemoryType
         
         # 验证新名称
         print("\n📝 验证新枚举值...")

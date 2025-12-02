@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 @repository("foresight_record_repository", primary=True)
 class ForesightRecordRawRepository(BaseRepository[ForesightRecord]):
     """
-    个人前瞻原始数据仓库 (原 SemanticMemoryRecordRawRepository)
+    个人前瞻原始数据仓库
     
     提供个人前瞻的 CRUD 操作和基础查询功能。
     注意：向量应在提取时生成，此 Repository 不负责生成向量。

@@ -66,12 +66,12 @@ async def test_v3_memorize_api():
     print()
     print("ℹ️  How it works:")
     print("   • Messages accumulate in Redis until boundary condition is met")
-    print("   • '⏳ Queued' = Message stored, waiting for extraction trigger")
-    print("   • '✓ Extracted' = Boundary detected, memories saved to database")
+    print("   • '⏳ Queued' = Message stored, waiting for boundary detection")
+    print("   • '🔄 Processing' = Boundary detected, submitted to background worker")
     print()
     
     total_accumulated = 0
-    total_extracted = 0
+    total_processing = 0
     
     async with httpx.AsyncClient(timeout=500.0) as client:
         for idx, message in enumerate(test_messages, 1):
@@ -95,17 +95,14 @@ async def test_v3_memorize_api():
                     if status_info == "accumulated":
                         total_accumulated += 1
                         print(f"   ⏳ Queued")
-                    elif status_info == "extracted":
-                        total_extracted += saved_count
-                        print(f"   ✓ Extracted {saved_count} memories")
+                    elif status_info == "processing":
+                        total_processing += 1
+                        request_id = result.get("result", {}).get("request_id", "")
+                        print(f"   🔄 Processing (request_id: {request_id[:8]}...)")
                     else:
-                    
-                        if saved_count > 0:
-                            total_extracted += saved_count
-                            print(f"   ✓ Extracted {saved_count} memories")
-                        else:
-                            total_accumulated += 1
-                            print(f"   ⏳ Queued")
+                        # 兼容旧版本或其他状态
+                        total_accumulated += 1
+                        print(f"   ⏳ Queued")
                 else:
                     print(f"   ✗ Failed: HTTP {response.status_code}")
                     print(f"      {response.text[:200]}")
@@ -129,16 +126,16 @@ async def test_v3_memorize_api():
     print("\n📊 Summary:")
     print(f"   Total messages:    {len(test_messages)}")
     print(f"   Queued:            {total_accumulated}")
-    print(f"   Extracted:         {total_extracted}")
+    print(f"   Processing:        {total_processing}")
     
-    if total_accumulated > 0 and total_extracted == 0:
+    if total_processing > 0:
+        print("\n🔄 Background processing in progress:")
+        print("   • MemCells are being extracted and saved by background workers")
+        print("   • Episode memories, foresights, and event logs are being generated")
+        print("   • Check worker logs for progress")
+    elif total_accumulated > 0:
         print("\nℹ️  Note: All messages are queued, awaiting boundary detection trigger")
         print(f"   Check queue: redis-cli -p 6479 -n 8 LLEN chat_history:{group_id}")
-    elif total_extracted > 0:
-        print("\n✓ Memory extraction successful")
-        print("   View in database:")
-        print("   • MemCells: db.memcells.find()")
-        print("   • Episodes: db.episodememory.find()")
     
     print("\n📝 Next steps:")
     print("   Run retrieval test: python src/bootstrap.py demo/tools/test_retrieval_comprehensive.py")

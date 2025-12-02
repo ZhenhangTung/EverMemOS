@@ -212,7 +212,7 @@ class TestMemoryTypes:
 
     @pytest.fixture
     def service(self):
-        return FakeFetchMemoryService()
+        return get_fetch_memory_service()
 
     @pytest.mark.asyncio
     async def test_all_memory_types_available(self, service):

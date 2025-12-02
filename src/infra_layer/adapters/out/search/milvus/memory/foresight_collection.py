@@ -16,7 +16,7 @@ from memory_layer.constants import VECTORIZE_DIMENSIONS
 
 class ForesightCollection(MilvusCollectionWithSuffix):
     """
-    前瞻 Milvus Collection (原 SemanticMemory)
+    前瞻 Milvus Collection
     
     同时支持个人前瞻和群组前瞻，通过 group_id 字段区分。
 

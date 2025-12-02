@@ -333,13 +333,11 @@ def _convert_foresight_to_doc(
         start_time=foresight.start_time,
         end_time=foresight.end_time,
         duration_days=foresight.duration_days,
-        group_id=foresight.group_id,
-        group_name=getattr(
-            foresight, "group_name", getattr(parent_doc, "group_name", None)
-        ),
+        group_id=parent_doc.group_id,
+        group_name=parent_doc.group_name,
         participants=parent_doc.participants,
-        vector=foresight.embedding,
-        vector_model=getattr(foresight, 'vector_model', None),
+        vector=foresight.vector,
+        vector_model=foresight.vector_model,
         evidence=foresight.evidence,
         extend={},
     )

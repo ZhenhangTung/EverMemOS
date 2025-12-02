@@ -240,7 +240,7 @@ class Foresight:
 @dataclass
 class ForesightItem:
     """
-    前瞻联想项目 (原 SemanticMemoryItem)
+    前瞻联想项目
 
     包含时间信息的前瞻联想预测
     """
