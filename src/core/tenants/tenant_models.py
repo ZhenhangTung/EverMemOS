@@ -24,6 +24,7 @@ class TenantPatchKey(str, Enum):
     - MONGO_CLIENT_CACHE_KEY: 用于缓存 MongoDB 客户端的 cache_key（连接参数的哈希值）
     - ACTUAL_DATABASE_NAME: 用于缓存实际使用的数据库名称
     - REAL_DATABASE_PREFIX: 用于缓存数据库对象的键前缀（实际使用时需要拼接数据库名）
+    - ES_CONNECTION_CACHE_KEY: 用于缓存 Elasticsearch 连接别名的 cache_key
     """
 
     # MongoDB 客户端相关
@@ -35,6 +36,9 @@ class TenantPatchKey(str, Enum):
 
     # Milvus 连接相关
     MILVUS_CONNECTION_CACHE_KEY = "milvus_connection_cache_key"
+
+    # Elasticsearch 连接相关
+    ES_CONNECTION_CACHE_KEY = "es_connection_cache_key"
 
 
 @dataclass

@@ -68,7 +68,7 @@ async def reset_elasticsearch():
     print("🔥 [Elasticsearch] 正在删除所有相关索引...")
     try:
         factory = get_bean_by_type(ElasticsearchClientFactory)
-        client_wrapper = await factory.get_default_client()
+        client_wrapper = await factory.register_default_client()
         es = client_wrapper.async_client
 
         # 删除所有包含 memsys 的索引

@@ -1,6 +1,8 @@
 # 导入保留用于类型注解和字段定义
 from elasticsearch.dsl import field as e_field
-from core.oxm.es.doc_base import AliasDoc
+from core.tenants.tenantize.oxm.es.tenant_aware_async_document import (
+    TenantAwareAliasDoc,
+)
 from core.oxm.es.analyzer import (
     completion_analyzer,
     lower_keyword_analyzer,
@@ -9,19 +11,20 @@ from core.oxm.es.analyzer import (
 )
 
 
-class SemanticMemoryDoc(AliasDoc("semantic-memory", number_of_shards=3)):
+class SemanticMemoryDoc(TenantAwareAliasDoc("semantic-memory", number_of_shards=3)):
     """
     语义记忆 Elasticsearch 文档
-    
+
     使用独立的 semantic-memory 索引。
     """
+
     class CustomMeta:
         # 指定用于自动填充 meta.id 的字段名
         id_source_field = "id"
-    
+
     # 基础标识字段
     # id 字段通过 CustomMeta.id_source_field 自动从 kwargs 提取并设置为 meta.id
-    user_id = e_field.Keyword()  
+    user_id = e_field.Keyword()
     user_name = e_field.Keyword()
 
     # 时间字段
@@ -48,7 +51,7 @@ class SemanticMemoryDoc(AliasDoc("semantic-memory", number_of_shards=3)):
         fields={
             "original": e_field.Text(
                 analyzer=lower_keyword_analyzer, search_analyzer=lower_keyword_analyzer
-            ),
+            )
         },
     )
 
@@ -69,4 +72,3 @@ class SemanticMemoryDoc(AliasDoc("semantic-memory", number_of_shards=3)):
     # 审计字段
     created_at = e_field.Date()
     updated_at = e_field.Date()
-

@@ -1,11 +1,12 @@
 """
 租户数据库初始化模块
 
-此模块用于初始化特定租户的 MongoDB 和 Milvus 数据库。
+此模块用于初始化特定租户的 MongoDB、Milvus 和 Elasticsearch 数据库。
 通过环境变量 TENANT_SINGLE_TENANT_ID 指定租户ID：
 1. 创建租户信息并设置租户上下文
 2. 调用 MongoDB 的 lifespan startup 逻辑
 3. 调用 Milvus 的 lifespan startup 逻辑
+4. 调用 Elasticsearch 的 lifespan startup 逻辑
 
 使用方式：
     通过 manage.py 调用：
@@ -22,6 +23,7 @@ from core.observation.logger import get_logger
 from core.tenants.tenant_config import get_tenant_config
 from core.lifespan.mongodb_lifespan import MongoDBLifespanProvider
 from core.lifespan.milvus_lifespan import MilvusLifespanProvider
+from core.lifespan.elasticsearch_lifespan import ElasticsearchLifespanProvider
 
 logger = get_logger(__name__)
 
@@ -118,6 +120,49 @@ async def init_milvus() -> bool:
         return False
 
 
+async def init_elasticsearch() -> bool:
+    """
+    初始化租户的 Elasticsearch 数据库
+
+    Returns:
+        是否初始化成功
+    """
+    logger.info("=" * 60)
+    logger.info("开始初始化租户的 Elasticsearch 数据库...")
+    logger.info("=" * 60)
+
+    try:
+        # 创建 Elasticsearch lifespan provider
+        es_provider = ElasticsearchLifespanProvider()
+
+        # 创建一个模拟的 FastAPI app 对象（只需要 state 属性）
+        class MockApp:
+            class State:
+                pass
+
+            state = State()
+
+        mock_app = MockApp()
+
+        # 调用 startup 逻辑
+        await es_provider.startup(mock_app)
+
+        logger.info("=" * 60)
+        logger.info("✅ 租户的 Elasticsearch 数据库初始化成功")
+        logger.info("=" * 60)
+
+        # 关闭连接
+        await es_provider.shutdown(mock_app)
+
+        return True
+
+    except Exception as e:
+        logger.error("=" * 60)
+        logger.error("❌ 租户的 Elasticsearch 数据库初始化失败: %s", e)
+        logger.error("=" * 60)
+        return False
+
+
 async def run_tenant_init() -> bool:
     """
     执行租户数据库初始化
@@ -163,6 +208,9 @@ async def run_tenant_init() -> bool:
     # 初始化 Milvus
     milvus_success = await init_milvus()
 
+    # 初始化 Elasticsearch
+    es_success = await init_elasticsearch()
+
     # 输出总结
     logger.info("")
     logger.info("*" * 60)
@@ -171,7 +219,8 @@ async def run_tenant_init() -> bool:
     logger.info("租户ID: %s", tenant_id)
     logger.info("MongoDB: %s", "✅ 成功" if mongodb_success else "❌ 失败")
     logger.info("Milvus: %s", "✅ 成功" if milvus_success else "❌ 失败")
+    logger.info("Elasticsearch: %s", "✅ 成功" if es_success else "❌ 失败")
     logger.info("*" * 60)
 
     # 返回是否全部成功
-    return mongodb_success and milvus_success
+    return mongodb_success and milvus_success and es_success

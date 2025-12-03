@@ -1,6 +1,8 @@
 # 导入保留用于类型注解和字段定义
 from elasticsearch.dsl import field as e_field
-from core.oxm.es.doc_base import AliasDoc
+from core.tenants.tenantize.oxm.es.tenant_aware_async_document import (
+    TenantAwareAliasDoc,
+)
 from core.oxm.es.analyzer import (
     completion_analyzer,
     lower_keyword_analyzer,
@@ -9,7 +11,7 @@ from core.oxm.es.analyzer import (
 )
 
 
-class EpisodicMemoryDoc(AliasDoc("episodic-memory", number_of_shards=3)):
+class EpisodicMemoryDoc(TenantAwareAliasDoc("episodic-memory", number_of_shards=3)):
     """
     情景记忆Elasticsearch文档
 

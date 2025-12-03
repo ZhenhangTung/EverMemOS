@@ -5,24 +5,20 @@ import os
 from fnmatch import fnmatch
 from datetime import datetime
 from elasticsearch.dsl import MetaField, AsyncDocument, field as e_field
-from common_utils.datetime_utils import get_now_with_timezone, to_timezone
-
-
-def generate_index_name(cls: Type['DocBase']) -> str:
-    now = get_now_with_timezone()
-    alias = cls.get_index_name()
-    return f"{alias}-{now.strftime('%Y%m%d%H%M%S%f')}"
-
-
-def get_index_ns() -> str:
-    return os.getenv("SELF_ES_INDEX_NS") or ""
+from common_utils.datetime_utils import to_timezone
+from core.oxm.es.es_utils import generate_index_name, get_index_ns
+from elasticsearch import AsyncElasticsearch
 
 
 class DocBase(AsyncDocument):
     """Elasticsearch文档基类"""
 
-    class Meta:
-        abstract = True
+    @classmethod
+    def get_connection(cls) -> AsyncElasticsearch:
+        """
+        获取连接
+        """
+        return cls._get_connection()
 
     @classmethod
     def get_index_name(cls) -> str:

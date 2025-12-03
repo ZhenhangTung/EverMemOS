@@ -28,7 +28,6 @@ from infra_layer.adapters.out.search.elasticsearch.memory.event_log import Event
 from core.di import get_bean_by_type
 from component.redis_provider import RedisProvider
 from component.mongodb_client_factory import MongoDBClientFactory
-from component.elasticsearch_client_factory import ElasticsearchClientFactory
 
 
 async def _clear_mongodb(verbose: bool = True) -> Dict[str, Any]:
@@ -188,9 +187,8 @@ async def _clear_elasticsearch(
     """删除与记忆相关的 Elasticsearch 文档，必要时重建索引"""
     stats: Dict[str, Any] = {"cleared": [], "errors": [], "recreated": False}
     try:
-        es_factory = get_bean_by_type(ElasticsearchClientFactory)
-        es_client_wrapper = await es_factory.get_default_client()
-        es_client = es_client_wrapper.async_client
+        # 获取连接即可，因为已经注册了连接
+        es_client = EpisodicMemoryDoc.get_connection()
 
         alias_names = [
             EpisodicMemoryDoc.get_index_name(),

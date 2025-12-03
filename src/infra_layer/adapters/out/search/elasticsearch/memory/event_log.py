@@ -1,6 +1,8 @@
 # 导入保留用于类型注解和字段定义
 from elasticsearch.dsl import field as e_field
-from core.oxm.es.doc_base import AliasDoc
+from core.tenants.tenantize.oxm.es.tenant_aware_async_document import (
+    TenantAwareAliasDoc,
+)
 from core.oxm.es.analyzer import (
     completion_analyzer,
     lower_keyword_analyzer,
@@ -9,19 +11,20 @@ from core.oxm.es.analyzer import (
 )
 
 
-class EventLogDoc(AliasDoc("event-log", number_of_shards=3)):
+class EventLogDoc(TenantAwareAliasDoc("event-log", number_of_shards=3)):
     """
     事件日志 Elasticsearch 文档
-    
+
     使用独立的 event-log 索引。
     """
+
     class CustomMeta:
         # 指定用于自动填充 meta.id 的字段名
         id_source_field = "id"
-    
+
     # 基础标识字段
     # id 字段通过 CustomMeta.id_source_field 自动从 kwargs 提取并设置为 meta.id
-    user_id = e_field.Keyword()  
+    user_id = e_field.Keyword()
     user_name = e_field.Keyword()
 
     # 时间字段
@@ -32,9 +35,7 @@ class EventLogDoc(AliasDoc("event-log", number_of_shards=3)):
         required=False,
         analyzer=whitespace_lowercase_trim_stop_analyzer,
         search_analyzer=whitespace_lowercase_trim_stop_analyzer,
-        fields={
-            "keyword": e_field.Keyword(),  # 精确匹配
-        },
+        fields={"keyword": e_field.Keyword()},  # 精确匹配
     )
 
     episode = e_field.Text(
@@ -62,7 +63,7 @@ class EventLogDoc(AliasDoc("event-log", number_of_shards=3)):
             # 原始内容字段 - 用于精确匹配，小写处理
             "original": e_field.Text(
                 analyzer=lower_keyword_analyzer, search_analyzer=lower_keyword_analyzer
-            ),
+            )
         },
     )
 
@@ -90,4 +91,3 @@ class EventLogDoc(AliasDoc("event-log", number_of_shards=3)):
     # 审计字段
     created_at = e_field.Date()
     updated_at = e_field.Date()
-

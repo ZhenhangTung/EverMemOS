@@ -8,9 +8,8 @@ Elasticsearch 基础仓库类
 from abc import ABC
 from typing import Optional, TypeVar, Generic, Type, List, Dict, Any
 from elasticsearch import AsyncElasticsearch
-from core.oxm.es.doc_base import DocBase, generate_index_name
+from core.oxm.es.doc_base import DocBase
 from core.observation.logger import get_logger
-from core.di.utils import get_bean
 
 logger = get_logger(__name__)
 
@@ -40,7 +39,6 @@ class BaseRepository(ABC, Generic[T]):
         """
         self.model = model
         self.model_name = model.__name__
-        self._client: Optional[AsyncElasticsearch] = None
 
     # ==================== 客户端管理 ====================
 
@@ -51,17 +49,7 @@ class BaseRepository(ABC, Generic[T]):
         Returns:
             AsyncElasticsearch: 异步客户端实例
         """
-        if self._client is None:
-            try:
-                es_factory = get_bean("elasticsearch_client_factory")
-                client_wrapper = await es_factory.get_default_client()
-                self._client = client_wrapper.async_client
-            except Exception as e:
-                logger.error(
-                    "❌ 获取 Elasticsearch 客户端失败 [%s]: %s", self.model_name, e
-                )
-                raise
-        return self._client
+        return self.model.get_connection()
 
     def get_index_name(self) -> str:
         """

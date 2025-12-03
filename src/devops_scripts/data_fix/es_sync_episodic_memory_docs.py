@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import Optional, AsyncIterator, Dict, Any
 
 from core.observation.logger import get_logger
-from core.di.utils import get_bean, get_bean_by_type
+from core.di.utils import get_bean_by_type
 from elasticsearch.helpers import async_streaming_bulk
 
 
@@ -51,9 +51,7 @@ async def sync_episodic_memory_docs(
 
     # 获取 ES 异步客户端与索引名
     try:
-        es_factory = get_bean("elasticsearch_client_factory")
-        client_wrapper = await es_factory.get_default_client()
-        async_client = client_wrapper.async_client
+        async_client = EpisodicMemoryDoc.get_connection()
     except Exception as e:  # noqa: BLE001
         logger.error("获取 Elasticsearch 客户端失败: %s", e)
         raise
@@ -62,8 +60,14 @@ async def sync_episodic_memory_docs(
         nonlocal total_processed
         skip = 0
         while True:
-            query = mongo_repo.model.find(query_filter).sort("created_at")
-            mongo_docs = await query.skip(skip).limit(batch_size).to_list()
+            # 使用 repository 方法分页查询
+            mongo_docs = await mongo_repo.find_by_filter_paginated(
+                query_filter=query_filter,
+                skip=skip,
+                limit=batch_size,
+                sort_field="created_at",
+                sort_desc=False,
+            )
 
             if not mongo_docs:
                 logger.info("没有更多文档需要处理")

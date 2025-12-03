@@ -4,8 +4,6 @@ import traceback
 
 from elasticsearch.dsl import AsyncDocument
 
-from component.elasticsearch_client_factory import ElasticsearchClientFactory
-from core.di.utils import get_bean_by_type
 from core.observation.logger import get_logger
 from core.oxm.es.migration.utils import find_document_class_by_index_name, rebuild_index
 

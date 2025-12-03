@@ -6,15 +6,13 @@ Elasticsearch 客户端工厂
 
 import os
 import asyncio
-from common_utils.datetime_utils import get_now_with_timezone
-from typing import Dict, Optional, List, Type, Any
+from typing import Dict, Optional, List, Any
 from hashlib import md5
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.dsl.async_connections import connections as async_connections
 
 from core.di.decorators import component
 from core.observation.logger import get_logger
-from core.oxm.es.doc_base import DocBase, generate_index_name
 
 logger = get_logger(__name__)
 
@@ -115,89 +113,6 @@ class ElasticsearchClientWrapper:
     def __init__(self, async_client: AsyncElasticsearch, hosts: List[str]):
         self.async_client = async_client
         self.hosts = hosts
-        self._initialized = False
-        self._document_classes: List[Type[DocBase]] = []
-
-    async def initialize_indices(
-        self, document_classes: Optional[List[Type[DocBase]]] = None
-    ):
-        """初始化索引"""
-        if self._initialized:
-            return
-
-        if document_classes:
-            try:
-                logger.info(
-                    "正在初始化 Elasticsearch 索引，共 %d 个文档类",
-                    len(document_classes),
-                )
-
-                for doc_class in document_classes:
-                    await self._init_document_index(doc_class)
-
-                self._document_classes = document_classes
-                self._initialized = True
-                logger.info(
-                    "✅ Elasticsearch 索引初始化成功，处理了 %d 个文档类",
-                    len(document_classes),
-                )
-
-                for doc_class in document_classes:
-                    logger.info(
-                        "📋 初始化索引: class=%s -> index=%s",
-                        doc_class.__name__,
-                        doc_class.get_index_name(),
-                    )
-
-            except Exception as e:
-                logger.error("❌ Elasticsearch 索引初始化失败: %s", e)
-                raise
-
-    async def _init_document_index(self, doc_class: Type[DocBase]):
-        """初始化单个文档类的索引"""
-        try:
-            # 获取别名名称
-            alias = doc_class.get_index_name()
-
-            if not alias:
-                logger.info("文档类没有索引别名，跳过初始化 %s", doc_class.__name__)
-                return
-
-            # 检查别名是否存在
-            logger.info("正在检查索引别名: %s (文档类: %s)", alias, doc_class.__name__)
-            alias_exists = await self.async_client.indices.exists(index=alias)
-
-            if not alias_exists:
-                # 生成目标索引名
-                dst = doc_class.dest()
-
-                # 创建索引
-                await doc_class.init(index=dst, using=self.async_client)
-
-                # 创建别名
-                await self.async_client.indices.update_aliases(
-                    body={
-                        "actions": [
-                            {
-                                "add": {
-                                    "index": dst,
-                                    "alias": alias,
-                                    "is_write_index": True,
-                                }
-                            }
-                        ]
-                    }
-                )
-                logger.info("✅ 创建索引和别名: %s -> %s", dst, alias)
-            else:
-                logger.info("📋 索引别名已存在: %s", alias)
-
-        except Exception as e:
-            logger.error("❌ 初始化文档类 %s 的索引失败: %s", doc_class.__name__, e)
-            import traceback
-
-            traceback.print_exc()
-            raise
 
     async def test_connection(self) -> bool:
         """测试连接"""
@@ -218,11 +133,6 @@ class ElasticsearchClientWrapper:
         except Exception as e:
             logger.error("关闭 Elasticsearch 连接时出错: %s", e)
 
-    @property
-    def is_initialized(self) -> bool:
-        """检查是否已初始化索引"""
-        return self._initialized
-
 
 @component(name="elasticsearch_client_factory")
 class ElasticsearchClientFactory:
@@ -238,6 +148,7 @@ class ElasticsearchClientFactory:
         self._clients: Dict[str, ElasticsearchClientWrapper] = {}
         self._lock = asyncio.Lock()
         self._default_config: Optional[Dict[str, Any]] = None
+        self._default_client: Optional[ElasticsearchClientWrapper] = None
         logger.info("ElasticsearchClientFactory initialized")
 
     async def _create_client(
@@ -331,11 +242,6 @@ class ElasticsearchClientFactory:
                 **kwargs,
             )
 
-            # 测试连接
-            if not await client_wrapper.test_connection():
-                await client_wrapper.close()
-                raise RuntimeError(f"Elasticsearch 连接测试失败: {hosts}")
-
             self._clients[cache_key] = client_wrapper
             logger.info(
                 "Elasticsearch client %s created and cached with key %s",
@@ -348,11 +254,27 @@ class ElasticsearchClientFactory:
     async def get_default_client(self) -> ElasticsearchClientWrapper:
         """
         获取基于环境变量配置的默认 Elasticsearch 客户端实例
+        不支持获取默认客户端，禁止直接调用factory
+
+        Returns:
+            ElasticsearchClientWrapper 实例
+        """
+        raise NotImplementedError(
+            "ElasticsearchClientFactory does not support get_default_client, use register_default_client instead"
+        )
+
+    async def register_default_client(self) -> ElasticsearchClientWrapper:
+        """
+        注册一个默认的客户端
 
         Returns:
             ElasticsearchClientWrapper 实例
         """
         # 获取或创建默认配置
+
+        if self._default_client is not None:
+            return self._default_client
+
         if self._default_config is None:
             self._default_config = get_default_es_config()
 
@@ -369,6 +291,7 @@ class ElasticsearchClientFactory:
         async_connections.add_connection(
             alias="default", conn=default_client.async_client
         )
+        self._default_client = default_client
         return default_client
 
     async def remove_client(

@@ -310,6 +310,54 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
             logger.error("❌ 根据时间范围查询 EpisodicMemory 失败: %s", e)
             return []
 
+    async def find_by_filter_paginated(
+        self,
+        query_filter: Optional[Dict[str, Any]] = None,
+        skip: int = 0,
+        limit: int = 100,
+        sort_field: str = "created_at",
+        sort_desc: bool = False,
+    ) -> List[EpisodicMemory]:
+        """
+        根据过滤条件分页查询 EpisodicMemory，用于数据同步等场景
+
+        Args:
+            query_filter: 查询过滤条件，为 None 时查询全部
+            skip: 跳过数量
+            limit: 限制返回数量
+            sort_field: 排序字段，默认 created_at
+            sort_desc: 是否降序排序，默认False（升序）
+
+        Returns:
+            EpisodicMemory 列表
+        """
+        try:
+            # 构建查询
+            filter_dict = query_filter if query_filter else {}
+            query = self.model.find(filter_dict)
+
+            # 排序
+            if sort_desc:
+                query = query.sort(f"-{sort_field}")
+            else:
+                query = query.sort(sort_field)
+
+            # 分页
+            query = query.skip(skip).limit(limit)
+
+            results = await query.to_list()
+            logger.debug(
+                "✅ 分页查询 EpisodicMemory 成功: filter=%s, skip=%d, limit=%d, 找到 %d 条记录",
+                filter_dict,
+                skip,
+                limit,
+                len(results),
+            )
+            return results
+        except Exception as e:
+            logger.error("❌ 分页查询 EpisodicMemory 失败: %s", e)
+            return []
+
 
 # 导出
 __all__ = ["EpisodicMemoryRawRepository"]
