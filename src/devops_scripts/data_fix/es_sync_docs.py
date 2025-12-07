@@ -13,17 +13,19 @@ logger = get_logger(__name__)
 async def run(
     index_name: str, batch_size: int, limit_: int | None, days: int | None
 ) -> None:
-    """同步 MongoDB 数据到 Elasticsearch 指定索引。"""
+    """Synchronize MongoDB data to the specified Elasticsearch index."""
     try:
         document_class: type[AsyncDocument] = find_document_class_by_index_name(
             index_name
         )
         logger.info(
-            "找到文档类: %s.%s", document_class.__module__, document_class.__name__
+            "Found document class: %s.%s",
+            document_class.__module__,
+            document_class.__name__,
         )
 
         doc_alias = document_class.get_index_name()
-        logger.info("索引别名: %s", doc_alias)
+        logger.info("Index alias: %s", doc_alias)
 
         if "episodic-memory" in str(doc_alias):
             from devops_scripts.data_fix.es_sync_episodic_memory_docs import (
@@ -34,26 +36,36 @@ async def run(
                 batch_size=batch_size, limit=limit_, days=days
             )
         else:
-            raise ValueError(f"不支持的索引类型: {doc_alias}")
+            raise ValueError(f"Unsupported index type: {doc_alias}")
     except Exception as exc:  # noqa: BLE001
-        logger.error("同步文档失败: %s", exc)
+        logger.error("Failed to synchronize documents: %s", exc)
         traceback.print_exc()
         raise
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="同步 MongoDB 数据到 Elasticsearch")
-    parser.add_argument(
-        "--index-name", "-i", required=True, help="索引别名，如: episodic-memory"
+    parser = argparse.ArgumentParser(
+        description="Synchronize MongoDB data to Elasticsearch"
     )
     parser.add_argument(
-        "--batch-size", "-b", type=int, default=500, help="批处理大小，默认500"
+        "--index-name", "-i", required=True, help="Index alias, e.g.: episodic-memory"
     )
     parser.add_argument(
-        "--limit", "-l", type=int, default=None, help="限制处理的文档数量，默认全部"
+        "--batch-size", "-b", type=int, default=500, help="Batch size, default 500"
     )
     parser.add_argument(
-        "--days", "-d", type=int, default=None, help="只处理过去N天创建的文档，默认全部"
+        "--limit",
+        "-l",
+        type=int,
+        default=None,
+        help="Limit the number of documents to process, default all",
+    )
+    parser.add_argument(
+        "--days",
+        "-d",
+        type=int,
+        default=None,
+        help="Process only documents created in the last N days, default all",
     )
     args = parser.parse_args(argv)
 

@@ -9,22 +9,29 @@ from core.oxm.mongo.audit_base import AuditBase
 
 class Relationship(DocumentBase, AuditBase):
     """
-    关系库文档模型
+    Relationship document model
 
-    描述实体之间的关系，支持多种关系类型和详细信息。
+    Describes relationships between entities, supporting multiple relationship types and detailed information.
     """
 
-    # 联合主键
-    source_entity_id: Indexed(str) = Field(..., description="主实体ID，联合主键")
-    target_entity_id: Indexed(str) = Field(..., description="客实体ID，联合主键")
-
-    # 关系信息
-    relationship: List[Dict[str, str]] = Field(
-        ..., description="关系列表，每个关系包含type、content、detail等字段"
+    # Composite primary key
+    source_entity_id: Indexed(str) = Field(
+        ..., description="Source entity ID, part of composite primary key"
+    )
+    target_entity_id: Indexed(str) = Field(
+        ..., description="Target entity ID, part of composite primary key"
     )
 
-    # 通用字段
-    extend: Optional[Dict[str, Any]] = Field(default=None, description="备用拓展字段")
+    # Relationship information
+    relationship: List[Dict[str, str]] = Field(
+        ...,
+        description="List of relationships, each containing fields such as type, content, detail",
+    )
+
+    # General fields
+    extend: Optional[Dict[str, Any]] = Field(
+        default=None, description="Reserved extension field"
+    )
 
     model_config = ConfigDict(
         collection="relationships",
@@ -36,23 +43,23 @@ class Relationship(DocumentBase, AuditBase):
                 "target_entity_id": "entity_002",
                 "relationship": [
                     {
-                        "type": "人际关系",
-                        "content": "项目协作",
-                        "detail": "在电商平台重构项目中有合作",
+                        "type": "Interpersonal relationship",
+                        "content": "Project collaboration",
+                        "detail": "Collaborated on the e-commerce platform refactoring project",
                     },
                     {
-                        "type": "工作关系",
-                        "content": "上下级",
-                        "detail": "张三负责指导李四的技术工作",
+                        "type": "Work relationship",
+                        "content": "Superior-subordinate",
+                        "detail": "Zhang San is responsible for guiding Li Si's technical work",
                     },
                 ],
-                "extend": {"strength": "strong", "context": "工作环境"},
+                "extend": {"strength": "strong", "context": "work environment"},
             }
         },
     )
 
     class Settings:
-        """Beanie 设置"""
+        """Beanie Settings"""
 
         name = "relationships"
         indexes = [

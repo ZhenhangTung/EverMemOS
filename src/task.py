@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-Task Worker - 异步任务处理器启动脚本
+Task Worker - Async task processor startup script
 
-异步任务处理服务，负责：
-- 后台任务队列处理
-- 长时间运行的异步任务
-- 定时任务和延迟任务
-- 任务状态管理和监控
+Async task processing service, responsible for:
+- Background task queue processing
+- Long-running asynchronous tasks
+- Scheduled and delayed tasks
+- Task status management and monitoring
 
-使用方法:
+Usage:
     arq task.WorkerSettings
 
-环境变量:
-    REDIS_HOST: Redis主机地址 (默认: localhost)
-    REDIS_PORT: Redis端口 (默认: 6379)
-    REDIS_DB: Redis数据库编号 (默认: 0)
-    REDIS_PASSWORD: Redis密码 (可选)
-    REDIS_SSL: 是否使用SSL (默认: false)
-    REDIS_USERNAME: Redis用户名 (可选)
+Environment variables:
+    REDIS_HOST: Redis server address (default: localhost)
+    REDIS_PORT: Redis port (default: 6379)
+    REDIS_DB: Redis database number (default: 0)
+    REDIS_PASSWORD: Redis password (optional)
+    REDIS_SSL: Whether to use SSL (default: false)
+    REDIS_USERNAME: Redis username (optional)
 """
 
 import os
@@ -25,72 +25,72 @@ import logging
 
 from arq.connections import RedisSettings
 
-# 应用信息
+# Application info
 APP_NAME = "Async Task Worker"
 APP_VERSION = "1.0.0"
-APP_DESCRIPTION = "异步任务处理服务"
+APP_DESCRIPTION = "Asynchronous task processing service"
 
-# 这里环境变量还没加载，所以不能使用get_logger
+# Environment variables are not loaded yet, so cannot use get_logger
 logger = logging.getLogger(__name__)
 
-# 添加src目录到Python路径
+# Add src directory to Python path
 from import_parent_dir import add_parent_path
 
 add_parent_path(0)
 
-# 使用统一的环境加载工具
-# 设置.env文件
+# Use unified environment loading tool
+# Set .env file
 from common_utils.load_env import setup_environment
 
 setup_environment(check_env_var="REDIS_HOST")
 
-# 显示应用启动信息
-logger.info("🚀 启动 %s v%s", APP_NAME, APP_VERSION)
+# Display application startup info
+logger.info("🚀 Starting %s v%s", APP_NAME, APP_VERSION)
 logger.info("⚙️ %s", APP_DESCRIPTION)
 
-# 运行主函数
-# 扫描 component & task
+# Run main function
+# Scan component & task
 from application_startup import setup_all
 
 setup_all()
 
 
-# Worker启动和关闭回调函数
+# Worker startup and shutdown callback functions
 async def startup(_ctx):
-    """Worker启动时的回调函数"""
-    logger.info("🔄 正在初始化异步任务Worker...")
+    """Callback function when worker starts"""
+    logger.info("🔄 Initializing async task worker...")
 
-    # 在worker启动时初始化应用上下文
+    # Initialize application context when worker starts
     from app import app
 
-    # 将应用信息添加到FastAPI应用中（必须在start_lifespan之前）
+    # Add application info to FastAPI app (must be before start_lifespan)
     app.title = APP_NAME
     app.version = APP_VERSION
     app.description = APP_DESCRIPTION
 
     if hasattr(app, "start_lifespan"):
         await app.start_lifespan()
-        logger.info("✅ 应用lifespan启动完成")
+        logger.info("✅ Application lifespan startup completed")
     else:
-        logger.warning("⚠️ app实例没有start_lifespan方法")
+        logger.warning("⚠️ app instance has no start_lifespan method")
 
-    logger.info("🎯 %s 启动完成，准备处理任务", APP_NAME)
+    logger.info("🎯 %s started, ready to process tasks", APP_NAME)
 
 
 async def shutdown(_ctx):
-    """Worker关闭时的回调函数"""
-    logger.info("🛑 正在关闭 %s...", APP_NAME)
+    """Callback function when worker shuts down"""
+    logger.info("🛑 Shutting down %s...", APP_NAME)
 
-    # 在worker关闭时清理应用上下文
+    # Clean up application context when worker shuts down
     from app import app
 
     if hasattr(app, "exit_lifespan"):
         await app.exit_lifespan()
-        logger.info("✅ 应用lifespan关闭完成")
+        logger.info("✅ Application lifespan shutdown completed")
     else:
-        logger.warning("⚠️ app实例没有exit_lifespan方法")
+        logger.warning("⚠️ app instance has no exit_lifespan method")
 
-    logger.info("👋 %s 已停止", APP_NAME)
+    logger.info("👋 %s has stopped", APP_NAME)
 
 
 from core.asynctasks.task_manager import get_task_manager

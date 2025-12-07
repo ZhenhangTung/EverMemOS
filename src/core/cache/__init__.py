@@ -1,5 +1,5 @@
 """
-Core缓存模块
+Core cache module
 
-提供各种缓存功能的公共组件
+Provides common components for various caching functionalities
 """

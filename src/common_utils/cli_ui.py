@@ -21,8 +21,8 @@ Design goals:
 Usage example:
 
     ui = CLIUI()  # auto width, color enabled unless NO_COLOR set
-    ui.banner("🧠 EverMem 记忆对话助手", subtitle="Memory-Enhanced Chat")
-    ui.section_heading("📊 可用的群组对话")
+    ui.banner("🧠 EverMem Memory Conversation Assistant", subtitle="Memory-Enhanced Chat")
+    ui.section_heading("📊 Available group conversations")
     ui.table(headers=["#", "Group", "Name", "Count"], rows=[["1", "g001", "Team", "12"]])
 
 """
@@ -541,7 +541,9 @@ class CLIUI:
         # Notice for truncated rows
         if max_height is not None and total_count > max_height:
             remaining = total_count - max_height
-            self.text(self.styled(f"… 还有 {remaining} 行未显示", "subtitle"))
+            self.text(
+                self.styled(f"... {remaining} more rows not displayed", "subtitle")
+            )
 
     # ------------------------ Convenience ----------------------------------
     def note(self, text: str, icon: Optional[str] = None) -> None:

@@ -1,7 +1,7 @@
 """
-文本处理工具模块
+Text processing utility module
 
-提供各种文本处理的通用工具函数，包括智能截取、格式化等功能。
+Provides general-purpose utility functions for text processing, including smart truncation, formatting, and other features.
 """
 
 from typing import List, Dict, Any
@@ -10,19 +10,19 @@ from dataclasses import dataclass
 
 
 class TokenType(Enum):
-    """Token类型枚举"""
+    """Token type enumeration"""
 
-    CJK_CHAR = "cjk_char"  # 中日韩字符
-    ENGLISH_WORD = "english_word"  # 英文单词
-    CONTINUOUS_NUMBER = "continuous_number"  # 连续数字
-    PUNCTUATION = "punctuation"  # 标点符号
-    WHITESPACE = "whitespace"  # 空白字符
-    OTHER = "other"  # 其他字符
+    CJK_CHAR = "cjk_char"  # CJK characters
+    ENGLISH_WORD = "english_word"  # English word
+    CONTINUOUS_NUMBER = "continuous_number"  # Continuous numbers
+    PUNCTUATION = "punctuation"  # Punctuation
+    WHITESPACE = "whitespace"  # Whitespace characters
+    OTHER = "other"  # Other characters
 
 
 @dataclass
 class Token:
-    """文本Token"""
+    """Text Token"""
 
     type: TokenType
     content: str
@@ -33,7 +33,7 @@ class Token:
 
 @dataclass
 class TokenConfig:
-    """Token配置"""
+    """Token configuration"""
 
     cjk_char_score: float = 1.0
     english_word_score: float = 1.5
@@ -44,63 +44,64 @@ class TokenConfig:
 
 
 class SmartTextParser:
-    """智能文本解析器
+    """Smart text parser
 
-    能够区分不同类型的token，支持可配置的分数计算，
-    提供从左到右遍历和基于总分数的智能截断功能。
+    Capable of distinguishing different types of tokens, supports configurable score calculation,
+    provides left-to-right traversal and intelligent truncation based on total score.
     """
 
     def __init__(self, config: TokenConfig = None):
-        """初始化解析器
+        """Initialize parser
 
         Args:
-            config: Token配置，如果为None则使用默认配置
+            config: Token configuration, use default if None
         """
         self.config = config or TokenConfig()
 
-        # 中日韩字符范围
+        # CJK character ranges
         self._cjk_ranges = [
-            (0x4E00, 0x9FFF),  # CJK统一表意文字
-            (0x3400, 0x4DBF),  # CJK扩展A
-            (0x20000, 0x2A6DF),  # CJK扩展B
-            (0x2A700, 0x2B73F),  # CJK扩展C
-            (0x2B740, 0x2B81F),  # CJK扩展D
-            (0x2B820, 0x2CEAF),  # CJK扩展E
-            (0x3040, 0x309F),  # 平假名
-            (0x30A0, 0x30FF),  # 片假名
-            (0xAC00, 0xD7AF),  # 韩文音节
+            (0x4E00, 0x9FFF),  # CJK Unified Ideographs
+            (0x3400, 0x4DBF),  # CJK Extension A
+            (0x20000, 0x2A6DF),  # CJK Extension B
+            (0x2A700, 0x2B73F),  # CJK Extension C
+            (0x2B740, 0x2B81F),  # CJK Extension D
+            (0x2B820, 0x2CEAF),  # CJK Extension E
+            (0x3040, 0x309F),  # Hiragana
+            (0x30A0, 0x30FF),  # Katakana
+            (0xAC00, 0xD7AF),  # Hangul Syllables
         ]
 
     def _is_cjk_char(self, char: str) -> bool:
-        """判断是否为中日韩字符"""
+        """Check if character is a CJK character"""
         if not char:
             return False
         code = ord(char)
         return any(start <= code <= end for start, end in self._cjk_ranges)
 
     def _is_english_char(self, char: str) -> bool:
-        """判断是否为英文字符"""
+        """Check if character is an English character"""
         return char.isalpha() and ord(char) < 128
 
     def _is_punctuation(self, char: str) -> bool:
-        """判断是否为标点符号"""
-        # 常见的标点符号
+        """Check if character is punctuation"""
+        # Common punctuation characters
         punctuation_chars = set('.,!?;:"\'()[]{}+-*/%=<>@#$&|~`^_\\/')
+
         return char in punctuation_chars or (
-            0x2000 <= ord(char) <= 0x206F  # 通用标点
-            or 0x3000 <= ord(char) <= 0x303F  # CJK符号和标点
-            or 0xFF00 <= ord(char) <= 0xFFEF  # 全角ASCII和半角片假名
+            0x2000 <= ord(char) <= 0x206F  # General Punctuation
+            or 0x3000 <= ord(char) <= 0x303F  # CJK Symbols and Punctuation
+            or 0xFF00 <= ord(char) <= 0xFFEF  # Fullwidth ASCII and halfwidth Katakana
         )
 
     def parse_tokens(self, text: str, max_score: float = None) -> List[Token]:
-        """解析文本为Token列表
+        """Parse text into a list of Tokens
 
         Args:
-            text: 要解析的文本
-            max_score: 最大分数限制，达到此分数时提前截断解析
+            text: Text to parse
+            max_score: Maximum score limit, stop parsing early when this score is reached
 
         Returns:
-            List[Token]: Token列表
+            List[Token]: List of Tokens
         """
         if not text:
             return []
@@ -114,7 +115,7 @@ class SmartTextParser:
             char = text[i]
             start_pos = i
 
-            # 处理中日韩字符
+            # Handle CJK characters
             if self._is_cjk_char(char):
                 token = Token(
                     type=TokenType.CJK_CHAR,
@@ -127,13 +128,13 @@ class SmartTextParser:
                 current_score += token.score
                 i += 1
 
-                # 检查是否需要提前截断
+                # Check if early truncation is needed
                 if max_score is not None and current_score > max_score:
-                    # 移除刚添加的token，因为它使分数超出限制
+                    # Remove the last added token as it exceeds the limit
                     tokens.pop()
                     break
 
-            # 处理英文单词
+            # Handle English words
             elif self._is_english_char(char):
                 word_end = i
                 while word_end < text_len and (
@@ -152,13 +153,13 @@ class SmartTextParser:
                 current_score += token.score
                 i = word_end
 
-                # 检查是否需要提前截断
+                # Check if early truncation is needed
                 if max_score is not None and current_score > max_score:
-                    # 移除刚添加的token，因为它使分数超出限制
+                    # Remove the last added token as it exceeds the limit
                     tokens.pop()
                     break
 
-            # 处理连续数字
+            # Handle continuous numbers
             elif char.isdigit():
                 num_end = i
                 while num_end < text_len and (
@@ -177,13 +178,13 @@ class SmartTextParser:
                 current_score += token.score
                 i = num_end
 
-                # 检查是否需要提前截断
+                # Check if early truncation is needed
                 if max_score is not None and current_score > max_score:
-                    # 移除刚添加的token，因为它使分数超出限制
+                    # Remove the last added token as it exceeds the limit
                     tokens.pop()
                     break
 
-            # 处理标点符号
+            # Handle punctuation
             elif self._is_punctuation(char):
                 token = Token(
                     type=TokenType.PUNCTUATION,
@@ -196,15 +197,15 @@ class SmartTextParser:
                 current_score += token.score
                 i += 1
 
-                # 检查是否需要提前截断
+                # Check if early truncation is needed
                 if max_score is not None and current_score > max_score:
-                    # 移除刚添加的token，因为它使分数超出限制
+                    # Remove the last added token as it exceeds the limit
                     tokens.pop()
                     break
 
-            # 处理空白字符
+            # Handle whitespace
             elif char.isspace():
-                # 合并连续的空白字符
+                # Merge consecutive whitespace characters
                 space_end = i
                 while space_end < text_len and text[space_end].isspace():
                     space_end += 1
@@ -220,13 +221,13 @@ class SmartTextParser:
                 current_score += token.score
                 i = space_end
 
-                # 检查是否需要提前截断
+                # Check if early truncation is needed
                 if max_score is not None and current_score > max_score:
-                    # 移除刚添加的token，因为它使分数超出限制
+                    # Remove the last added token as it exceeds the limit
                     tokens.pop()
                     break
 
-            # 处理其他字符
+            # Handle other characters
             else:
                 token = Token(
                     type=TokenType.OTHER,
@@ -239,22 +240,22 @@ class SmartTextParser:
                 current_score += token.score
                 i += 1
 
-                # 检查是否需要提前截断
+                # Check if early truncation is needed
                 if max_score is not None and current_score > max_score:
-                    # 移除刚添加的token，因为它使分数超出限制
+                    # Remove the last added token as it exceeds the limit
                     tokens.pop()
                     break
 
         return tokens
 
     def calculate_total_score(self, tokens: List[Token]) -> float:
-        """计算Token列表的总分数
+        """Calculate total score of token list
 
         Args:
-            tokens: Token列表
+            tokens: List of Tokens
 
         Returns:
-            float: 总分数
+            float: Total score
         """
         return sum(token.score for token in tokens)
 
@@ -265,52 +266,52 @@ class SmartTextParser:
         suffix: str = "...",
         enable_fallback: bool = True,
     ) -> str:
-        """基于分数智能截断文本
+        """Smartly truncate text based on score
 
         Args:
-            text: 要截断的文本
-            max_score: 最大允许分数
-            suffix: 截断后添加的后缀
-            enable_fallback: 是否启用fallback模式，解析失败时按字符长度截断
+            text: Text to truncate
+            max_score: Maximum allowed score
+            suffix: Suffix to append after truncation
+            enable_fallback: Whether to enable fallback mode, fall back to character length truncation if parsing fails
 
         Returns:
-            str: 截断后的文本
+            str: Truncated text
         """
         if not text:
             return text or ""
 
         if max_score <= 0:
-            return text  # 保持向后兼容，限制<=0时返回原文
+            return text  # Maintain backward compatibility, return original text if limit <= 0
 
         try:
-            # 首先解析完整文本
+            # First parse the full text
             all_tokens = self.parse_tokens(text)
 
             if not all_tokens:
                 return text
 
-            # 计算实际分数，如果不超过限制则无需截断
+            # Calculate actual score, no truncation needed if within limit
             total_score = self.calculate_total_score(all_tokens)
             if total_score <= max_score:
                 return text
 
-            # 使用完整的tokens进行截断计算
+            # Use full tokens for truncation calculation
             tokens = all_tokens
 
-            # 需要截断，找到合适的截断位置
+            # Need truncation, find appropriate position
             current_score = 0.0
             truncate_pos = len(text)
 
             for token in tokens:
                 if current_score + token.score > max_score:
-                    # 如果是英文单词或连续数字，且超出不太多，允许完整包含以避免截断
+                    # If it's an English word or continuous number and the overflow is small, allow full inclusion to avoid breaking
                     if (
                         token.type
                         in [TokenType.ENGLISH_WORD, TokenType.CONTINUOUS_NUMBER]
                         and current_score + token.score
-                        <= max_score * 1.05  # 只允许5%超出
+                        <= max_score * 1.05  # Allow up to 5% overflow
                         and current_score > 0
-                    ):  # 必须已经有其他token，不能第一个token就超出
+                    ):  # Must have other tokens already, cannot exceed on first token
                         current_score += token.score
                         truncate_pos = token.end_pos
                     else:
@@ -319,7 +320,7 @@ class SmartTextParser:
                 current_score += token.score
                 truncate_pos = token.end_pos
 
-            # 如果需要截断
+            # If truncation is needed
             if truncate_pos < len(text):
                 result = text[:truncate_pos].rstrip()
                 return result + suffix if result else text
@@ -327,17 +328,17 @@ class SmartTextParser:
             return text
 
         except Exception as e:
-            # Fallback模式：解析失败时使用简单的字符长度截断
+            # Fallback mode: use simple character length truncation if parsing fails
             if enable_fallback:
-                # 估算截断长度：假设平均每个字符1分
-                estimated_length = int(max_score * 0.8)  # 保守估计
+                # Estimate truncation length: assume average 1 point per character
+                estimated_length = int(max_score * 0.8)  # Conservative estimate
                 if len(text) <= estimated_length:
                     return text
 
-                # 简单按字符截断，避免在单词中间截断
+                # Simple character-based truncation, avoid breaking in the middle of words
                 truncate_pos = estimated_length
 
-                # 向后查找合适的截断点（空白或标点）
+                # Look backward for a suitable truncation point (whitespace or punctuation)
                 for i in range(
                     min(estimated_length + 10, len(text) - 1),
                     max(estimated_length - 10, 0),
@@ -350,21 +351,21 @@ class SmartTextParser:
                 result = text[:truncate_pos].rstrip()
                 return result + suffix if result else text
             else:
-                # 不启用fallback则抛出异常
+                # Raise exception if fallback is disabled
                 raise e
 
     def get_text_analysis(self, text: str) -> Dict[str, Any]:
-        """获取文本分析结果
+        """Get text analysis result
 
         Args:
-            text: 要分析的文本
+            text: Text to analyze
 
         Returns:
-            Dict: 包含各种统计信息的字典
+            Dict: Dictionary containing various statistics
         """
         tokens = self.parse_tokens(text)
 
-        # 统计各类型token数量
+        # Count tokens by type
         type_counts = {token_type: 0 for token_type in TokenType}
         type_scores = {token_type: 0.0 for token_type in TokenType}
 
@@ -389,26 +390,26 @@ def smart_truncate_text(
     suffix: str = "...",
 ) -> str:
     """
-    基于单词/字符计数的智能截取文本
+    Smartly truncate text based on word/character count
 
-    使用新的SmartTextParser进行更精确的token解析和分数计算。
-    英文单词算一个单位，中文字符算一个单位，可以分配不同权重。
+    Uses the new SmartTextParser for more accurate token parsing and score calculation.
+    English words count as one unit, Chinese characters count as one unit, with different weights assignable.
 
     Args:
-        text: 要截取的文本
-        max_count: 最大计数（权重累加后的总数）
-        chinese_weight: 中文字符权重，默认1.0
-        english_word_weight: 英文单词权重，默认1.0
-        suffix: 截取时添加的后缀，默认为"..."
+        text: Text to truncate
+        max_count: Maximum count (total after weight accumulation)
+        chinese_weight: Weight for Chinese characters, default 1.0
+        english_word_weight: Weight for English words, default 1.0
+        suffix: Suffix to add when truncating, default "..."
 
     Returns:
-        str: 截取后的文本
+        str: Truncated text
 
     Examples:
         >>> smart_truncate_text("Hello World 你好世界", 4)
-        'Hello World 你好...'  # 2个英文单词 + 2个中文字符 = 4
+        'Hello World 你好...'  # 2 English words + 2 Chinese characters = 4
         >>> smart_truncate_text("Hello World 你好世界", 4, chinese_weight=0.5)
-        'Hello World 你好世界'  # 2个英文单词 + 4*0.5个中文字符 = 4
+        'Hello World 你好世界'  # 2 English words + 4*0.5 Chinese characters = 4
     """
     if not text or max_count <= 0:
         return text or ""
@@ -416,14 +417,14 @@ def smart_truncate_text(
     if not isinstance(text, str):
         text = str(text)
 
-    # 使用新的智能解析器进行截断
+    # Use the new smart parser for truncation
     config = TokenConfig(
         cjk_char_score=chinese_weight,
         english_word_score=english_word_weight,
-        continuous_number_score=english_word_weight,  # 数字使用英文单词权重
-        punctuation_score=0.0,  # 标点不计分，保持向后兼容
-        whitespace_score=0.0,  # 空白不计分，保持向后兼容
-        other_score=0.0,  # 其他字符不计分，保持向后兼容
+        continuous_number_score=english_word_weight,  # Use English word weight for numbers
+        punctuation_score=0.0,  # Punctuation not counted, maintain backward compatibility
+        whitespace_score=0.0,  # Whitespace not counted, maintain backward compatibility
+        other_score=0.0,  # Other characters not counted, maintain backward compatibility
     )
 
     parser = SmartTextParser(config)
@@ -432,16 +433,16 @@ def smart_truncate_text(
 
 def clean_whitespace(text: str) -> str:
     """
-    清理文本中的多余空白字符
+    Clean extra whitespace characters in text
 
-    使用SmartTextParser进行更精确的空白字符处理，
-    保持其他token的完整性。
+    Uses SmartTextParser for more accurate whitespace handling,
+    preserving the integrity of other tokens.
 
     Args:
-        text: 要清理的文本
+        text: Text to clean
 
     Returns:
-        str: 清理后的文本
+        str: Cleaned text
     """
     if not text:
         return text
@@ -449,25 +450,25 @@ def clean_whitespace(text: str) -> str:
     if not isinstance(text, str):
         text = str(text)
 
-    # 使用智能解析器处理空白字符
+    # Use smart parser to handle whitespace
     parser = SmartTextParser()
     tokens = parser.parse_tokens(text)
 
     if not tokens:
         return text.strip()
 
-    # 重建文本，合并连续空白为单个空格
+    # Reconstruct text, merging consecutive whitespaces into a single space
     result_parts = []
     prev_was_whitespace = False
 
     for token in tokens:
         if token.type == TokenType.WHITESPACE:
             if not prev_was_whitespace:
-                result_parts.append(' ')  # 统一使用单个空格
+                result_parts.append(' ')  # Use single space uniformly
             prev_was_whitespace = True
         else:
             result_parts.append(token.content)
             prev_was_whitespace = False
 
-    # 去除首尾空白
+    # Strip leading and trailing whitespace
     return ''.join(result_parts).strip()

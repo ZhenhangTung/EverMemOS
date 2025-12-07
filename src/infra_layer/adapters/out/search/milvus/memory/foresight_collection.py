@@ -1,9 +1,9 @@
 """
-前瞻 Milvus Collection 定义
+Foresight Milvus Collection Definition
 
-基于 MilvusCollectionWithSuffix 实现的前瞻专用 Collection 类。
-提供了与 ForesightMilvusRepository 兼容的 Schema 定义和索引配置。
-支持个人前瞻和群组前瞻。
+Foresight-specific Collection class implemented based on MilvusCollectionWithSuffix.
+Provides Schema definition and index configuration compatible with ForesightMilvusRepository.
+Supports both personal foresight and group foresight.
 """
 
 from pymilvus import DataType, FieldSchema, CollectionSchema
@@ -16,20 +16,20 @@ from memory_layer.constants import VECTORIZE_DIMENSIONS
 
 class ForesightCollection(TenantAwareMilvusCollectionWithSuffix):
     """
-    前瞻 Milvus Collection
-    
-    同时支持个人前瞻和群组前瞻，通过 group_id 字段区分。
+    Foresight Milvus Collection
 
-    使用方式：
-        # 使用 Collection
+    Supports both personal foresight and group foresight, distinguished by the group_id field.
+
+    Usage:
+        # Use Collection
         collection.async_collection().insert([...])
         collection.async_collection().search([...])
     """
 
-    # Collection 基础名称
+    # Base name of the Collection
     _COLLECTION_NAME = "foresight"
 
-    # Collection Schema 定义
+    # Collection Schema definition
     _SCHEMA = CollectionSchema(
         fields=[
             FieldSchema(
@@ -38,25 +38,25 @@ class ForesightCollection(TenantAwareMilvusCollectionWithSuffix):
                 is_primary=True,
                 auto_id=False,
                 max_length=100,
-                description="前瞻唯一标识",
+                description="Unique identifier for foresight",
             ),
             FieldSchema(
                 name="vector",
                 dtype=DataType.FLOAT_VECTOR,
-                dim=VECTORIZE_DIMENSIONS,  # BAAI/bge-m3 模型的向量维度
-                description="文本向量",
+                dim=VECTORIZE_DIMENSIONS,  # Vector dimension of BAAI/bge-m3 model
+                description="Text vector",
             ),
             FieldSchema(
                 name="user_id",
                 dtype=DataType.VARCHAR,
                 max_length=100,
-                description="用户ID",
+                description="User ID",
             ),
             FieldSchema(
                 name="group_id",
                 dtype=DataType.VARCHAR,
                 max_length=100,
-                description="群组ID",
+                description="Group ID",
             ),
             FieldSchema(
                 name="participants",
@@ -64,77 +64,82 @@ class ForesightCollection(TenantAwareMilvusCollectionWithSuffix):
                 element_type=DataType.VARCHAR,
                 max_capacity=100,
                 max_length=100,
-                description="相关参与者列表",
+                description="List of related participants",
             ),
             FieldSchema(
                 name="parent_episode_id",
                 dtype=DataType.VARCHAR,
                 max_length=100,
-                description="父情景记忆ID",
+                description="Parent episodic memory ID",
             ),
             FieldSchema(
                 name="start_time",
                 dtype=DataType.INT64,
-                description="前瞻开始时间戳",
+                description="Foresight start timestamp",
             ),
             FieldSchema(
                 name="end_time",
                 dtype=DataType.INT64,
-                description="前瞻结束时间戳",
+                description="Foresight end timestamp",
             ),
             FieldSchema(
-                name="duration_days", dtype=DataType.INT64, description="持续天数"
+                name="duration_days",
+                dtype=DataType.INT64,
+                description="Duration in days",
             ),
             FieldSchema(
                 name="content",
                 dtype=DataType.VARCHAR,
                 max_length=5000,
-                description="前瞻内容",
+                description="Foresight content",
             ),
             FieldSchema(
                 name="evidence",
                 dtype=DataType.VARCHAR,
                 max_length=2000,
-                description="支持该前瞻的证据",
+                description="Evidence supporting this foresight",
             ),
             FieldSchema(
                 name="search_content",
                 dtype=DataType.VARCHAR,
                 max_length=5000,
-                description="搜索内容（JSON格式）",
+                description="Search content (in JSON format)",
             ),
             FieldSchema(
                 name="metadata",
                 dtype=DataType.VARCHAR,
                 max_length=50000,
-                description="详细信息JSON（元数据）",
+                description="Detailed information JSON (metadata)",
             ),
             FieldSchema(
-                name="created_at", dtype=DataType.INT64, description="创建时间戳"
+                name="created_at",
+                dtype=DataType.INT64,
+                description="Creation timestamp",
             ),
             FieldSchema(
-                name="updated_at", dtype=DataType.INT64, description="更新时间戳"
+                name="updated_at", dtype=DataType.INT64, description="Update timestamp"
             ),
         ],
-        description="个人前瞻向量集合",
+        description="Vector collection for personal foresight",
         enable_dynamic_field=True,
     )
 
-    # 索引配置
+    # Index configuration
     _INDEX_CONFIGS = [
-        # 向量字段索引（用于相似度搜索）
+        # Vector field index (for similarity search)
         IndexConfig(
             field_name="vector",
-            index_type="HNSW",  # 高效的近似最近邻搜索
-            metric_type="COSINE",  # 余弦相似度
+            index_type="HNSW",  # Efficient approximate nearest neighbor search
+            metric_type="COSINE",  # Cosine similarity
             params={
-                "M": 16,  # 每个节点的最大边数
-                "efConstruction": 200,  # 构建时的搜索宽度
+                "M": 16,  # Maximum number of connections per node
+                "efConstruction": 200,  # Search width during construction
             },
         ),
-        # 标量字段索引（用于过滤）
+        # Scalar field indexes (for filtering)
         IndexConfig(
-            field_name="user_id", index_type="AUTOINDEX"  # 自动选择最适合的索引类型
+            field_name="user_id",
+            index_type="AUTOINDEX",  # Automatically select the most suitable index type
         ),
         IndexConfig(field_name="group_id", index_type="AUTOINDEX"),
         IndexConfig(field_name="parent_episode_id", index_type="AUTOINDEX"),

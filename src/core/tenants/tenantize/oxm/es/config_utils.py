@@ -1,7 +1,7 @@
 """
-Elasticsearch 租户配置工具函数
+Elasticsearch tenant configuration utility functions
 
-本模块提供租户 Elasticsearch 配置相关的工具函数，用于从租户信息中提取 ES 配置。
+This module provides utility functions related to tenant Elasticsearch configuration, used to extract ES configuration from tenant information.
 """
 
 import os
@@ -17,12 +17,12 @@ logger = get_logger(__name__)
 
 def get_tenant_es_config() -> Optional[Dict[str, Any]]:
     """
-    从当前租户上下文中获取 Elasticsearch 配置
+    Get Elasticsearch configuration from the current tenant context
 
-    从租户信息的 storage_info 中提取 Elasticsearch 相关配置。
-    如果租户配置不完整或缺失，会从环境变量中补充。
+    Extract Elasticsearch-related configuration from the storage_info of tenant information.
+    If tenant configuration is incomplete or missing, supplement it from environment variables.
 
-    配置结构示例：
+    Configuration structure example:
     {
         "hosts": ["http://localhost:9200"],
         "username": "elastic",
@@ -33,7 +33,7 @@ def get_tenant_es_config() -> Optional[Dict[str, Any]]:
     }
 
     Returns:
-        Elasticsearch 配置字典，如果不存在则返回 None
+        Elasticsearch configuration dictionary, return None if not exists
 
     Examples:
         >>> config = get_tenant_es_config()
@@ -42,22 +42,24 @@ def get_tenant_es_config() -> Optional[Dict[str, Any]]:
     """
     tenant_info = get_current_tenant()
     if not tenant_info:
-        logger.debug("⚠️ 未设置租户上下文，无法获取租户 Elasticsearch 配置")
+        logger.debug(
+            "⚠️ Tenant context is not set, unable to get tenant Elasticsearch configuration"
+        )
         return None
 
-    # 从租户的 storage_info 中获取 ES 配置
-    # 支持多种配置键名：elasticsearch, es_config, es
+    # Get ES configuration from tenant's storage_info
+    # Support multiple configuration key names: elasticsearch, es_config, es
     es_config = tenant_info.get_storage_info("elasticsearch")
     if es_config is None:
         es_config = tenant_info.get_storage_info("es_config")
     if es_config is None:
         es_config = tenant_info.get_storage_info("es")
 
-    # 获取环境变量配置作为后备
+    # Get environment variable configuration as fallback
     env_fallback_config = load_es_config_from_env()
 
     if not es_config:
-        # 租户配置中完全没有 ES 信息，使用环境变量配置
+        # No ES information at all in tenant configuration, use environment variable configuration
         final_config = {
             "hosts": env_fallback_config.get("hosts", ["http://localhost:9200"]),
             "username": env_fallback_config.get("username"),
@@ -67,17 +69,17 @@ def get_tenant_es_config() -> Optional[Dict[str, Any]]:
             "verify_certs": env_fallback_config.get("verify_certs", False),
         }
         logger.info(
-            "✅ 租户 [%s] 配置中缺少 Elasticsearch 信息，使用环境变量配置补全: hosts=%s",
+            "✅ Elasticsearch information missing in tenant [%s] configuration, using environment variable configuration to complete: hosts=%s",
             tenant_info.tenant_id,
             final_config["hosts"],
         )
         return final_config
 
-    # 兼容逻辑：如果租户配置缺少某些字段，从环境变量中补充
-    # 处理 hosts 字段的多种格式
+    # Compatibility logic: if tenant configuration is missing certain fields, supplement from environment variables
+    # Handle multiple formats of hosts field
     tenant_hosts = es_config.get("hosts")
     if tenant_hosts is None:
-        # 尝试从 host/port 构建
+        # Try to build from host/port
         tenant_host = es_config.get("host")
         tenant_port = es_config.get("port", 9200)
         if tenant_host:
@@ -96,7 +98,7 @@ def get_tenant_es_config() -> Optional[Dict[str, Any]]:
     }
 
     logger.debug(
-        "✅ 从租户 [%s] 获取 Elasticsearch 配置: hosts=%s",
+        "✅ Retrieved Elasticsearch configuration from tenant [%s]: hosts=%s",
         tenant_info.tenant_id,
         final_config["hosts"],
     )
@@ -106,42 +108,42 @@ def get_tenant_es_config() -> Optional[Dict[str, Any]]:
 
 def get_es_connection_cache_key(config: Dict[str, Any]) -> str:
     """
-    基于 Elasticsearch 连接配置生成缓存键
+    Generate cache key based on Elasticsearch connection configuration
 
-    使用连接参数（hosts、认证信息）的哈希值作为缓存键。
-    同时作为 elasticsearch-dsl connections 的 alias。
+    Use the hash value of connection parameters (hosts, authentication info) as the cache key.
+    Also used as the alias for elasticsearch-dsl connections.
 
     Args:
-        config: Elasticsearch 连接配置字典
+        config: Elasticsearch connection configuration dictionary
 
     Returns:
-        缓存键字符串（MD5 哈希值）
+        Cache key string (MD5 hash value)
 
     Examples:
         >>> config = {"hosts": ["http://localhost:9200"], "username": "elastic", "password": "pwd"}
         >>> cache_key = get_es_connection_cache_key(config)
     """
-    # 处理 hosts
+    # Handle hosts
     hosts = config.get("hosts", [])
     if isinstance(hosts, list):
         hosts_str = ",".join(sorted(hosts))
     else:
         hosts_str = str(hosts)
 
-    # 处理认证信息
+    # Handle authentication info
     auth_str = ""
     api_key = config.get("api_key")
     username = config.get("username")
     password = config.get("password")
 
     if api_key:
-        # 使用 api_key 的前8位作为标识
+        # Use first 8 characters of api_key as identifier
         auth_str = f"api_key:{api_key[:8]}..."
     elif username and password:
-        # 使用 username 和 password 的 md5 作为标识
+        # Use md5 of username and password as identifier
         auth_str = f"basic:{username}:{md5(password.encode()).hexdigest()[:8]}"
     elif username:
-        # 只有 username 时，仅使用 username
+        # When only username is present, use username only
         auth_str = f"basic:{username}"
 
     key_content = f"{hosts_str}:{auth_str}"
@@ -150,32 +152,32 @@ def get_es_connection_cache_key(config: Dict[str, Any]) -> str:
 
 def load_es_config_from_env() -> Dict[str, Any]:
     """
-    从环境变量加载默认 Elasticsearch 配置
+    Load default Elasticsearch configuration from environment variables
 
-    读取以下环境变量：
-    - ES_HOSTS: Elasticsearch 主机列表，逗号分隔（优先）
-    - ES_HOST: Elasticsearch 主机地址，默认 localhost
-    - ES_PORT: Elasticsearch 端口，默认 9200
-    - ES_USERNAME: 用户名（可选）
-    - ES_PASSWORD: 密码（可选）
-    - ES_API_KEY: API密钥（可选）
-    - ES_TIMEOUT: 超时时间（秒），默认 120
-    - ES_VERIFY_CERTS: 是否验证证书，默认 false
+    Read the following environment variables:
+    - ES_HOSTS: Elasticsearch host list, comma-separated (takes precedence)
+    - ES_HOST: Elasticsearch host address, default localhost
+    - ES_PORT: Elasticsearch port, default 9200
+    - ES_USERNAME: Username (optional)
+    - ES_PASSWORD: Password (optional)
+    - ES_API_KEY: API key (optional)
+    - ES_TIMEOUT: Timeout in seconds, default 120
+    - ES_VERIFY_CERTS: Whether to verify certificates, default false
 
     Returns:
-        Elasticsearch 配置字典
+        Elasticsearch configuration dictionary
 
     Examples:
         >>> config = load_es_config_from_env()
         >>> print(f"ES Hosts: {config['hosts']}")
     """
-    # 获取主机信息
+    # Get host information
     es_hosts_str = os.getenv("ES_HOSTS")
     if es_hosts_str:
-        # ES_HOSTS 已经包含完整的 URL（https://host:port），直接使用
+        # ES_HOSTS already contains full URL (https://host:port), use directly
         es_hosts = [host.strip() for host in es_hosts_str.split(",")]
     else:
-        # 回退到单个主机配置
+        # Fall back to single host configuration
         es_host = os.getenv("ES_HOST", "localhost")
         es_port = int(os.getenv("ES_PORT", "9200"))
         es_hosts = [f"http://{es_host}:{es_port}"]
@@ -189,62 +191,67 @@ def load_es_config_from_env() -> Dict[str, Any]:
         "verify_certs": os.getenv("ES_VERIFY_CERTS", "false").lower() == "true",
     }
 
-    logger.debug("从环境变量加载默认 Elasticsearch 配置: hosts=%s", config["hosts"])
+    logger.debug(
+        "Loaded default Elasticsearch configuration from environment variables: hosts=%s",
+        config["hosts"],
+    )
 
     return config
 
 
 def get_tenant_aware_index_name(original_name: str) -> str:
     """
-    生成租户感知的索引名称
+    Generate tenant-aware index name
 
-    根据当前租户上下文为索引名称添加租户前缀。
-    如果在非租户模式或无租户上下文，返回原始名称。
+    Add tenant prefix to index name based on current tenant context.
+    Return original name if in non-tenant mode or without tenant context.
 
-    命名规则：
-    - 添加租户前缀：{tenant_id}_{original_name}
-    - 替换特殊字符：将非法字符替换为 "_" 以符合 ES 索引命名规范
+    Naming rules:
+    - Add tenant prefix: {tenant_id}_{original_name}
+    - Replace special characters: replace invalid characters with "_" to comply with ES index naming conventions
 
-    ES 索引命名规范：
-    - 只能包含小写字母、数字、下划线、连字符
-    - 不能以下划线、连字符开头
-    - 不能包含特殊字符
+    ES index naming conventions:
+    - Can only contain lowercase letters, digits, underscores, hyphens
+    - Cannot start with underscore or hyphen
+    - Cannot contain special characters
 
     Args:
-        original_name: 原始的索引名称
+        original_name: Original index name
 
     Returns:
-        str: 租户感知的索引名称
+        str: Tenant-aware index name
 
     Examples:
-        >>> # 租户模式下
+        >>> # In tenant mode
         >>> set_current_tenant(TenantInfo(tenant_id="tenant-001", ...))
         >>> get_tenant_aware_index_name("my_index")
         'tenant-001-my_index'
 
-        >>> # 非租户模式或无租户上下文
+        >>> # In non-tenant mode or without tenant context
         >>> get_tenant_aware_index_name("my_index")
         'my_index'
     """
     try:
-        # 检查是否为非租户模式
+        # Check if it's non-tenant mode
         config = get_tenant_config()
         if config.non_tenant_mode:
             return original_name
 
-        # 获取当前租户信息
+        # Get current tenant information
         tenant_info = get_current_tenant()
         if not tenant_info:
             return original_name
 
-        # 生成租户前缀（ES 索引名允许连字符，保持原样）
+        # Generate tenant prefix (ES index name allows hyphens, keep as is)
         tenant_prefix = tenant_info.tenant_id.lower()
 
-        # 返回租户感知的索引名
+        # Return tenant-aware index name
         return f"{tenant_prefix}-{original_name}"
 
     except Exception as e:
         logger.warning(
-            "生成租户感知的索引名称失败，使用原始名称 [%s]: %s", original_name, e
+            "Failed to generate tenant-aware index name, using original name [%s]: %s",
+            original_name,
+            e,
         )
         return original_name

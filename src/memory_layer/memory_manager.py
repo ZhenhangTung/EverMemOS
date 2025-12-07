@@ -35,16 +35,17 @@ logger = get_logger(__name__)
 
 class MemoryManager:
     """
-    记忆管理器 - 负责编排所有记忆提取流程
-    
-    职责：
-    1. 提取 MemCell（边界检测 + 原始数据）
-    2. 提取 Episode/Foresight/EventLog/Profile 等记忆（基于 MemCell 或 episode）
-    3. 管理所有 Extractor 的生命周期
-    4. 提供统一的记忆提取接口
+    Memory Manager - Responsible for orchestrating all memory extraction processes
+
+    Responsibilities:
+    1. Extract MemCell (boundary detection + raw data)
+    2. Extract Episode/Foresight/EventLog/Profile and other memories (based on MemCell or episode)
+    3. Manage the lifecycle of all Extractors
+    4. Provide a unified memory extraction interface
     """
+
     def __init__(self):
-        # 统一的 LLM Provider - 所有 extractor 共用
+        # Unified LLM Provider - shared by all extractors
         self.llm_provider = LLMProvider(
             provider_type=os.getenv("LLM_PROVIDER", "openai"),
             model=os.getenv("LLM_MODEL", "Qwen3-235B"),
@@ -53,10 +54,11 @@ class MemoryManager:
             temperature=float(os.getenv("LLM_TEMPERATURE", "0.3")),
             max_tokens=int(os.getenv("LLM_MAX_TOKENS", "16384")),
         )
-        
-        # Episode Extractor - 延迟初始化
+
+        # Episode Extractor - lazy initialization
         self._episode_extractor = None
-# TODO:添加 username
+
+    # TODO: add username
     async def extract_memcell(
         self,
         history_raw_data_list: list[RawData],
@@ -68,24 +70,26 @@ class MemoryManager:
         old_memory_list: Optional[List[Memory]] = None,
     ) -> tuple[Optional[MemCell], Optional[StatusResult]]:
         """
-        提取 MemCell（边界检测 + 原始数据）
-        
+        Extract MemCell (boundary detection + raw data)
+
         Args:
-            history_raw_data_list: 历史消息列表
-            new_raw_data_list: 新消息列表
-            raw_data_type: 数据类型
-            group_id: 群组ID
-            group_name: 群组名称
-            user_id_list: 用户ID列表
-            old_memory_list: 历史记忆列表
-        
+            history_raw_data_list: List of historical messages
+            new_raw_data_list: List of new messages
+            raw_data_type: Data type
+            group_id: Group ID
+            group_name: Group name
+            user_id_list: List of user IDs
+            old_memory_list: List of historical memories
+
         Returns:
-            (MemCell, StatusResult) 或 (None, StatusResult)
+            (MemCell, StatusResult) or (None, StatusResult)
         """
         now = time.time()
 
-        # 边界检测 + 创建 MemCell
-        logger.debug(f"[MemoryManager] 开始边界检测并创建 MemCell")
+        # Boundary detection + create MemCell
+        logger.debug(
+            f"[MemoryManager] Starting boundary detection and creating MemCell"
+        )
         request = ConversationMemCellExtractRequest(
             history_raw_data_list,
             new_raw_data_list,
@@ -94,139 +98,149 @@ class MemoryManager:
             group_name=group_name,
             old_memory_list=old_memory_list,
         )
-        
+
         extractor = ConvMemCellExtractor(self.llm_provider)
         memcell, status_result = await extractor.extract_memcell(request)
 
         if not memcell:
-            logger.debug(f"[MemoryManager] 边界检测：未到边界，等待更多消息")
+            logger.debug(
+                f"[MemoryManager] Boundary detection: no boundary reached, waiting for more messages"
+            )
             return None, status_result
-        
+
         logger.info(
-            f"[MemoryManager] ✅ MemCell 创建成功: "
+            f"[MemoryManager] ✅ MemCell created successfully: "
             f"event_id={memcell.event_id}, "
-            f"耗时: {time.time() - now:.2f}秒"
+            f"elapsed time: {time.time() - now:.2f} seconds"
         )
 
         return memcell, status_result
 
-    # TODO:添加 username
+    # TODO: add username
     async def extract_memory(
         self,
         memcell: MemCell,
         memory_type: MemoryType,
-        user_id: Optional[str] = None,  # None 表示群组记忆，有值表示个人记忆
+        user_id: Optional[
+            str
+        ] = None,  # None means group memory, with value means personal memory
         group_id: Optional[str] = None,
         group_name: Optional[str] = None,
         old_memory_list: Optional[List[Memory]] = None,
         user_organization: Optional[List] = None,
-        episode_memory: Optional[Memory] = None,  # 用于 Foresight 和 EventLog 提取
+        episode_memory: Optional[
+            Memory
+        ] = None,  # Used for Foresight and EventLog extraction
     ):
         """
-        提取单个记忆
-        
+        Extract a single memory
+
         Args:
-            memcell: 单个 MemCell（记忆的原始数据容器）
-            memory_type: 记忆类型
-            user_id: 用户ID
-                - None: 提取群组 Episode/群组 Profile
-                - 有值: 提取个人 Episode/个人 Profile
-            group_id: 群组ID
-            group_name: 群组名称
-            old_memory_list: 历史记忆列表
-            user_organization: 用户组织信息
-            episode_memory: Episode 记忆（用于提取 Foresight/EventLog）
-        
+            memcell: Single MemCell (raw data container for memory)
+            memory_type: Memory type
+            user_id: User ID
+                - None: Extract group Episode/group Profile
+                - With value: Extract personal Episode/personal Profile
+            group_id: Group ID
+            group_name: Group name
+            old_memory_list: List of historical memories
+            user_organization: User organization information
+            episode_memory: Episode memory (used to extract Foresight/EventLog)
+
         Returns:
-            - EPISODIC_MEMORY: 返回 Memory（群组或个人）
-            - FORESIGHT: 返回 List[ForesightItem]
-            - PERSONAL_EVENT_LOG: 返回 EventLog
-            - PROFILE/GROUP_PROFILE: 返回 Memory
+            - EPISODIC_MEMORY: Returns Memory (group or personal)
+            - FORESIGHT: Returns List[ForesightItem]
+            - PERSONAL_EVENT_LOG: Returns EventLog
+            - PROFILE/GROUP_PROFILE: Returns Memory
         """
-        # 根据 memory_type 枚举分发处理
+        # Dispatch based on memory_type enum
         match memory_type:
             case MemoryType.EPISODIC_MEMORY:
                 return await self._extract_episode(memcell, user_id, group_id)
-            
+
             case MemoryType.FORESIGHT:
                 return await self._extract_foresight(episode_memory)
-            
+
             case MemoryType.EVENT_LOG:
                 return await self._extract_event_log(episode_memory)
-            
+
             case MemoryType.PROFILE:
                 return await self._extract_profile(
                     memcell, user_id, group_id, old_memory_list
                 )
-            
+
             case MemoryType.GROUP_PROFILE:
                 return await self._extract_group_profile(
-                    memcell, user_id, group_id, group_name, 
-                    old_memory_list, user_organization
+                    memcell,
+                    user_id,
+                    group_id,
+                    group_name,
+                    old_memory_list,
+                    user_organization,
                 )
-            
+
             case _:
-                logger.warning(f"[MemoryManager] 未知的 memory_type: {memory_type}")
+                logger.warning(f"[MemoryManager] Unknown memory_type: {memory_type}")
                 return None
-    
+
     async def _extract_episode(
-        self,
-        memcell: MemCell,
-        user_id: Optional[str],
-        group_id: Optional[str],
+        self, memcell: MemCell, user_id: Optional[str], group_id: Optional[str]
     ) -> Optional[Memory]:
-        """提取 Episode（群组或个人）"""
+        """Extract Episode (group or personal)"""
         if self._episode_extractor is None:
             self._episode_extractor = EpisodeMemoryExtractor(self.llm_provider)
-        
-        # 构建提取请求
+
+        # Build extraction request
         from .memory_extractor.base_memory_extractor import MemoryExtractRequest
-        
+
         request = MemoryExtractRequest(
             memcell=memcell,
-            user_id=user_id,  # None=群组，有值=个人
+            user_id=user_id,  # None=group, with value=personal
             group_id=group_id,
         )
-        
-        # 调用 extractor 的 extract_memory 方法
-        # 它会根据 user_id 自动判断提取群组还是个人 Episode
+
+        # Call extractor's extract_memory method
+        # It will automatically determine whether to extract group or personal Episode based on user_id
         logger.debug(
-            f"[MemoryManager] 提取 {'群组' if user_id is None else '个人'} Episode: user_id={user_id}"
+            f"[MemoryManager] Extracting {'group' if user_id is None else 'personal'} Episode: user_id={user_id}"
         )
-        
+
         return await self._episode_extractor.extract_memory(request)
-    
+
     async def _extract_foresight(
-        self,
-        episode_memory: Optional[Memory],
+        self, episode_memory: Optional[Memory]
     ) -> List[ForesightItem]:
-        """提取 Foresight"""
+        """Extract Foresight"""
         if not episode_memory:
-            logger.warning("[MemoryManager] 缺少 episode_memory，无法提取 Foresight")
+            logger.warning(
+                "[MemoryManager] Missing episode_memory, cannot extract Foresight"
+            )
             return []
-        
-        logger.debug(f"[MemoryManager] 为 Episode 提取 Foresight: user_id={episode_memory.user_id}")
-        
+
+        logger.debug(
+            f"[MemoryManager] Extracting Foresight for Episode: user_id={episode_memory.user_id}"
+        )
+
         extractor = ForesightExtractor(llm_provider=self.llm_provider)
         return await extractor.generate_foresights_for_episode(episode_memory)
-    
-    async def _extract_event_log(
-        self,
-        episode_memory: Optional[Memory],
-    ):
-        """提取 Event Log"""
+
+    async def _extract_event_log(self, episode_memory: Optional[Memory]):
+        """Extract Event Log"""
         if not episode_memory:
-            logger.warning("[MemoryManager] 缺少 episode_memory，无法提取 EventLog")
+            logger.warning(
+                "[MemoryManager] Missing episode_memory, cannot extract EventLog"
+            )
             return None
-        
-        logger.debug(f"[MemoryManager] 为 Episode 提取 EventLog: user_id={episode_memory.user_id}")
-        
+
+        logger.debug(
+            f"[MemoryManager] Extracting EventLog for Episode: user_id={episode_memory.user_id}"
+        )
+
         extractor = EventLogExtractor(llm_provider=self.llm_provider)
         return await extractor.extract_event_log(
-            episode_text=episode_memory.episode,
-            timestamp=episode_memory.timestamp
+            episode_text=episode_memory.episode, timestamp=episode_memory.timestamp
         )
-    
+
     async def _extract_profile(
         self,
         memcell: MemCell,
@@ -234,10 +248,10 @@ class MemoryManager:
         group_id: Optional[str],
         old_memory_list: Optional[List[Memory]],
     ) -> Optional[Memory]:
-        """提取 Profile"""
+        """Extract Profile"""
         if memcell.type != RawDataType.CONVERSATION:
             return None
-        
+
         extractor = ProfileMemoryExtractor(self.llm_provider)
         request = ProfileMemoryExtractRequest(
             memcell_list=[memcell],
@@ -246,7 +260,7 @@ class MemoryManager:
             old_memory_list=old_memory_list,
         )
         return await extractor.extract_memory(request)
-    
+
     async def _extract_group_profile(
         self,
         memcell: MemCell,
@@ -256,7 +270,7 @@ class MemoryManager:
         old_memory_list: Optional[List[Memory]],
         user_organization: Optional[List],
     ) -> Optional[Memory]:
-        """提取 Group Profile"""
+        """Extract Group Profile"""
         extractor = GroupProfileMemoryExtractor(self.llm_provider)
         request = GroupProfileMemoryExtractRequest(
             memcell_list=[memcell],

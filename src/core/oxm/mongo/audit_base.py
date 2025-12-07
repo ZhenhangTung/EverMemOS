@@ -1,7 +1,7 @@
 """
-MongoDB 审计基类
+MongoDB audit base class
 
-基于 Beanie ODM 的审计基类，包含通用的时间戳字段和自动处理逻辑。
+Audit base class based on Beanie ODM, including common timestamp fields and automatic processing logic.
 """
 
 from datetime import datetime
@@ -13,49 +13,49 @@ from common_utils.datetime_utils import get_now_with_timezone
 
 class AuditBase(BaseModel):
     """
-    审计基类
+    Audit base class
 
-    包含通用的时间戳字段和自动处理逻辑
+    Includes common timestamp fields and automatic processing logic
 
-    注意：
-    - 单条插入时，@before_event(Insert) 会自动触发设置时间
-    - 批量插入时，DocumentBase.insert_many 会委托给本类的 prepare_for_insert_many 处理
+    Note:
+    - For single insertion, @before_event(Insert) automatically triggers timestamp setting
+    - For bulk insertion, DocumentBase.insert_many delegates to this class's prepare_for_insert_many method for handling
     """
 
-    # 系统字段
-    created_at: Optional[datetime] = Field(default=None, description="创建时间")
-    updated_at: Optional[datetime] = Field(default=None, description="更新时间")
+    # System fields
+    created_at: Optional[datetime] = Field(default=None, description="Creation time")
+    updated_at: Optional[datetime] = Field(default=None, description="Update time")
 
     @before_event(Insert)
     async def set_created_at(self):
-        """插入前设置创建时间"""
+        """Set creation time before insertion"""
         now = get_now_with_timezone()
         self.created_at = now
         self.updated_at = now
 
     @before_event(Update)
     async def set_updated_at(self):
-        """更新前设置更新时间"""
+        """Set update time before update"""
         self.updated_at = get_now_with_timezone()
 
     @classmethod
     def prepare_for_insert_many(cls, documents: List[Any]) -> None:
         """
-        批量插入前准备：为文档设置审计时间字段
+        Prepare before bulk insertion: set audit timestamp fields for documents
 
-        由于 Beanie 的 @before_event(Insert) 在批量插入时不会自动触发，
-        此方法会被 DocumentBase.insert_many 调用，负责在批量插入前设置审计字段。
+        Since Beanie's @before_event(Insert) does not automatically trigger during bulk insertion,
+        this method is called by DocumentBase.insert_many, responsible for setting audit fields before bulk insertion.
 
         Args:
-            documents: 待插入的文档列表
+            documents: List of documents to be inserted
 
         Note:
-            此方法会被 DocumentBase.insert_many 自动调用，
-            开发者通常不需要手动调用此方法。
+            This method is automatically called by DocumentBase.insert_many,
+            developers typically do not need to call this method manually.
         """
         now = get_now_with_timezone()
         for doc in documents:
-            # 只为 None 值的审计字段设置时间，避免覆盖已有值
+            # Only set time for audit fields with None value, avoiding overwriting existing values
             if hasattr(doc, 'created_at') and doc.created_at is None:
                 doc.created_at = now
             if hasattr(doc, 'updated_at') and doc.updated_at is None:

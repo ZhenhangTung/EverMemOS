@@ -1,6 +1,6 @@
 """
 Long job interfaces and base classes.
-长任务接口和基础类定义。
+Long task interfaces and base class definitions.
 """
 
 from abc import ABC, abstractmethod
@@ -9,33 +9,33 @@ import asyncio
 from enum import Enum
 from dataclasses import dataclass
 
-# 从 longjob_error 中导入错误类
+# Import error classes from longjob_error
 from core.longjob.longjob_error import FatalError, BusinessLogicError
 
 
 @dataclass
 class MessageBatch:
     """
-    消息包装类
-    统一封装消息数据，不限制具体类型（可以是单个消息、列表、或任何业务定义的结构）
+    Message wrapper class
+    Uniformly encapsulates message data, without restricting specific types (can be a single message, list, or any business-defined structure)
     """
 
-    data: Any  # 消息数据，可以是任何类型：单个消息、列表、字典等
-    batch_id: Optional[str] = None  # 批次ID，用于追踪和日志
-    metadata: Optional[Dict[str, Any]] = None  # 额外的元数据信息
+    data: Any  # Message data, can be any type: single message, list, dictionary, etc.
+    batch_id: Optional[str] = None  # Batch ID, used for tracking and logging
+    metadata: Optional[Dict[str, Any]] = None  # Additional metadata information
 
     def __post_init__(self):
-        """初始化后处理"""
+        """Post-initialization processing"""
         if self.metadata is None:
             self.metadata = {}
 
     @property
     def is_empty(self) -> bool:
-        """检查是否为空数据"""
+        """Check if data is empty"""
         if self.data is None:
             return True
 
-        # 如果是列表或类似容器，检查长度
+        # If it's a list or similar container, check length
         if hasattr(self.data, '__len__'):
             try:
                 return len(self.data) == 0
@@ -46,29 +46,29 @@ class MessageBatch:
 
 
 class LongJobStatus(Enum):
-    """长任务状态枚举"""
+    """Long job status enumeration"""
 
-    IDLE = "idle"  # 空闲状态
-    STARTING = "starting"  # 启动中
-    RUNNING = "running"  # 运行中
-    STOPPING = "stopping"  # 停止中
-    STOPPED = "stopped"  # 已停止
-    ERROR = "error"  # 错误状态
+    IDLE = "idle"  # Idle state
+    STARTING = "starting"  # Starting
+    RUNNING = "running"  # Running
+    STOPPING = "stopping"  # Stopping
+    STOPPED = "stopped"  # Stopped
+    ERROR = "error"  # Error state
 
 
 class LongJobInterface(ABC):
     """
-    长任务接口定义。
-    所有长任务都需要实现这个接口。
+    Long job interface definition.
+    All long jobs need to implement this interface.
     """
 
     def __init__(self, job_id: str, config: Optional[Dict[str, Any]] = None):
         """
-        初始化长任务
+        Initialize long job
 
         Args:
-            job_id: 任务ID，用于标识和管理
-            config: 任务配置参数
+            job_id: Job ID, used for identification and management
+            config: Job configuration parameters
         """
         self.job_id = job_id
         self.config = config or {}
@@ -78,106 +78,110 @@ class LongJobInterface(ABC):
     @abstractmethod
     async def start(self) -> None:
         """
-        启动长任务
-        实现类需要在这里启动具体的工作逻辑
+        Start long job
+        Implementation classes need to start the specific work logic here
         """
 
     @abstractmethod
     async def shutdown(self) -> None:
         """
-        关闭长任务
-        实现类需要在这里清理资源和停止工作
+        Shut down long job
+        Implementation classes need to clean up resources and stop work here
         """
 
     def get_status(self) -> LongJobStatus:
-        """获取当前任务状态"""
+        """Get current job status"""
         return self.status
 
     def is_running(self) -> bool:
-        """检查任务是否正在运行"""
+        """Check if the job is currently running"""
         return self.status == LongJobStatus.RUNNING
 
     def should_stop(self) -> bool:
-        """检查是否应该停止任务"""
+        """Check if the job should stop"""
         return self._stop_event.is_set()
 
     def request_stop(self) -> None:
-        """请求停止任务"""
+        """Request to stop the job"""
         self._stop_event.set()
 
 
 class ErrorHandler(ABC):
     """
-    错误处理器接口
-    用于处理长任务执行过程中的异常
+    Error handler interface
+    Used to handle exceptions during long job execution
     """
 
     @abstractmethod
     async def handle_error(self, error: Exception, context: Dict[str, Any]) -> bool:
         """
-        处理错误
+        Handle error
 
         Args:
-            error: 发生的异常
-            context: 错误上下文信息
+            error: The exception that occurred
+            context: Error context information
 
         Returns:
-            bool: True表示可以继续执行，False表示应该停止
+            bool: True means execution can continue, False means it should stop
         """
 
     def is_fatal_error(self, error: Exception) -> bool:
         """
-        判断是否为致命错误
+        Determine if it is a fatal error
 
         Args:
-            error: 异常实例
+            error: Exception instance
 
         Returns:
-            bool: True表示致命错误，不应重试
+            bool: True means fatal error, should not retry
         """
-        # 检查是否为明确标识的致命错误
+        # Check if it's an explicitly marked fatal error
         if isinstance(error, FatalError):
             return True
 
-        # 检查常见的致命错误类型
+        # Check common fatal error types
         fatal_error_types = (
             MemoryError,
             SystemExit,
             KeyboardInterrupt,
             ImportError,
             SyntaxError,
-            TypeError,  # 通常表示编程错误
-            AttributeError,  # 通常表示编程错误
+            TypeError,  # Usually indicates programming errors
+            AttributeError,  # Usually indicates programming errors
         )
 
         return isinstance(error, fatal_error_types)
 
     def is_retryable_error(self, error: Exception) -> bool:
         """
-        判断是否为可重试错误
+        Determine if it is a retryable error
 
         Args:
-            error: 异常实例
+            error: Exception instance
 
         Returns:
-            bool: True表示可以重试
+            bool: True means it can be retried
         """
-        # 如果是致命错误，不可重试
+        # If it's a fatal error, not retryable
         if self.is_fatal_error(error):
             return False
 
-        # 明确标识的业务逻辑错误可以重试
+        # Explicitly marked business logic errors can be retried
         if isinstance(error, BusinessLogicError):
             return True
 
-        # 网络相关错误通常可以重试
-        retryable_error_types = (ConnectionError, TimeoutError, OSError)  # 包含网络错误
+        # Network-related errors are usually retryable
+        retryable_error_types = (
+            ConnectionError,
+            TimeoutError,
+            OSError,
+        )  # Includes network errors
 
         return isinstance(error, retryable_error_types)
 
 
 class RetryConfig:
-    """重试配置"""
+    """Retry configuration"""
 
     def __init__(
         self,
@@ -190,16 +194,16 @@ class RetryConfig:
         retry_on_fatal: bool = False,
     ):
         """
-        初始化重试配置
+        Initialize retry configuration
 
         Args:
-            max_retries: 最大重试次数
-            retry_delay: 初始重试延迟时间（秒）
-            exponential_backoff: 是否使用指数退避
-            max_delay: 最大延迟时间（秒）
-            jitter: 是否添加随机抖动
-            backoff_multiplier: 指数退避倍数
-            retry_on_fatal: 是否对致命错误也进行重试（通常为False）
+            max_retries: Maximum number of retries
+            retry_delay: Initial retry delay time (seconds)
+            exponential_backoff: Whether to use exponential backoff
+            max_delay: Maximum delay time (seconds)
+            jitter: Whether to add random jitter
+            backoff_multiplier: Exponential backoff multiplier
+            retry_on_fatal: Whether to retry on fatal errors (usually False)
         """
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -211,7 +215,7 @@ class RetryConfig:
 
 
 class ConsumerConfig:
-    """消费者配置"""
+    """Consumer configuration"""
 
     def __init__(
         self,
@@ -220,12 +224,12 @@ class ConsumerConfig:
         error_handler: Optional[ErrorHandler] = None,
     ):
         """
-        初始化消费者配置
+        Initialize consumer configuration
 
         Args:
-            timeout: 单个消息消费超时时间（秒），包括重试
-            retry_config: 重试配置
-            error_handler: 错误处理器
+            timeout: Timeout for consuming a single message (seconds), including retries
+            retry_config: Retry configuration
+            error_handler: Error handler
         """
         self.timeout = timeout
         self.retry_config = retry_config or RetryConfig()

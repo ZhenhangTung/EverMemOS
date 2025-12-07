@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-单个 Addon 的扫描注册器容器
-用于承载单个 addon 的 DI 和异步任务 registry
+Container for scanning and registering a single Addon
+Used to host DI and async task registry for a single addon
 """
 
 from typing import Optional
@@ -11,22 +11,22 @@ from core.asynctasks.task_scan_registry import TaskScanDirectoriesRegistry
 
 class AddonRegistry:
     """
-    单个 Addon 的扫描注册器容器
+    Container for scanning and registering a single Addon
 
-    用于承载单个 addon 的扫描配置：
-    - di: DI 组件扫描路径注册器
-    - asynctasks: 异步任务扫描目录注册器
+    Used to host scanning configurations for a single addon:
+    - di: Registry for DI component scan paths
+    - asynctasks: Registry for async task scan directories
 
-    使用示例:
-        # 创建 addon registry
+    Example:
+        # Create addon registry
         addon = AddonRegistry(name="my_addon")
 
-        # 注册 DI registry
+        # Register DI registry
         di_registry = ScannerPathsRegistry()
         di_registry.add_scan_path("/path/to/components")
         addon.register_di(di_registry)
 
-        # 注册异步任务 registry
+        # Register async task registry
         task_registry = TaskScanDirectoriesRegistry()
         task_registry.add_scan_path("/path/to/tasks")
         addon.register_asynctasks(task_registry)
@@ -34,10 +34,10 @@ class AddonRegistry:
 
     def __init__(self, name: str):
         """
-        初始化 addon registry
+        Initialize addon registry
 
         Args:
-            name: addon 名称
+            name: addon name
         """
         self.name: str = name
         self.di: Optional[ScannerPathsRegistry] = None
@@ -45,13 +45,13 @@ class AddonRegistry:
 
     def register_di(self, registry: ScannerPathsRegistry) -> 'AddonRegistry':
         """
-        注册 DI 组件扫描路径注册器
+        Register DI component scan path registry
 
         Args:
-            registry: DI 扫描路径注册器
+            registry: DI scan path registry
 
         Returns:
-            self: 支持链式调用
+            self: supports method chaining
         """
         self.di = registry
         return self
@@ -60,21 +60,21 @@ class AddonRegistry:
         self, registry: TaskScanDirectoriesRegistry
     ) -> 'AddonRegistry':
         """
-        注册异步任务扫描目录注册器
+        Register async task scan directory registry
 
         Args:
-            registry: 异步任务扫描目录注册器
+            registry: async task scan directory registry
 
         Returns:
-            self: 支持链式调用
+            self: supports method chaining
         """
         self.asynctasks = registry
         return self
 
     def has_di(self) -> bool:
-        """检查是否已注册 DI registry"""
+        """Check if DI registry has been registered"""
         return self.di is not None
 
     def has_asynctasks(self) -> bool:
-        """检查是否已注册异步任务 registry"""
+        """Check if async task registry has been registered"""
         return self.asynctasks is not None

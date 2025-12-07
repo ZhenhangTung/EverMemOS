@@ -18,26 +18,26 @@ def authorize(
     **kwargs,
 ):
     """
-    授权装饰器
+    Authorization decorator
 
     Args:
-        required_role: 需要的角色，默认为匿名
-        strategy: 自定义授权策略，如果为None则使用默认策略
-        **kwargs: 传递给策略的额外参数
+        required_role: Required role, default is anonymous
+        strategy: Custom authorization strategy, use default if None
+        **kwargs: Additional parameters passed to the strategy
 
     Returns:
-        装饰后的函数
+        Decorated function
     """
 
     def decorator(func: Callable) -> Callable:
-        # 创建授权上下文
+        # Create authorization context
         auth_context = AuthorizationContext(
             required_role=required_role,
             strategy=strategy or DefaultAuthorizationStrategy(),
             **kwargs,
         )
 
-        # 将授权信息存储到函数上
+        # Store authorization info on the function
         setattr(func, '__authorization_context__', auth_context)
 
         @functools.wraps(func)
@@ -50,7 +50,7 @@ def authorize(
         def sync_wrapper(*args, **kwargs):
             return _execute_with_authorization_sync(func, auth_context, *args, **kwargs)
 
-        # 根据函数类型返回相应的wrapper
+        # Return the appropriate wrapper based on function type
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         else:
@@ -63,24 +63,24 @@ async def _execute_with_authorization(
     func: Callable, auth_context: AuthorizationContext, *args, **kwargs
 ) -> Any:
     """
-    异步执行函数并进行授权检查
+    Execute function asynchronously with authorization check
 
     Args:
-        func: 要执行的函数
-        auth_context: 授权上下文
-        *args: 函数参数
-        **kwargs: 函数关键字参数
+        func: Function to execute
+        auth_context: Authorization context
+        *args: Function arguments
+        **kwargs: Function keyword arguments
 
     Returns:
-        函数的返回值
+        Return value of the function
 
     Raises:
-        HTTPException: 当授权失败时
+        HTTPException: When authorization fails
     """
-    # 获取当前用户信息
+    # Get current user information
     user_info = get_current_user_info()
 
-    # 执行授权检查
+    # Perform authorization check
     has_permission = await auth_context.strategy.check_permission(
         user_info=user_info,
         required_role=auth_context.required_role,
@@ -89,15 +89,19 @@ async def _execute_with_authorization(
 
     if not has_permission:
         logger.warning(
-            "授权失败: 用户=%s, 需要角色=%s", user_info, auth_context.required_role
+            "Authorization failed: user=%s, required role=%s",
+            user_info,
+            auth_context.required_role,
         )
         raise HTTPException(
             status_code=403,
-            detail=f"权限不足，需要角色: {auth_context.required_role.value}",
+            detail=f"Insufficient permissions, required role: {auth_context.required_role.value}",
         )
 
-    # 授权通过，执行原函数
-    logger.debug("授权通过: 用户=%s, 角色=%s", user_info, auth_context.required_role)
+    # Authorization passed, execute original function
+    logger.debug(
+        "Authorization passed: user=%s, role=%s", user_info, auth_context.required_role
+    )
     return await func(*args, **kwargs)
 
 
@@ -105,32 +109,32 @@ def _execute_with_authorization_sync(
     func: Callable, auth_context: AuthorizationContext, *args, **kwargs
 ) -> Any:
     """
-    同步执行函数并进行授权检查
+    Execute function synchronously with authorization check
 
     Args:
-        func: 要执行的函数
-        auth_context: 授权上下文
-        *args: 函数参数
-        **kwargs: 函数关键字参数
+        func: Function to execute
+        auth_context: Authorization context
+        *args: Function arguments
+        **kwargs: Function keyword arguments
 
     Returns:
-        函数的返回值
+        Return value of the function
 
     Raises:
-        HTTPException: 当授权失败时
+        HTTPException: When authorization fails
     """
-    # 获取当前用户信息
+    # Get current user information
     user_info = get_current_user_info()
 
-    # 对于同步函数，我们需要在事件循环中运行异步授权检查
+    # For synchronous functions, we need to run async authorization check in event loop
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
-        # 如果没有事件循环，创建一个新的
+        # If no event loop exists, create a new one
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-    # 执行授权检查
+    # Perform authorization check
     has_permission = loop.run_until_complete(
         auth_context.strategy.check_permission(
             user_info=user_info,
@@ -141,83 +145,87 @@ def _execute_with_authorization_sync(
 
     if not has_permission:
         logger.warning(
-            "授权失败: 用户=%s, 需要角色=%s", user_info, auth_context.required_role
+            "Authorization failed: user=%s, required role=%s",
+            user_info,
+            auth_context.required_role,
         )
         raise HTTPException(
             status_code=403,
-            detail=f"权限不足，需要角色: {auth_context.required_role.value}",
+            detail=f"Insufficient permissions, required role: {auth_context.required_role.value}",
         )
 
-    # 授权通过，执行原函数
-    logger.debug("授权通过: 用户=%s, 角色=%s", user_info, auth_context.required_role)
+    # Authorization passed, execute original function
+    logger.debug(
+        "Authorization passed: user=%s, role=%s", user_info, auth_context.required_role
+    )
     return func(*args, **kwargs)
 
 
-# 便捷装饰器
+# Convenience decorators
 def require_anonymous(func: Callable) -> Callable:
-    """要求匿名访问的装饰器"""
+    """Decorator for requiring anonymous access"""
     return authorize(Role.ANONYMOUS)(func)
 
 
 def require_user(func: Callable) -> Callable:
-    """要求用户登录的装饰器"""
+    """Decorator for requiring user login"""
     return authorize(Role.USER)(func)
 
 
 def require_admin(func: Callable) -> Callable:
-    """要求管理员权限的装饰器"""
+    """Decorator for requiring admin privileges"""
     return authorize(Role.ADMIN)(func)
 
 
 def require_signature(func: Callable) -> Callable:
-    """要求HMAC签名验证的装饰器"""
+    """Decorator for requiring HMAC signature verification"""
     return authorize(Role.SIGNATURE)(func)
 
 
 def custom_authorize(strategy: AuthorizationStrategy, **kwargs):
     """
-    自定义授权装饰器
+    Custom authorization decorator
 
     Args:
-        strategy: 自定义授权策略
-        **kwargs: 传递给策略的额外参数
+        strategy: Custom authorization strategy
+        **kwargs: Additional parameters passed to the strategy
 
     Returns:
-        装饰器函数
+        Decorator function
     """
     return authorize(strategy=strategy, **kwargs)
 
 
 def check_and_apply_default_auth(func: Callable) -> Callable:
     """
-    检查函数是否已有授权装饰器，如果没有则应用默认的 require_user 授权
+    Check if function already has authorization decorator, if not apply default require_user authorization
 
-    处理 bound function 和 unbound function 的情况：
-    - 对于 bound method（类方法），需要正确处理 self 参数
-    - 对于 unbound function（普通函数），直接应用装饰器
+    Handle both bound function and unbound function cases:
+    - For bound method (class method), handle self parameter correctly
+    - For unbound function (regular function), apply decorator directly
 
     Args:
-        func: 要检查的函数，可能是 bound method 或 unbound function
+        func: Function to check, could be bound method or unbound function
 
     Returns:
-        Callable: 应用了默认授权的函数（如果还没有授权装饰器）
+        Callable: Function with default authorization applied (if no authorization decorator existed)
     """
-    # 检查函数是否已经有授权装饰器
+    # Check if function already has authorization decorator
     if hasattr(func, '__authorization_context__'):
         return func
 
-    # 检查是否为 bound method（类方法）
+    # Check if it's a bound method
     if hasattr(func, '__self__'):
-        # 这是一个 bound method，需要获取原始函数
+        # This is a bound method, need to get the original function
         original_func = func.__func__
-        # 检查原始函数是否已有授权装饰器
+        # Check if original function already has authorization decorator
         if hasattr(original_func, '__authorization_context__'):
             return func
 
-        # 对原始函数应用装饰器，然后重新绑定
+        # Apply decorator to original function, then rebind
         decorated_func = require_user(original_func)
-        # 重新绑定到原始对象
+        # Rebind to original object
         return decorated_func.__get__(func.__self__)
     else:
-        # 这是一个 unbound function，直接应用装饰器
+        # This is an unbound function, apply decorator directly
         return require_user(func)

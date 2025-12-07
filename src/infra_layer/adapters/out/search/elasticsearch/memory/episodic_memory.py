@@ -1,4 +1,4 @@
-# 导入保留用于类型注解和字段定义
+# Import retained for type annotations and field definitions
 from elasticsearch.dsl import field as e_field
 from core.tenants.tenantize.oxm.es.tenant_aware_async_document import (
     TenantAwareAliasDoc,
@@ -13,60 +13,60 @@ from core.oxm.es.analyzer import (
 
 class EpisodicMemoryDoc(TenantAwareAliasDoc("episodic-memory", number_of_shards=3)):
     """
-    情景记忆Elasticsearch文档
+    Episodic memory Elasticsearch document
 
-    基于MongoDB EpisodicMemory模型，用于高效的BM25文本检索。
-    主要检索字段为title和episode的拼接内容。
+    Based on MongoDB EpisodicMemory model, used for efficient BM25 text retrieval.
+    Main retrieval field is the concatenated content of title and episode.
 
-    字段说明：
-    - event_id: 事件唯一标识（对应MongoDB的_id）
-    - user_id: 用户ID（必需，用于过滤）
-    - user_name: 用户名称
-    - timestamp: 事件发生时间
-    - title: 事件标题（对应MongoDB的subject字段）
-    - episode: 情景描述（核心内容）
-    - search_content: BM25搜索字段（支持多值存储，用于精确词匹配）
-    - summary: 事件摘要
-    - group_id: 群组ID（可选）
-    - participants: 参与者列表
-    - type: 事件类型（Conversation等）
-    - keywords: 关键词列表
-    - linked_entities: 关联实体ID列表
-    - extend: 扩展字段（灵活存储）
+    Field descriptions:
+    - event_id: Event unique identifier (corresponds to MongoDB _id)
+    - user_id: User ID (required, used for filtering)
+    - user_name: User name
+    - timestamp: Event occurrence time
+    - title: Event title (corresponds to MongoDB subject field)
+    - episode: Episodic description (core content)
+    - search_content: BM25 search field (supports multi-value storage, used for exact word matching)
+    - summary: Event summary
+    - group_id: Group ID (optional)
+    - participants: List of participants
+    - type: Event type (Conversation, etc.)
+    - keywords: List of keywords
+    - linked_entities: List of linked entity IDs
+    - extend: Extension field (flexible storage)
 
-    分词处理说明：
-    - 应用层负责中文分词（推荐使用jieba）
-    - title、episode、summary字段存储预分词结果（空格分隔）
-    - search_content字段支持多值存储，每个值是一个搜索词
-    - ES使用standard分析器处理search_content，original子字段用于精确匹配
-    - 搜索时使用terms查询在search_content.original字段中匹配多个词
+    Tokenization notes:
+    - Application layer is responsible for Chinese tokenization (jieba recommended)
+    - title, episode, and summary fields store pre-tokenized results (space-separated)
+    - search_content field supports multi-value storage, each value being a search term
+    - ES uses standard analyzer for search_content, original sub-field for exact matching
+    - During search, use terms query to match multiple terms in search_content.original field
 
-    附属字段说明：
-    - original: 精确匹配，小写处理
-    - ik: IK智能分词（需要ES安装IK插件）
-    - edge_completion: 前缀匹配和自动补全
+    Sub-fields description:
+    - original: Exact match, lowercase processed
+    - ik: IK intelligent tokenization (requires IK plugin installed in ES)
+    - edge_completion: Prefix matching and autocomplete
     """
 
     class CustomMeta:
-        # 指定用于自动填充 meta.id 的字段名
+        # Specify the field name used to automatically populate meta.id
         id_source_field = "event_id"
 
-    # 基础标识字段
+    # Basic identifier fields
     event_id = e_field.Keyword(required=True)
-    user_id = e_field.Keyword()  # 群组记忆时为 None
+    user_id = e_field.Keyword()  # None for group memory
     user_name = e_field.Keyword()
 
-    # 时间字段
+    # Timestamp field
     timestamp = e_field.Date(required=True)
 
-    # 核心内容字段 - BM25检索的主要目标
+    # Core content fields - primary target for BM25 retrieval
     title = e_field.Text(
         required=False,
         analyzer=whitespace_lowercase_trim_stop_analyzer,
         search_analyzer=whitespace_lowercase_trim_stop_analyzer,
         fields={
-            "keyword": e_field.Keyword(),  # 精确匹配
-            # "completion": e_field.Completion(analyzer=completion_analyzer),  # 自动补全
+            "keyword": e_field.Keyword(),  # Exact match
+            # "completion": e_field.Completion(analyzer=completion_analyzer),  # Autocomplete
         },
     )
 
@@ -74,27 +74,27 @@ class EpisodicMemoryDoc(TenantAwareAliasDoc("episodic-memory", number_of_shards=
         required=True,
         analyzer=whitespace_lowercase_trim_stop_analyzer,
         search_analyzer=whitespace_lowercase_trim_stop_analyzer,
-        fields={"keyword": e_field.Keyword()},  # 精确匹配
+        fields={"keyword": e_field.Keyword()},  # Exact match
     )
 
-    # BM25检索核心字段 - 支持多值存储的搜索内容
-    # 应用层可以存储多个相关的搜索词或短语
+    # Core BM25 retrieval field - search content supporting multi-value storage
+    # Application layer can store multiple related search terms or phrases
     search_content = e_field.Text(
         multi=True,
         required=True,
         # star
         analyzer="standard",
         fields={
-            # 原始内容字段 - 用于精确匹配，小写处理
+            # Original content field - for exact matching, lowercase processed
             "original": e_field.Text(
                 analyzer=lower_keyword_analyzer, search_analyzer=lower_keyword_analyzer
             ),
-            # # IK智能分词字段 - 需要安装IK插件
+            # # IK intelligent tokenization field - requires IK plugin installed
             # "ik": e_field.Text(
             #     analyzer="ik_smart",
             #     search_analyzer="ik_smart"
             # ),
-            # 边缘N-gram字段 - 用于前缀匹配和自动补全
+            # Edge N-gram field - for prefix matching and autocomplete
             # "edge_completion": e_field.Text(
             #     analyzer=edge_analyzer,
             #     search_analyzer=lower_keyword_analyzer
@@ -102,26 +102,26 @@ class EpisodicMemoryDoc(TenantAwareAliasDoc("episodic-memory", number_of_shards=
         },
     )
 
-    # 摘要字段
+    # Summary field
     summary = e_field.Text(
         analyzer=whitespace_lowercase_trim_stop_analyzer,
         search_analyzer=whitespace_lowercase_trim_stop_analyzer,
     )
 
-    # 分类和标签字段
-    group_id = e_field.Keyword()  # 群组ID
+    # Classification and tagging fields
+    group_id = e_field.Keyword()  # Group ID
     participants = e_field.Keyword(multi=True)
 
-    type = e_field.Keyword()  # Conversation/Email/Notion等
-    keywords = e_field.Keyword(multi=True)  # 关键词列表
-    linked_entities = e_field.Keyword(multi=True)  # 关联实体ID列表
+    type = e_field.Keyword()  # Conversation/Email/Notion, etc.
+    keywords = e_field.Keyword(multi=True)  # List of keywords
+    linked_entities = e_field.Keyword(multi=True)  # List of linked entity IDs
 
-    subject = e_field.Text()  # 事件标题
-    memcell_event_id_list = e_field.Keyword(multi=True)  # 记忆单元事件ID列表
+    subject = e_field.Text()  # Event title
+    memcell_event_id_list = e_field.Keyword(multi=True)  # List of memory cell event IDs
 
-    # 扩展字段
-    extend = e_field.Object(dynamic=True)  # 灵活的扩展字段
+    # Extension field
+    extend = e_field.Object(dynamic=True)  # Flexible extension field
 
-    # 审计字段
+    # Audit fields
     created_at = e_field.Date()
     updated_at = e_field.Date()

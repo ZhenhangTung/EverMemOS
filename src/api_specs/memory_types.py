@@ -15,34 +15,34 @@ class RawDataType(Enum):
     @classmethod
     def from_string(cls, type_str: Optional[str]) -> Optional['RawDataType']:
         """
-        将字符串类型转换为RawDataType枚举
+        Convert string type to RawDataType enum
 
         Args:
-            type_str: 类型字符串，如 "Conversation", "Email" 等
+            type_str: Type string, such as "Conversation", "Email", etc.
 
         Returns:
-            RawDataType枚举值，如果转换失败则返回None
+            RawDataType enum value, returns None if conversion fails
         """
         if not type_str:
             return None
 
         try:
-            # 将字符串转换为枚举名称格式（如 "Conversation" -> "CONVERSATION"）
+            # Convert string to enum name format (e.g., "Conversation" -> "CONVERSATION")
             enum_name = type_str.upper()
             return getattr(cls, enum_name)
 
         except AttributeError:
-            # 如果没有找到对应的枚举，返回None
+            # If no matching enum is found, return None
             from core.observation.logger import get_logger
 
             logger = get_logger(__name__)
-            logger.error(f"未找到匹配的RawDataType: {type_str}，返回None")
+            logger.error(f"No matching RawDataType found: {type_str}, returning None")
             return None
         except Exception as e:
             from core.observation.logger import get_logger
 
             logger = get_logger(__name__)
-            logger.warning(f"转换type字段失败: {type_str}, error: {e}")
+            logger.warning(f"Failed to convert type field: {type_str}, error: {e}")
             return None
 
 
@@ -70,12 +70,14 @@ class MemCell:
     keywords: Optional[List[str]] = None
     subject: Optional[str] = None
     linked_entities: Optional[List[str]] = None
-    episode: Optional[str] = None  # 情景记忆内容
+    episode: Optional[str] = None  # episodic memory content
 
-    # 前瞻联想预测字段
-    foresights: Optional[List['ForesightItem']] = None  # 前瞻联想列表
-    # Event Log 字段
-    event_log: Optional[Any] = None  # Event Log 对象
+    # Prospective association prediction field
+    foresights: Optional[List['ForesightItem']] = (
+        None  # list of prospective associations
+    )
+    # Event Log field
+    event_log: Optional[Any] = None  # Event Log object
     # extend fields, can be used to store any additional information
     extend: Optional[Dict[str, Any]] = None
 
@@ -96,7 +98,7 @@ class MemCell:
             "event_id": self.event_id,
             "user_id_list": self.user_id_list,
             "original_data": self.original_data,
-            "timestamp": to_iso_format(self.timestamp),  # 转换为ISO格式字符串
+            "timestamp": to_iso_format(self.timestamp),  # convert to ISO format string
             "summary": self.summary,
             "group_id": self.group_id,
             "group_name": self.group_name,
@@ -150,11 +152,13 @@ class Memory:
 
     memcell_event_id_list: Optional[List[str]] = None
     user_name: Optional[str] = None
-    # 前瞻联想预测字段
-    foresights: Optional[List['ForesightItem']] = None  # 前瞻联想列表
+    # Prospective association prediction field
+    foresights: Optional[List['ForesightItem']] = (
+        None  # list of prospective associations
+    )
     extend: Optional[Dict[str, Any]] = None
 
-    # 向量和模型
+    # vector and model
     vector_model: Optional[str] = None
     vector: Optional[List[float]] = None
 
@@ -162,7 +166,7 @@ class Memory:
         pass
 
     def to_dict(self) -> Dict[str, Any]:
-        # 安全处理 timestamp（可能是 datetime、str 或 None）
+        # Safely handle timestamp (could be datetime, str, or None)
         timestamp_str = None
         if self.timestamp:
             if isinstance(self.timestamp, str):
@@ -200,9 +204,9 @@ class Memory:
 @dataclass
 class Foresight:
     """
-    前瞻数据模型
+    Prospective data model
 
-    用于存储从情景记忆中提取的前瞻知识
+    Used to store prospective knowledge extracted from episodic memories
     """
 
     user_id: str
@@ -216,7 +220,7 @@ class Foresight:
 
     def __post_init__(self):
         from common_utils.datetime_utils import get_now_with_timezone
-        
+
         if self.source_episodes is None:
             self.source_episodes = []
         if self.created_at is None:
@@ -240,17 +244,19 @@ class Foresight:
 @dataclass
 class ForesightItem:
     """
-    前瞻联想项目
+    Prospective association item
 
-    包含时间信息的前瞻联想预测
+    Contains time-informed prospective association predictions
     """
 
     content: str
-    evidence: Optional[str] = None  # 原始证据，支持该联想预测的具体事实（不超过30字）
-    start_time: Optional[str] = None  # 事件开始时间，格式：YYYY-MM-DD
-    end_time: Optional[str] = None  # 事件结束时间，格式：YYYY-MM-DD
-    duration_days: Optional[int] = None  # 持续时间（天数）
-    source_episode_id: Optional[str] = None  # 来源事件ID
+    evidence: Optional[str] = (
+        None  # original evidence, specific facts supporting this association prediction (no more than 30 characters)
+    )
+    start_time: Optional[str] = None  # event start time, format: YYYY-MM-DD
+    end_time: Optional[str] = None  # event end time, format: YYYY-MM-DD
+    duration_days: Optional[int] = None  # duration in days
+    source_episode_id: Optional[str] = None  # source event ID
     vector: Optional[List[float]] = None
     vector_model: Optional[str] = None
 

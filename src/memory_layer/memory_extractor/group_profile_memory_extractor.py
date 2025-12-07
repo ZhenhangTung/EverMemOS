@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 # ============================================================================
-# 工具函数
+# Utility functions
 # ============================================================================
 
 
@@ -38,16 +38,16 @@ def convert_to_datetime(timestamp, fallback_timestamp=None) -> datetime:
         datetime object with project consistent timezone
     """
     if isinstance(timestamp, datetime):
-        # 确保时区一致性
+        # Ensure timezone consistency
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=timezone)
         return timestamp.astimezone(timezone)
     elif isinstance(timestamp, (int, float)):
-        # 使用公用函数，自动处理时区和精度识别
+        # Use common function, automatically handle timezone and precision detection
         return from_timestamp(timestamp)
     elif isinstance(timestamp, str):
         try:
-            # 使用公用函数，统一时区处理
+            # Use common function, unified timezone handling
             return from_iso_format(timestamp)
         except Exception as e:
             logger.exception(
@@ -60,7 +60,7 @@ def convert_to_datetime(timestamp, fallback_timestamp=None) -> datetime:
 
 
 # ============================================================================
-# 数据模型 - 保留在主文件，确保引用路径不变
+# Data models - Keep in main file to ensure reference paths remain unchanged
 # ============================================================================
 
 
@@ -90,18 +90,26 @@ class TopicInfo:
     """
     Topic information for storage and output.
 
-    包含 topic 的所有信息，包括 evidences 和 confidence。
+    Contains all information about the topic, including evidences and confidence.
     """
 
-    name: str  # 话题名 (短语化标签)
-    summary: str  # 一句话概述
+    name: str  # Topic name (phrased label)
+    summary: str  # One-sentence overview
     status: str  # exploring/disagreement/consensus/implemented
-    last_active_at: datetime  # 最近活跃时间 (=updateTime)
-    id: Optional[str] = None  # 话题唯一ID (系统生成，LLM不需要提供)
-    update_type: Optional[str] = None  # "new" | "update" (仅用于增量更新时)
-    old_topic_id: Optional[str] = None  # 更新时指向老topic (仅用于增量更新时)
-    evidences: Optional[List[str]] = field(default_factory=list)  # memcell_ids 作为证据
-    confidence: Optional[str] = None  # "strong" | "weak" - 置信度
+    last_active_at: datetime  # Last active time (=updateTime)
+    id: Optional[str] = (
+        None  # Unique topic ID (system-generated, LLM does not need to provide)
+    )
+    update_type: Optional[str] = (
+        None  # "new" | "update" (only used during incremental updates)
+    )
+    old_topic_id: Optional[str] = (
+        None  # Points to old topic during update (only used during incremental updates)
+    )
+    evidences: Optional[List[str]] = field(
+        default_factory=list
+    )  # memcell_ids as evidence
+    confidence: Optional[str] = None  # "strong" | "weak" - confidence level
 
     @classmethod
     def create_with_id(
@@ -134,22 +142,22 @@ class GroupProfileMemory(Memory):
     Evidences are now stored within topics and roles instead of separately.
     """
 
-    # 新增字段，不与基类冲突
+    # New fields, no conflict with base class
     group_name: Optional[str] = None
 
-    # 提取结果（包含 strong + weak，按 last_active_at 排序，限制为 max_topics 个）
-    # topics 包含 evidences 和 confidence
+    # Extraction results (including strong + weak, sorted by last_active_at, limited to max_topics)
+    # topics include evidences and confidence
     topics: Optional[List[TopicInfo]] = field(default_factory=list)
-    # roles 的每个 assignment 包含 evidences 和 confidence
-    # 格式: role -> [{"user_id": "xxx", "user_name": "xxx", "confidence": "strong|weak", "evidences": [...]}]
+    # Each assignment in roles includes evidences and confidence
+    # Format: role -> [{"user_id": "xxx", "user_name": "xxx", "confidence": "strong|weak", "evidences": [...]}]
     roles: Optional[Dict[str, List[Dict[str, str]]]] = field(default_factory=dict)
 
-    # 注意：summary 和 group_id 已经在基类中定义为 Optional，这里不需要重复定义
+    # Note: summary and group_id are already defined as Optional in the base class, no need to redefine here
 
     def __post_init__(self):
         """Set memory_type to GROUP_PROFILE and call parent __post_init__."""
         self.memory_type = MemoryType.GROUP_PROFILE
-        # 确保 topics 和 roles 不为 None，防止历史数据或异常情况导致的 None 值
+        # Ensure topics and roles are not None, preventing None values from historical data or exceptions
         if self.topics is None:
             self.topics = []
         if self.roles is None:
@@ -161,19 +169,20 @@ class GroupProfileMemory(Memory):
 class GroupProfileMemoryExtractRequest(MemoryExtractRequest):
     """
     Request for group profile memory extraction.
-    
-    Group Profile 提取也可能需要处理多个 MemCell (来自聚类),
-    因此也提供 memcell_list 支持
+
+    Group Profile extraction may also need to process multiple MemCells (from clustering),
+    so memcell_list support is provided
     """
-    # 覆盖基类字段,可选的单个 memcell
+
+    # Override base class field, optional single memcell
     memcell: Optional[MemCell] = None
-    
-    # Group Profile 特有字段
+
+    # Group Profile specific field
     memcell_list: Optional[List[MemCell]] = None
     user_id_list: Optional[List[str]] = None
-    
+
     def __post_init__(self):
-        # 如果提供了 memcell_list,则使用它;否则使用单个 memcell
+        # If memcell_list is provided, use it; otherwise use single memcell
         if self.memcell_list is None and self.memcell is not None:
             self.memcell_list = [self.memcell]
         elif self.memcell_list is None:
@@ -181,7 +190,7 @@ class GroupProfileMemoryExtractRequest(MemoryExtractRequest):
 
 
 # ============================================================================
-# 主提取器类 - 保留核心逻辑
+# Main extractor class - Keep core logic
 # ============================================================================
 
 
@@ -200,25 +209,25 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
         max_topics: int = 10,
     ):
         """
-        初始化群组画像提取器
+        Initialize group profile extractor
 
         Args:
-            llm_provider: LLM提供者实例
-            conversation_source: 对话来源，"original" 或 "episode"
-            max_topics: 最大话题数量
+            llm_provider: LLM provider instance
+            conversation_source: Conversation source, "original" or "episode"
+            max_topics: Maximum number of topics
         """
         super().__init__(MemoryType.GROUP_PROFILE)
         self.llm_provider = llm_provider
         self.conversation_source = conversation_source
         self.max_topics = max_topics
 
-        # 延迟初始化辅助处理器
+        # Lazy initialization of helper processors
         self._data_processor = None
         self._topic_processor = None
         self._role_processor = None
         self._llm_handler = None
 
-    # ========== 懒加载辅助处理器 ==========
+    # ========== Lazy load helper processors ==========
 
     @property
     def data_processor(self):
@@ -258,7 +267,7 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
             )
         return self._llm_handler
 
-    # ========== 业务逻辑方法 ==========
+    # ========== Business logic methods ==========
 
     def _filter_group(
         self, group_name: Optional[str], user_id_list: Optional[List[str]]
@@ -273,19 +282,19 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
         Returns:
             True if group should be filtered out (not processed), False otherwise
         """
-        # 根据环境变量ENV控制过滤逻辑
+        # Control filtering logic based on environment variable ENV
         env_value = os.getenv('IGNORE_GROUP_NAME_FILTER', '').lower()
 
         if env_value == 'true':
-            # 如果ENV变量为true，则不过滤任何群组
+            # If ENV variable is true, do not filter any groups
             return False
         else:
-            # 否则执行原来的过滤逻辑
+            # Otherwise, execute original filtering logic
             if group_name:
                 return False
             return True
 
-    # ========== 核心提取方法 ==========
+    # ========== Core extraction method ==========
 
     async def extract_memory(
         self, request: GroupProfileMemoryExtractRequest
@@ -293,7 +302,7 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
         """
         Extract group profile memory from conversation memcells.
 
-        【核心业务流程】通过组合各个processor完成提取任务
+        【Core business process】Complete extraction task by combining various processors
 
         Args:
             request: Extract request containing memcells and related info
@@ -301,7 +310,7 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
         Returns:
             List containing a single GroupProfileMemory object, or None
         """
-        # ===== 1. 前置检查 =====
+        # ===== 1. Pre-checks =====
         if not request.memcell_list:
             return None
 
@@ -309,14 +318,14 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
         group_name = request.group_name or ""
         memcell_list = request.memcell_list
 
-        # 业务过滤逻辑
+        # Business filtering logic
         if self._filter_group(group_name, request.user_id_list):
             logger.info(
                 f"[GroupProfileMemoryExtractor] Skipping group '{group_name}' - filtered out"
             )
             return None
 
-        # ===== 2. 提取历史画像和构建对话文本 =====
+        # ===== 2. Extract historical profile and build conversation text =====
         existing_profile = self.data_processor.extract_existing_group_profile(
             request.old_memory_list
         )
@@ -324,13 +333,13 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
             memcell_list
         )
 
-        # ===== 3. 计算时间跨度 =====
+        # ===== 3. Calculate time span =====
         start_time = convert_to_datetime(min(mc.timestamp for mc in memcell_list))
         end_time = convert_to_datetime(max(mc.timestamp for mc in memcell_list))
         timespan = f"{start_time.date()} to {end_time.date()}"
 
         try:
-            # ===== 4. 执行LLM并行分析 =====
+            # ===== 4. Execute LLM parallel analysis =====
             logger.info(
                 f"[GroupProfileMemoryExtractor] Executing parallel analysis for group: {group_name}"
             )
@@ -348,7 +357,7 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
             if not parsed_data:
                 return None
 
-            # ===== 5. 收集有效memcell IDs =====
+            # ===== 5. Collect valid memcell IDs =====
             valid_memcell_ids = set(
                 str(mc.event_id)
                 for mc in memcell_list
@@ -358,7 +367,7 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
                 f"[extract_memory] Valid memcell IDs count: {len(valid_memcell_ids)}"
             )
 
-            # ===== 6. 处理话题 =====
+            # ===== 6. Process topics =====
             raw_topics = parsed_data.get("topics", [])
             existing_topics = (
                 existing_profile.get("topics", []) if existing_profile else []
@@ -375,13 +384,13 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
                 f"[extract_memory] Processed {len(all_topics)} topics (strong + weak)"
             )
 
-            # ===== 7. 处理角色 =====
+            # ===== 7. Process roles =====
             raw_roles = parsed_data.get("roles", {})
             existing_roles = (
                 existing_profile.get("roles", {}) if existing_profile else {}
             )
 
-            # 构建综合speaker映射
+            # Build comprehensive speaker mapping
             comprehensive_mapping = (
                 self.data_processor.get_comprehensive_speaker_mapping(
                     memcell_list, existing_roles
@@ -399,7 +408,7 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
                 f"[extract_memory] Processed roles with {sum(len(v) for v in all_roles.values())} total assignments"
             )
 
-            # ===== 8. 组装最终结果 =====
+            # ===== 8. Assemble final result =====
             group_profile = GroupProfileMemory(
                 memory_type=MemoryType.GROUP_PROFILE,
                 user_id="",
@@ -425,19 +434,19 @@ class GroupProfileMemoryExtractor(MemoryExtractor):
 
 
 # ============================================================================
-# 对外API声明
+# Public API declaration
 # ============================================================================
 
 __all__ = [
-    # 主类
+    # Main class
     'GroupProfileMemoryExtractor',
     'GroupProfileMemoryExtractRequest',
-    # 数据模型
+    # Data models
     'GroupProfileMemory',
     'TopicInfo',
-    # 枚举
+    # Enums
     'GroupRole',
     'TopicStatus',
-    # 工具函数
+    # Utility functions
     'convert_to_datetime',
 ]

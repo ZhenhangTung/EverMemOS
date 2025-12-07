@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Addon 贡献模块
+Addon contribution module
 
-提供处理 addon 的各种工具函数，包括依赖注入扫描和异步任务注册的入口函数
+Provides various utility functions for handling addons, including entry functions for dependency injection scanning and asynchronous task registration
 """

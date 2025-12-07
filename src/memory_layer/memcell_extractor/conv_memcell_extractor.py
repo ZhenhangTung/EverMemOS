@@ -55,27 +55,24 @@ class ConversationMemCellExtractRequest(MemCellExtractRequest):
 
 class ConvMemCellExtractor(MemCellExtractor):
     """
-    对话 MemCell 提取器 - 只负责边界检测和创建基础 MemCell
-    
-    职责：
-    1. 边界检测（判断是否应该结束当前 MemCell）
-    2. 创建基础 MemCell（包含 original_data, summary, timestamp 等基础字段）
-    
-    不包含：
-    - Episode 提取（由 EpisodeMemoryExtractor 负责）
-    - Foresight 提取（由 ForesightExtractor 负责）
-    - EventLog 提取（由 EventLogExtractor 负责）
-    - Embedding 计算（由 MemoryManager 负责）
+    Conversation MemCell Extractor - Responsible only for boundary detection and creating basic MemCell
+
+    Responsibilities:
+    1. Boundary detection (determine whether current MemCell should end)
+    2. Create basic MemCell (including basic fields such as original_data, summary, timestamp, etc.)
+
+    Not included:
+    - Episode extraction (handled by EpisodeMemoryExtractor)
+    - Foresight extraction (handled by ForesightExtractor)
+    - EventLog extraction (handled by EventLogExtractor)
+    - Embedding computation (handled by MemoryManager)
     """
-    def __init__(
-        self,
-        llm_provider=LLMProvider,
-        use_eval_prompts: bool = False,
-    ):
+
+    def __init__(self, llm_provider=LLMProvider, use_eval_prompts: bool = False):
         super().__init__(RawDataType.CONVERSATION, llm_provider)
         self.llm_provider = llm_provider
         self.use_eval_prompts = use_eval_prompts
-        
+
         if use_eval_prompts:
             self.conv_boundary_detection_prompt = EVAL_CONV_BOUNDARY_DETECTION_PROMPT
         else:
@@ -89,43 +86,43 @@ class ConvMemCellExtractor(MemCellExtractor):
         self, chat_raw_data_list: List[Dict[str, Any]]
     ) -> List[str]:
         """
-        从chat_raw_data_list中提取所有参与者ID
+        Extract all participant IDs from chat_raw_data_list
 
-        从每个元素的content字典中获取：
-        1. speaker_id（发言者ID）
-        2. referList中所有的_id（@提及的用户ID）
+        Retrieve from the content dictionary of each element:
+        1. speaker_id (speaker ID)
+        2. All _id in referList (@mentioned user IDs)
 
         Args:
-            chat_raw_data_list: 聊天原始数据列表
+            chat_raw_data_list: List of raw chat data
 
         Returns:
-            List[str]: 去重后的所有参与者ID列表
+            List[str]: List of deduplicated participant IDs
         """
         participant_ids = set()
 
         for raw_data in chat_raw_data_list:
 
-            # 提取speaker_id
+            # Extract speaker_id
             if 'speaker_id' in raw_data and raw_data['speaker_id']:
                 participant_ids.add(raw_data['speaker_id'])
 
-            # 提取referList中的所有ID
+            # Extract all IDs from referList
             if 'referList' in raw_data and raw_data['referList']:
                 for refer_item in raw_data['referList']:
-                    # refer_item可能是字典格式，包含_id字段
+                    # refer_item may be a dictionary format containing _id field
                     if isinstance(refer_item, dict):
-                        # 处理MongoDB ObjectId格式的_id
+                        # Handle MongoDB ObjectId format _id
                         if '_id' in refer_item:
                             refer_id = refer_item['_id']
-                            # 如果是ObjectId对象，转换为字符串
+                            # If it's an ObjectId object, convert to string
                             if hasattr(refer_id, '__str__'):
                                 participant_ids.add(str(refer_id))
                             else:
                                 participant_ids.add(refer_id)
-                        # 也检查普通的id字段
+                        # Also check regular id field
                         elif 'id' in refer_item:
                             participant_ids.add(refer_item['id'])
-                    # 如果refer_item直接是ID字符串
+                    # If refer_item is directly an ID string
                     elif isinstance(refer_item, str):
                         participant_ids.add(refer_item)
 
@@ -144,20 +141,20 @@ class ConvMemCellExtractor(MemCellExtractor):
             if content:
                 if include_timestamps and timestamp:
                     try:
-                        # 处理不同类型的timestamp
+                        # Handle different types of timestamp
                         if isinstance(timestamp, datetime):
-                            # 如果是datetime对象，直接格式化
+                            # If it's a datetime object, format directly
                             time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
                             lines.append(f"[{time_str}] {speaker_name}: {content}")
                         elif isinstance(timestamp, str):
-                            # 如果是字符串，先解析再格式化
+                            # If it's a string, parse and then format
                             dt = datetime.fromisoformat(
                                 timestamp.replace("Z", "+00:00")
                             )
                             time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
                             lines.append(f"[{time_str}] {speaker_name}: {content}")
                         else:
-                            # 其他类型，不包含时间戳
+                            # Other types, do not include timestamp
                             lines.append(f"{speaker_name}: {content}")
                     except (ValueError, AttributeError, TypeError):
                         # Fallback if timestamp parsing fails
@@ -190,7 +187,7 @@ class ConvMemCellExtractor(MemCellExtractor):
             if not last_timestamp_str or not first_timestamp_str:
                 return "No timestamp information available"
 
-            # Parse timestamps - 处理不同类型的timestamp、
+            # Parse timestamps - handle different types of timestamp
             try:
                 if isinstance(last_timestamp_str, datetime):
                     last_time = last_timestamp_str
@@ -297,41 +294,40 @@ class ConvMemCellExtractor(MemCellExtractor):
                 continue
 
     async def extract_memcell(
-        self,
-        request: ConversationMemCellExtractRequest,
+        self, request: ConversationMemCellExtractRequest
     ) -> tuple[Optional[MemCell], Optional[StatusResult]]:
         """
-        提取基础 MemCell（只包含原始数据和基础字段）
-        
-        返回的 MemCell 只包含：
-        - event_id: 事件ID
-        - user_id_list: 用户ID列表
-        - original_data: 原始消息数据
-        - timestamp: 时间戳
-        - summary: 摘要
-        - group_id: 群组ID
-        - participants: 参与者列表
-        - type: 数据类型
-        
-        不包含（需要后续通过其他 extractor 填充）：
-        - episode: 由 EpisodeMemoryExtractor 填充
-        - foresights: 由 ForesightExtractor 填充
-        - event_log: 由 EventLogExtractor 填充
-        - extend['embedding']: 由 MemoryManager 填充
+        Extract basic MemCell (only contains raw data and basic fields)
+
+        The returned MemCell only includes:
+        - event_id: event ID
+        - user_id_list: list of user IDs
+        - original_data: raw message data
+        - timestamp: timestamp
+        - summary: summary
+        - group_id: group ID
+        - participants: participant list
+        - type: data type
+
+        Not included (to be filled by other extractors later):
+        - episode: filled by EpisodeMemoryExtractor
+        - foresights: filled by ForesightExtractor
+        - event_log: filled by EventLogExtractor
+        - extend['embedding']: filled by MemoryManager
         """
         history_message_dict_list = []
         for raw_data in request.history_raw_data_list:
             processed_data = self._data_process(raw_data)
-            if processed_data is not None:  # 过滤掉不支持的消息类型
+            if processed_data is not None:  # Filter out unsupported message types
                 history_message_dict_list.append(processed_data)
 
-        # 检查最后一条new_raw_data是否为None
+        # Check if the last new_raw_data is None
         if (
             request.new_raw_data_list
             and self._data_process(request.new_raw_data_list[-1]) is None
         ):
             logger.warning(
-                f"[ConvMemCellExtractor] 最后一条new_raw_data为None，跳过处理"
+                f"[ConvMemCellExtractor] The last new_raw_data is None, skipping processing"
             )
             status_control_result = StatusResult(should_wait=True)
             return (None, status_control_result)
@@ -339,13 +335,13 @@ class ConvMemCellExtractor(MemCellExtractor):
         new_message_dict_list = []
         for new_raw_data in request.new_raw_data_list:
             processed_data = self._data_process(new_raw_data)
-            if processed_data is not None:  # 过滤掉不支持的消息类型
+            if processed_data is not None:  # Filter out unsupported message types
                 new_message_dict_list.append(processed_data)
 
-        # 检查是否有有效的消息可处理
+        # Check if there are valid messages to process
         if not new_message_dict_list:
             logger.warning(
-                f"[ConvMemCellExtractor] 没有有效的新消息可处理（可能都被过滤了）"
+                f"[ConvMemCellExtractor] No valid new messages to process (possibly all filtered out)"
             )
             status_control_result = StatusResult(should_wait=True)
             return (None, status_control_result)
@@ -367,12 +363,12 @@ class ConvMemCellExtractor(MemCellExtractor):
         status_control_result = StatusResult(should_wait=should_wait)
 
         if should_end:
-            # 解析时间戳
+            # Parse timestamp
             ts_value = history_message_dict_list[-1].get("timestamp")
             timestamp = dt_from_iso_format(ts_value)
             participants = self._extract_participant_ids(history_message_dict_list)
-            
-            # 生成摘要（优先使用边界检测的主题摘要）
+
+            # Generate summary (prioritize topic summary from boundary detection)
             fallback_text = ""
             if new_message_dict_list:
                 last_msg = new_message_dict_list[-1]
@@ -381,13 +377,13 @@ class ConvMemCellExtractor(MemCellExtractor):
                 elif isinstance(last_msg, str):
                     fallback_text = last_msg
             summary_text = boundary_detection_result.topic_summary or (
-                fallback_text.strip()[:200] if fallback_text else "会话片段"
+                fallback_text.strip()[:200] if fallback_text else "Conversation segment"
             )
             summary_text = boundary_detection_result.topic_summary or (
-                fallback_text.strip()[:200] if fallback_text else "会话片段"
+                fallback_text.strip()[:200] if fallback_text else "Conversation segment"
             )
 
-            # 创建基础 MemCell（不包含 episode、foresight、event_log、embedding）
+            # Create basic MemCell (without episode, foresight, event_log, embedding)
             memcell = MemCell(
                 event_id=str(uuid.uuid4()),
                 user_id_list=request.user_id_list,
@@ -400,53 +396,53 @@ class ConvMemCellExtractor(MemCellExtractor):
             )
 
             logger.debug(
-                f"✅ 成功创建基础 MemCell: event_id={memcell.event_id}, "
+                f"✅ Successfully created basic MemCell: event_id={memcell.event_id}, "
                 f"participants={len(participants)}, messages={len(history_message_dict_list)}"
             )
-            
+
             return (memcell, status_control_result)
         elif should_wait:
             logger.debug(f"⏳ Waiting for more messages: {reason}")
         return (None, status_control_result)
 
     def _data_process(self, raw_data: RawData) -> Dict[str, Any]:
-        """处理原始数据，包括消息类型过滤和预处理"""
+        """Process raw data, including message type filtering and preprocessing"""
         content = (
             raw_data.content.copy()
             if isinstance(raw_data.content, dict)
             else raw_data.content
         )
 
-        # 获取消息类型
+        # Get message type
         msg_type = content.get('msgType') if isinstance(content, dict) else None
 
-        # 定义支持的消息类型和对应的占位符
+        # Define supported message types and corresponding placeholders
         SUPPORTED_MSG_TYPES = {
-            1: None,  # TEXT - 保持原文本
-            2: "[图片]",  # PICTURE
-            3: "[视频]",  # VIDEO
-            4: "[音频]",  # AUDIO
-            5: "[文件]",  # FILE - 保持原文本（文本和文件在同一个消息里）
-            6: "[文件]",  # FILES
+            1: None,  # TEXT - keep original text
+            2: "[Image]",  # PICTURE
+            3: "[Video]",  # VIDEO
+            4: "[Audio]",  # AUDIO
+            5: "[File]",  # FILE - keep original text (text and file in same message)
+            6: "[File]",  # FILES
         }
 
         if isinstance(content, dict) and msg_type is not None:
-            # 检查是否为支持的消息类型
+            # Check if it's a supported message type
             if msg_type not in SUPPORTED_MSG_TYPES:
-                # 不支持的消息类型，直接跳过（返回None会在上层处理）
+                # Unsupported message type, skip directly (returning None will be handled at upper level)
                 logger.warning(
-                    f"[ConvMemCellExtractor] 跳过不支持的消息类型: {msg_type}"
+                    f"[ConvMemCellExtractor] Skipping unsupported message type: {msg_type}"
                 )
                 return None
 
-            # 对非文本消息进行预处理
+            # Preprocess non-text messages
             placeholder = SUPPORTED_MSG_TYPES[msg_type]
             if placeholder is not None:
-                # 替换消息内容为占位符
+                # Replace message content with placeholder
                 content = content.copy()
                 content['content'] = placeholder
                 logger.debug(
-                    f"[ConvMemCellExtractor] 消息类型 {msg_type} 转换为占位符: {placeholder}"
+                    f"[ConvMemCellExtractor] Message type {msg_type} converted to placeholder: {placeholder}"
                 )
 
         return content

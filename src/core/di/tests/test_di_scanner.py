@@ -3,9 +3,9 @@
 cd /Users/admin/memsys_opensource
 PYTHONPATH=/Users/admin/memsys_opensource/src python -m pytest src/core/di/tests/test_di_scanner.py -v -s
 
-DI Scanner 测试
+DI Scanner Test
 
-测试Scanner的组件扫描和自动注册功能
+Test the component scanning and auto-registration functionality of Scanner
 """
 
 import pytest
@@ -25,135 +25,135 @@ from core.di.tests.test_fixtures import (
 
 
 class TestScannerBasicFunctionality:
-    """测试Scanner的基本功能"""
+    """Test basic functionality of Scanner"""
 
     def setup_method(self):
-        """每个测试前创建新容器和扫描器"""
+        """Create a new container and scanner before each test"""
         self.container = DIContainer()
         self.scanner = ComponentScanner()
 
     def test_scanner_initialization(self):
-        """测试Scanner的初始化"""
+        """Test Scanner initialization"""
         assert self.scanner is not None
         assert self.scanner.scan_paths == []
         assert self.scanner.scan_packages == []
         assert self.scanner.recursive is True
 
     def test_add_scan_path(self):
-        """测试添加扫描路径"""
+        """Test adding scan path"""
         self.scanner.add_scan_path("/path/to/scan")
         assert "/path/to/scan" in self.scanner.scan_paths
 
-        # 链式调用
+        # Chained calls
         self.scanner.add_scan_path("/path1").add_scan_path("/path2")
         assert len(self.scanner.scan_paths) == 3
 
     def test_add_scan_package(self):
-        """测试添加扫描包"""
+        """Test adding scan package"""
         self.scanner.add_scan_package("my.package")
         assert "my.package" in self.scanner.scan_packages
 
-        # 链式调用
+        # Chained calls
         self.scanner.add_scan_package("pkg1").add_scan_package("pkg2")
         assert len(self.scanner.scan_packages) == 3
 
     def test_exclude_patterns(self):
-        """测试排除模式"""
+        """Test exclude patterns"""
         self.scanner.exclude_pattern("test_")
         assert "test_" in self.scanner.exclude_patterns
 
-        # 默认排除模式应该存在
+        # Default exclude patterns should exist
         assert "__pycache__" in self.scanner.exclude_paths
         assert "test_" in self.scanner.exclude_patterns
 
 
 class TestComponentDecoratorIntegration:
-    """测试装饰器与Container的集成"""
+    """Test integration of decorators with Container"""
 
     def setup_method(self):
-        """每个测试前重置全局容器"""
-        # 注意：装饰器默认注册到全局容器
-        # 这里我们测试装饰器的行为
+        """Reset global container before each test"""
+        # Note: decorators register to global container by default
+        # Here we test the behavior of decorators
         pass
 
     def test_component_decorator_registers_bean(self):
-        """测试@component装饰器自动注册Bean"""
+        """Test @component decorator automatically registers Bean"""
         container = get_container()
 
-        # 定义一个组件
+        # Define a component
         @component(name="test_component_unique_1")
         class TestComponent1:
             def __init__(self):
                 self.value = "test1"
 
-        # 验证Bean已注册
+        # Verify Bean is registered
         assert container.contains_bean("test_component_unique_1")
 
-        # 获取Bean
+        # Get Bean
         comp = container.get_bean("test_component_unique_1")
         assert isinstance(comp, TestComponent1)
         assert comp.value == "test1"
 
     def test_service_decorator_registers_bean(self):
-        """测试@service装饰器自动注册Bean"""
+        """Test @service decorator automatically registers Bean"""
         container = get_container()
 
-        # 定义一个服务
+        # Define a service
         @service(name="test_service_unique_1", primary=True)
         class TestService1:
             def __init__(self):
                 self.service_type = "test"
 
-        # 验证Bean已注册
+        # Verify Bean is registered
         assert container.contains_bean("test_service_unique_1")
 
-        # 获取Bean
+        # Get Bean
         svc = container.get_bean("test_service_unique_1")
         assert isinstance(svc, TestService1)
         assert svc.service_type == "test"
 
     def test_repository_decorator_registers_bean(self):
-        """测试@repository装饰器自动注册Bean"""
+        """Test @repository decorator automatically registers Bean"""
         container = get_container()
 
-        # 定义一个仓储
+        # Define a repository
         @repository(name="test_repo_unique_1")
         class TestRepository1:
             def __init__(self):
                 self.db = "sqlite"
 
-        # 验证Bean已注册
+        # Verify Bean is registered
         assert container.contains_bean("test_repo_unique_1")
 
-        # 获取Bean
+        # Get Bean
         repo = container.get_bean("test_repo_unique_1")
         assert isinstance(repo, TestRepository1)
         assert repo.db == "sqlite"
 
     def test_mock_impl_decorator_registers_mock_bean(self):
-        """测试@mock_impl装饰器注册Mock Bean"""
+        """Test @mock_impl decorator registers Mock Bean"""
         container = get_container()
 
-        # 定义一个Mock实现
+        # Define a Mock implementation
         @mock_impl(name="test_mock_unique_1")
         class TestMock1:
             def __init__(self):
                 self.is_mock = True
 
-        # 验证Bean已注册
+        # Verify Bean is registered
         assert container.contains_bean("test_mock_unique_1")
 
-        # 在非Mock模式下，不应自动获取到Mock Bean
-        # 但通过名称可以获取
+        # In non-Mock mode, Mock Bean should not be automatically retrieved
+        # But can be retrieved by name
         mock = container.get_bean("test_mock_unique_1")
         assert isinstance(mock, TestMock1)
         assert mock.is_mock is True
 
     def test_factory_decorator_registers_factory(self):
-        """测试@factory装饰器注册Factory"""
+        """Test @factory decorator registers Factory"""
         container = get_container()
 
-        # 定义一个Factory
+        # Define a Factory
         class Product:
             def __init__(self, name: str):
                 self.name = name
@@ -162,19 +162,19 @@ class TestComponentDecoratorIntegration:
         def create_product() -> Product:
             return Product(name="TestProduct")
 
-        # 验证Factory已注册
+        # Verify Factory is registered
         assert container.contains_bean("test_factory_unique_1")
 
-        # 获取Bean（由Factory创建）
+        # Get Bean (created by Factory)
         product = container.get_bean("test_factory_unique_1")
         assert isinstance(product, Product)
         assert product.name == "TestProduct"
 
     def test_component_with_scope(self):
-        """测试@component装饰器指定Scope"""
+        """Test @component decorator specifying Scope"""
         container = get_container()
 
-        # 定义Prototype scope的组件
+        # Define component with Prototype scope
         @component(name="test_prototype_unique_1", scope=BeanScope.PROTOTYPE)
         class TestPrototype1:
             counter = 0
@@ -183,41 +183,41 @@ class TestComponentDecoratorIntegration:
                 TestPrototype1.counter += 1
                 self.id = TestPrototype1.counter
 
-        # 获取多个实例
+        # Get multiple instances
         obj1 = container.get_bean("test_prototype_unique_1")
         obj2 = container.get_bean("test_prototype_unique_1")
 
-        # Prototype scope应创建不同实例
+        # Prototype scope should create different instances
         assert obj1 is not obj2
         assert obj1.id != obj2.id
 
 
 class TestInterfaceImplementationScanning:
-    """测试接口和实现类的扫描"""
+    """Test scanning of interfaces and implementation classes"""
 
     def setup_method(self):
-        """每个测试前创建新容器"""
+        """Create new container before each test"""
         self.container = DIContainer()
 
     def test_register_interface_implementations(self):
-        """测试注册接口的多个实现"""
-        # 手动注册实现类（模拟扫描结果）
+        """Test registering multiple implementations of an interface"""
+        # Manually register implementation class (simulate scan result)
         self.container.register_bean(
             bean_type=MySQLUserRepository, bean_name="mysql_user_repo", is_primary=True
         )
 
-        # 验证可以通过接口类型获取
+        # Verify can be retrieved via interface type
         repo = self.container.get_bean_by_type(UserRepository)
         assert isinstance(repo, MySQLUserRepository)
 
     def test_multiple_implementations_of_interface(self):
-        """测试同一接口的多个实现"""
+        """Test multiple implementations of the same interface"""
         from core.di.tests.test_fixtures import (
             PostgreSQLUserRepository,
             MockUserRepository,
         )
 
-        # 注册多个实现
+        # Register multiple implementations
         self.container.register_bean(
             bean_type=MySQLUserRepository, bean_name="mysql_repo", is_primary=False
         )
@@ -230,32 +230,32 @@ class TestInterfaceImplementationScanning:
             bean_type=MockUserRepository, bean_name="mock_repo", is_mock=True
         )
 
-        # 获取Primary实现
+        # Get Primary implementation
         repo = self.container.get_bean_by_type(UserRepository)
         assert isinstance(repo, PostgreSQLUserRepository)
 
-        # 获取所有实现（非Mock模式）
+        # Get all implementations (non-Mock mode)
         all_repos = self.container.get_beans_by_type(UserRepository)
         assert len(all_repos) == 2  # MySQL + PostgreSQL
 
 
 class TestScanContextAndMetadata:
-    """测试扫描上下文和元数据"""
+    """Test scanning context and metadata"""
 
     def setup_method(self):
-        """每个测试前创建新容器"""
+        """Create new container before each test"""
         self.container = DIContainer()
 
     def test_bean_with_metadata(self):
-        """测试Bean的元数据"""
-        # 注册带元数据的Bean
+        """Test Bean metadata"""
+        # Register Bean with metadata
         self.container.register_bean(
             bean_type=MySQLUserRepository,
             bean_name="mysql_repo",
             metadata={"version": "1.0", "author": "test", "db_type": "mysql"},
         )
 
-        # 获取Bean Definition验证元数据
+        # Get Bean Definition to verify metadata
         bean_def = self.container._named_beans.get("mysql_repo")
         assert bean_def is not None
         assert bean_def.metadata["version"] == "1.0"
@@ -263,17 +263,17 @@ class TestScanContextAndMetadata:
         assert bean_def.metadata["db_type"] == "mysql"
 
     def test_metadata_from_decorator(self):
-        """测试装饰器传递的元数据"""
+        """Test metadata passed from decorator"""
         container = get_container()
 
-        # 定义带元数据的组件
+        # Define component with metadata
         @component(
             name="test_metadata_comp_unique_1", metadata={"env": "test", "priority": 10}
         )
         class TestMetadataComp:
             pass
 
-        # 获取Bean Definition
+        # Get Bean Definition
         bean_def = container._named_beans.get("test_metadata_comp_unique_1")
         assert bean_def is not None
         assert bean_def.metadata["env"] == "test"
@@ -281,100 +281,100 @@ class TestScanContextAndMetadata:
 
 
 class TestConditionalRegistration:
-    """测试条件注册"""
+    """Test conditional registration"""
 
     def test_lazy_registration(self):
-        """测试延迟注册"""
+        """Test lazy registration"""
         container = get_container()
         initial_bean_count = len(container._named_beans)
 
-        # 定义延迟注册的组件
+        # Define component with lazy registration
         @component(name="lazy_comp_unique_1", lazy=True)
         class LazyComponent:
             pass
 
-        # 延迟注册的Bean不应立即出现在容器中
-        # 注意：当前实现中lazy=True只是标记，实际行为需要查看具体实现
-        # 这里我们只验证组件被正确标记
+        # Lazily registered Bean should not immediately appear in container
+        # Note: In current implementation, lazy=True is just a flag, actual behavior depends on specific implementation
+        # Here we only verify the component is correctly marked
         assert hasattr(LazyComponent, '_di_lazy')
         assert LazyComponent._di_lazy is True
 
 
 class TestBeanDependencies:
-    """测试Bean之间的依赖关系"""
+    """Test dependencies between Beans"""
 
     def setup_method(self):
-        """每个测试前创建新容器"""
+        """Create new container before each test"""
         self.container = DIContainer()
 
     def test_bean_depends_on_another(self):
-        """测试Bean依赖另一个Bean"""
+        """Test Bean depends on another Bean"""
         from core.di.tests.test_fixtures import UserServiceImpl, register_standard_beans
 
-        # 注册依赖的Bean
+        # Register dependent Bean
         register_standard_beans(self.container)
 
-        # 创建依赖其他Bean的Service
+        # Create Service that depends on other Bean
         service = UserServiceImpl(container=self.container)
 
-        # 验证依赖注入成功
+        # Verify dependency injection succeeded
         assert service.repository is not None
         assert isinstance(service.repository, UserRepository)
 
-        # 验证Service功能正常
+        # Verify Service functions correctly
         user = service.get_user(1)
         assert user is not None
 
 
 class TestEdgeCases:
-    """测试边界情况"""
+    """Test edge cases"""
 
     def setup_method(self):
-        """每个测试前创建新容器"""
+        """Create new container before each test"""
         self.container = DIContainer()
 
     def test_empty_container(self):
-        """测试空容器"""
+        """Test empty container"""
         from core.di.exceptions import BeanNotFoundError
 
-        # 空容器应抛出异常
+        # Empty container should raise exception
         with pytest.raises(BeanNotFoundError):
             self.container.get_bean_by_type(UserRepository)
 
     def test_duplicate_bean_name(self):
-        """测试重复的Bean名称会抛出异常"""
+        """Test duplicate Bean name throws exception"""
         from core.di.exceptions import DuplicateBeanError
         from core.di.tests.test_fixtures import PostgreSQLUserRepository
 
-        # 注册第一个Bean
+        # Register first Bean
         self.container.register_bean(
             bean_type=MySQLUserRepository, bean_name="same_name"
         )
 
-        # 尝试注册同名Bean应该抛出异常
+        # Attempt to register Bean with same name should raise exception
         with pytest.raises(DuplicateBeanError):
             self.container.register_bean(
                 bean_type=PostgreSQLUserRepository, bean_name="same_name"
             )
 
     def test_get_all_beans_empty_result(self):
-        """测试获取不存在类型的所有Bean"""
+        """Test getting all Beans of non-existent type"""
 
-        # 未注册的类型
+        # Unregistered type
         class UnregisteredService:
             pass
 
-        # 获取所有Bean应返回空列表
+        # Getting all Beans should return empty list
         beans = self.container.get_beans_by_type(UnregisteredService)
         assert beans == []
 
 
 class TestRealWorldScanningScenario:
-    """测试真实扫描场景"""
+    """Test real-world scanning scenario"""
 
     def test_scan_test_fixtures_module(self):
-        """测试扫描test_fixtures模块"""
-        # 这个测试验证我们可以从fixtures模块导入类
+        """Test scanning test_fixtures module"""
+        # This test verifies we can import classes from fixtures module
         from core.di.tests.test_fixtures import (
             MySQLUserRepository,
             PostgreSQLUserRepository,
@@ -385,7 +385,7 @@ class TestRealWorldScanningScenario:
             MemoryCacheService,
         )
 
-        # 验证所有类都可以正常导入和实例化
+        # Verify all classes can be imported and instantiated normally
         mysql_repo = MySQLUserRepository()
         assert mysql_repo.db_type == "mysql"
 
@@ -409,5 +409,5 @@ class TestRealWorldScanningScenario:
 
 
 if __name__ == "__main__":
-    # 运行测试
+    # Run tests
     pytest.main([__file__, "-v", "-s", "--tb=short"])

@@ -1,7 +1,7 @@
 """
 Milvus Converters
 
-导出所有记忆类型的 Milvus 转换器
+Export all memory type Milvus converters
 """
 
 from infra_layer.adapters.out.search.milvus.converter.episodic_memory_milvus_converter import (

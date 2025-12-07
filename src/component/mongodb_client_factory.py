@@ -1,8 +1,8 @@
 """
-MongoDB 客户端工厂
+MongoDB Client Factory
 
-提供基于配置的 MongoDB 客户端缓存和管理功能。
-支持从环境变量读取配置，提供默认客户端。
+Provides MongoDB client caching and management functionality based on configuration.
+Supports reading configuration from environment variables and provides default client.
 """
 
 import os
@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 
 class MongoDBConfig:
-    """MongoDB 配置类"""
+    """MongoDB configuration class"""
 
     def __init__(
         self,
@@ -48,20 +48,20 @@ class MongoDBConfig:
         self.kwargs = kwargs
 
     def get_connection_string(self) -> str:
-        """获取连接字符串，并拼接统一的 URI 参数（如果有）"""
-        # 基础 URI
+        """Get connection string and append unified URI parameters (if any)"""
+        # Base URI
         if self.uri:
             base_uri = self.uri
         else:
             if self.username and self.password:
-                # URL编码用户名和密码
+                # URL encode username and password
                 encoded_username = quote_plus(self.username)
                 encoded_password = quote_plus(self.password)
                 base_uri = f"mongodb://{encoded_username}:{encoded_password}@{self.host}:{self.port}/{self.database}"
             else:
                 base_uri = f"mongodb://{self.host}:{self.port}/{self.database}"
 
-        # 追加统一参数
+        # Append unified parameters
         uri_params: Optional[str] = self.uri_params
         if uri_params:
             separator = '&' if ('?' in base_uri) else '?'
@@ -69,9 +69,9 @@ class MongoDBConfig:
         return base_uri
 
     def get_cache_key(self) -> str:
-        """获取缓存键
+        """Get cache key
 
-        仅基于基础信息 + 统一 URI 参数字符串生成签名，避免不同参数复用同一客户端。
+        Generate signature based only on basic info + unified URI parameter string to avoid reusing the same client for different parameters.
         """
         base = f"{self.host}:{self.port}:{self.database}:{self.username or 'anonymous'}"
         uri_params: Optional[str] = self.uri_params
@@ -81,10 +81,10 @@ class MongoDBConfig:
     @classmethod
     def from_env(cls, prefix: str = "") -> 'MongoDBConfig':
         """
-        从环境变量创建配置。
+        Create configuration from environment variables.
 
-        prefix 规则：若提供 prefix，将按 "{prefix}_XXX" 的形式读取变量，否则读取 "XXX"。
-        例如：prefix="a" 则读取 "A_MONGODB_URI"、"A_MONGODB_HOST" 等。
+        prefix rule: if prefix is provided, read variables in the format "{prefix}_XXX", otherwise read "XXX".
+        For example: prefix="a" reads "A_MONGODB_URI", "A_MONGODB_HOST", etc.
         """
 
         def _env(name: str, default: Optional[str] = None) -> Optional[str]:
@@ -95,12 +95,12 @@ class MongoDBConfig:
                 key = f"{prefix_upper}_{name}" if prefix else name
             return os.getenv(key, default) if default is not None else os.getenv(key)
 
-        # 优先使用 MONGODB_URI
+        # Prioritize using MONGODB_URI
         uri = _env("MONGODB_URI")
         if uri:
             return cls(uri=uri, database=_env("MONGODB_DATABASE", "memsys"))
 
-        # 分别读取各个配置项
+        # Read individual configuration items
         host = _env("MONGODB_HOST", "localhost")
         port = int(_env("MONGODB_PORT", "27017"))
         username = _env("MONGODB_USERNAME")
@@ -122,7 +122,7 @@ class MongoDBConfig:
 
 
 class MongoDBClientWrapper:
-    """MongoDB 客户端包装器"""
+    """MongoDB client wrapper"""
 
     def __init__(self, client: AsyncMongoClient, config: MongoDBConfig):
         self.client = client
@@ -132,13 +132,13 @@ class MongoDBClientWrapper:
         self._document_models: List = []
 
     async def initialize_beanie(self, document_models: Optional[List] = None):
-        """初始化 Beanie ODM"""
+        """Initialize Beanie ODM"""
         if self._initialized:
             return
 
         if document_models:
             try:
-                # 将模型分组：可写组（需要索引）、只读组（跳过索引）
+                # Group models: writable group (requires indexes), read-only group (skip indexes)
                 writable_models = []
                 readonly_models = []
                 for model in document_models:
@@ -149,11 +149,11 @@ class MongoDBClientWrapper:
                         writable_models.append(model)
 
                 if writable_models and readonly_models:
-                    # 这里多次init_beanie，代码上看问题不大，可能需要考虑两种类型引用的问题；但是目前业务上也不会出现“同一个db，不同读写模式模型”，要防止未来业务有这个需求，所以这里还是提示一下
-                    raise ValueError("可写组和只读组不能同时存在")
+                    # Multiple init_beanie calls seem fine in code, but potential issues with referencing both types may exist; currently no business case uses both modes in one DB, but future needs should be guarded against, hence the warning
+                    raise ValueError("Writable and read-only groups cannot coexist")
 
                 logger.info(
-                    "正在初始化 Beanie ODM（可写组），数据库: %s，模型数: %d",
+                    "Initializing Beanie ODM (writable group), database: %s, model count: %d",
                     self.config.database,
                     len(writable_models),
                 )
@@ -165,7 +165,7 @@ class MongoDBClientWrapper:
                     )
 
                 logger.info(
-                    "正在初始化 Beanie ODM（只读组），数据库: %s，模型数: %d",
+                    "Initializing Beanie ODM (read-only group), database: %s, model count: %d",
                     self.config.database,
                     len(readonly_models),
                 )
@@ -179,34 +179,37 @@ class MongoDBClientWrapper:
                 self._document_models = document_models
                 self._initialized = True
                 logger.info(
-                    "✅ Beanie ODM 初始化成功，注册了 %d 个模型", len(document_models)
+                    "✅ Beanie ODM initialized successfully, registered %d models",
+                    len(document_models),
                 )
 
                 for model in document_models:
                     logger.info(
-                        "📋 注册模型: database=%s, model=%s -> %s",
+                        "📋 Registered model: database=%s, model=%s -> %s",
                         self.config.database,
                         model.__name__,
                         model.get_collection_name(),
                     )
 
             except Exception as e:
-                logger.error("❌ Beanie 初始化失败: %s", e)
+                logger.error("❌ Beanie initialization failed: %s", e)
                 traceback.print_exc()
                 raise
 
     async def test_connection(self) -> bool:
-        """测试连接"""
+        """Test connection"""
         try:
             await self.client.admin.command('ping')
-            logger.info("✅ MongoDB 连接测试成功: %s", self.config)
+            logger.info("✅ MongoDB connection test successful: %s", self.config)
             return True
         except Exception as e:
-            logger.error("❌ MongoDB 连接测试失败: %s, 错误: %s", self.config, e)
+            logger.error(
+                "❌ MongoDB connection test failed: %s, error: %s", self.config, e
+            )
             return False
 
     async def get_collection_stats(self) -> Dict:
-        """获取集合统计信息"""
+        """Get collection statistics"""
         try:
             stats = {}
             collections = await self.database.list_collection_names()
@@ -224,67 +227,69 @@ class MongoDBClientWrapper:
                         "indexes": collection_stats.get("nindexes", 0),
                     }
                 except Exception as e:
-                    logger.warning("获取集合 %s 统计信息失败: %s", collection_name, e)
+                    logger.warning(
+                        "Failed to get collection %s stats: %s", collection_name, e
+                    )
 
             return stats
         except Exception as e:
-            logger.error("获取统计信息失败: %s", e)
+            logger.error("Failed to get stats: %s", e)
             return {}
 
     async def close(self):
-        """关闭连接"""
+        """Close connection"""
         if self.client:
             await self.client.close()
-            logger.info("🔌 MongoDB 连接已关闭: %s", self.config)
+            logger.info("🔌 MongoDB connection closed: %s", self.config)
 
     @property
     def is_initialized(self) -> bool:
-        """检查是否已初始化 Beanie"""
+        """Check if Beanie is initialized"""
         return self._initialized
 
 
 class MongoDBClientFactory(ABC):
-    """MongoDB 客户端工厂接口"""
+    """MongoDB client factory interface"""
 
     @abstractmethod
     async def get_client(
         self, config: Optional[MongoDBConfig] = None, **connection_kwargs
     ) -> MongoDBClientWrapper:
         """
-        获取 MongoDB 客户端
+        Get MongoDB client
 
         Args:
-            config: MongoDB 配置，如果为 None 则使用默认配置
-            **connection_kwargs: 额外的连接参数
+            config: MongoDB configuration, use default if None
+            **connection_kwargs: additional connection parameters
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
         ...
 
     @abstractmethod
     async def get_default_client(self) -> MongoDBClientWrapper:
         """
-        获取默认 MongoDB 客户端
+        Get default MongoDB client
 
         Returns:
-            MongoDBClientWrapper: 默认 MongoDB 客户端包装器
+            MongoDBClientWrapper: default MongoDB client wrapper
         """
         ...
 
     @abstractmethod
     async def get_named_client(self, name: str) -> MongoDBClientWrapper:
         """
-        按名称获取 MongoDB 客户端。
+        Get MongoDB client by name.
 
-        约定：name 作为环境变量前缀，从 "{name}_MONGODB_XXX" 读取配置。
-        例如 name="A" 时，将尝试读取 "A_MONGODB_URI"、"A_MONGODB_HOST" 等。
+        Convention: name as environment variable prefix, read configuration from "{name}_MONGODB_XXX".
+        For example, when name="A", try to read "A_MONGODB_URI", "A_MONGODB_HOST", etc.
 
         Args:
-            name: 前缀名称（即环境变量前缀）
+            name: prefix name (i.e., environment variable prefix)
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
         ...
 
@@ -299,43 +304,43 @@ class MongoDBClientFactory(ABC):
         **kwargs,
     ) -> MongoDBClientWrapper:
         """
-        使用指定配置创建客户端
+        Create client with specified configuration
 
         Args:
-            host: MongoDB 主机
-            port: MongoDB 端口
-            username: 用户名
-            password: 密码
-            database: 数据库名
-            **kwargs: 其他连接参数
+            host: MongoDB host
+            port: MongoDB port
+            username: username
+            password: password
+            database: database name
+            **kwargs: other connection parameters
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
         ...
 
     @abstractmethod
     async def close_client(self, config: Optional[MongoDBConfig] = None):
         """
-        关闭指定客户端
+        Close specified client
 
         Args:
-            config: 配置，如果为 None 则关闭默认客户端
+            config: configuration, close default client if None
         """
         ...
 
     @abstractmethod
     async def close_all_clients(self):
-        """关闭所有客户端"""
+        """Close all clients"""
         ...
 
 
 @component(name="mongodb_client_factory")
 class MongoDBClientFactoryImpl(MongoDBClientFactory):
-    """MongoDB 客户端工厂实现类"""
+    """MongoDB client factory implementation class"""
 
     def __init__(self):
-        """初始化工厂"""
+        """Initialize factory"""
         self._clients: Dict[str, MongoDBClientWrapper] = {}
         self._default_config: Optional[MongoDBConfig] = None
         self._default_client: Optional[MongoDBClientWrapper] = None
@@ -345,14 +350,14 @@ class MongoDBClientFactoryImpl(MongoDBClientFactory):
         self, config: Optional[MongoDBConfig] = None, **connection_kwargs
     ) -> MongoDBClientWrapper:
         """
-        获取 MongoDB 客户端
+        Get MongoDB client
 
         Args:
-            config: MongoDB 配置，如果为 None 则使用默认配置
-            **connection_kwargs: 额外的连接参数
+            config: MongoDB configuration, use default if None
+            **connection_kwargs: additional connection parameters
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
 
         if config is None:
@@ -361,18 +366,18 @@ class MongoDBClientFactoryImpl(MongoDBClientFactory):
         cache_key = config.get_cache_key()
 
         async with self._lock:
-            # 检查缓存
+            # Check cache
             if cache_key in self._clients:
                 return self._clients[cache_key]
 
-            # 创建新客户端
-            logger.info("正在创建新的 MongoDB 客户端: %s", config)
+            # Create new client
+            logger.info("Creating new MongoDB client: %s", config)
 
-            # 合并连接参数
+            # Merge connection parameters
             conn_kwargs = {
-                "serverSelectionTimeoutMS": 10000,  # PyMongo AsyncMongoClient 需要更长的超时时间
-                "connectTimeoutMS": 10000,  # 连接超时
-                "socketTimeoutMS": 10000,  # socket 超时
+                "serverSelectionTimeoutMS": 10000,  # PyMongo AsyncMongoClient requires longer timeout
+                "connectTimeoutMS": 10000,  # connection timeout
+                "socketTimeoutMS": 10000,  # socket timeout
                 "maxPoolSize": 50,
                 "minPoolSize": 5,
                 "tz_aware": True,
@@ -386,27 +391,29 @@ class MongoDBClientFactoryImpl(MongoDBClientFactory):
 
                 client_wrapper = MongoDBClientWrapper(client, config)
 
-                # 测试连接
+                # Test connection
                 if not await client_wrapper.test_connection():
                     await client_wrapper.close()
-                    raise RuntimeError(f"MongoDB 连接测试失败: {config}")
+                    raise RuntimeError(f"MongoDB connection test failed: {config}")
 
-                # 缓存客户端
+                # Cache client
                 self._clients[cache_key] = client_wrapper
-                logger.info("✅ MongoDB 客户端创建成功并已缓存: %s", config)
+                logger.info("✅ MongoDB client created and cached: %s", config)
 
                 return client_wrapper
 
             except Exception as e:
-                logger.error("❌ 创建 MongoDB 客户端失败: %s, 错误: %s", config, e)
+                logger.error(
+                    "❌ Failed to create MongoDB client: %s, error: %s", config, e
+                )
                 raise
 
     async def get_default_client(self) -> MongoDBClientWrapper:
         """
-        获取默认 MongoDB 客户端
+        Get default MongoDB client
 
         Returns:
-            MongoDBClientWrapper: 默认 MongoDB 客户端包装器
+            MongoDBClientWrapper: default MongoDB client wrapper
         """
         if self._default_client is None:
             config = await self._get_default_config()
@@ -416,28 +423,28 @@ class MongoDBClientFactoryImpl(MongoDBClientFactory):
 
     async def get_named_client(self, name: str) -> MongoDBClientWrapper:
         """
-        按名称获取 MongoDB 客户端。
+        Get MongoDB client by name.
 
-        约定：name 作为环境变量前缀，从 "{name}_MONGODB_XXX" 读取配置。
-        例如 name="A" 时，将尝试读取 "A_MONGODB_URI"、"A_MONGODB_HOST" 等。
+        Convention: name as environment variable prefix, read configuration from "{name}_MONGODB_XXX".
+        For example, when name="A", try to read "A_MONGODB_URI", "A_MONGODB_HOST", etc.
 
         Args:
-            name: 前缀名称（即环境变量前缀）
+            name: prefix name (i.e., environment variable prefix)
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
         if name == DEFAULT_DATABASE:
             return await self.get_default_client()
         config = MongoDBConfig.from_env(prefix=name)
-        logger.info("📋 加载命名 MongoDB 配置[name=%s]: %s", name, config)
+        logger.info("📋 Loading named MongoDB config [name=%s]: %s", name, config)
         return await self.get_client(config)
 
     async def _get_default_config(self) -> MongoDBConfig:
-        """获取默认配置（内部方法）"""
+        """Get default config (internal method)"""
         if self._default_config is None:
             self._default_config = MongoDBConfig.from_env()
-            logger.info("📋 加载默认 MongoDB 配置: %s", self._default_config)
+            logger.info("📋 Loading default MongoDB config: %s", self._default_config)
 
         return self._default_config
 
@@ -451,18 +458,18 @@ class MongoDBClientFactoryImpl(MongoDBClientFactory):
         **kwargs,
     ) -> MongoDBClientWrapper:
         """
-        使用指定配置创建客户端
+        Create client with specified configuration
 
         Args:
-            host: MongoDB 主机
-            port: MongoDB 端口
-            username: 用户名
-            password: 密码
-            database: 数据库名
-            **kwargs: 其他连接参数
+            host: MongoDB host
+            port: MongoDB port
+            username: username
+            password: password
+            database: database name
+            **kwargs: other connection parameters
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
         config = MongoDBConfig(
             host=host,
@@ -477,10 +484,10 @@ class MongoDBClientFactoryImpl(MongoDBClientFactory):
 
     async def close_client(self, config: Optional[MongoDBConfig] = None):
         """
-        关闭指定客户端
+        Close specified client
 
         Args:
-            config: 配置，如果为 None 则关闭默认客户端
+            config: configuration, close default client if None
         """
         if config is None:
             if self._default_client:
@@ -496,7 +503,7 @@ class MongoDBClientFactoryImpl(MongoDBClientFactory):
                 del self._clients[cache_key]
 
     async def close_all_clients(self):
-        """关闭所有客户端"""
+        """Close all clients"""
         async with self._lock:
             for client_wrapper in self._clients.values():
                 await client_wrapper.close()
@@ -506,4 +513,4 @@ class MongoDBClientFactoryImpl(MongoDBClientFactory):
             if self._default_client:
                 self._default_client = None
 
-            logger.info("🔌 所有 MongoDB 客户端已关闭")
+            logger.info("🔌 All MongoDB clients closed")

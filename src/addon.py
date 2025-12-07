@@ -6,7 +6,7 @@ from common_utils.project_path import get_base_scan_path
 from core.addons.addon_registry import AddonRegistry
 from core.addons.addons_registry import ADDONS_REGISTRY
 
-# 配置 DI 扫描路径
+# Configure DI scan paths
 paths_registry = ScannerPathsRegistry()
 
 paths_registry.add_scan_path(
@@ -22,7 +22,7 @@ paths_registry.add_scan_path(os.path.join(get_base_scan_path(), "infra_layer"))
 paths_registry.add_scan_path(os.path.join(get_base_scan_path(), "agentic_layer"))
 paths_registry.add_scan_path(os.path.join(get_base_scan_path(), "biz_layer"))
 
-# 配置异步任务扫描路径
+# Configure asynchronous task scan paths
 task_directories_registry = TaskScanDirectoriesRegistry()
 
 task_directories_registry.add_scan_path(
@@ -32,7 +32,7 @@ task_directories_registry.add_scan_path(
     os.path.join(get_base_scan_path(), "infra_layer/adapters/input/jobs")
 )
 
-# 创建并注册 core addon
+# Create and register core addon
 core_addon = AddonRegistry(name="core")
 core_addon.register_di(paths_registry)
 core_addon.register_asynctasks(task_directories_registry)

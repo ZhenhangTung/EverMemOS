@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-依赖注入模块
+Dependency injection module
 
-注意：为了向后兼容，本模块重新导出了常用的函数和装饰器。
-在新代码中，建议从具体的子模块导入以提高可读性：
-- 装饰器：from core.di.decorators import service, repository, component, mock_impl, factory
-- 工具函数：from core.di.utils import get_bean_by_type, get_bean, enable_mock_mode, disable_mock_mode
-- 容器：from core.di.container import get_container
+Note: For backward compatibility, this module re-exports commonly used functions and decorators.
+In new code, it is recommended to import from specific submodules to improve readability:
+- Decorators: from core.di.decorators import service, repository, component, mock_impl, factory
+- Utility functions: from core.di.utils import get_bean_by_type, get_bean, enable_mock_mode, disable_mock_mode
+- Container: from core.di.container import get_container
 """
 
-# 装饰器 (来自 decorators.py)
+# Decorators (from decorators.py)
 from core.di.decorators import (
     component,
     service,
@@ -23,7 +23,7 @@ from core.di.decorators import (
     depends_on,
 )
 
-# 工具函数 (来自 utils.py)
+# Utility functions (from utils.py)
 from core.di.utils import (
     get_bean,
     get_beans,
@@ -53,12 +53,12 @@ from core.di.utils import (
     get_all_subclasses,
 )
 
-# 容器 (来自 container.py)
+# Container (from container.py)
 from core.di.container import get_container
 
-# 定义公开的API
+# Define public API
 __all__ = [
-    # 装饰器
+    # Decorators
     'component',
     'service',
     'repository',
@@ -69,38 +69,38 @@ __all__ = [
     'prototype',
     'conditional',
     'depends_on',
-    # 核心工具函数
+    # Core utility functions
     'get_bean',
     'get_beans',
     'get_bean_by_type',
     'get_beans_by_type',
     'get_container',
-    # 注册函数
+    # Registration functions
     'register_bean',
     'register_factory',
     'register_singleton',
     'register_prototype',
     'register_primary',
     'register_mock',
-    # 容器检查
+    # Container checks
     'contains_bean',
     'contains_bean_by_type',
-    # Mock模式
+    # Mock mode
     'enable_mock_mode',
     'disable_mock_mode',
     'is_mock_mode',
-    # 其他工具
+    # Other utilities
     'clear_container',
     'inject',
     'lazy_inject',
     'get_or_create',
     'conditional_register',
     'batch_register',
-    # 信息查询
+    # Information queries
     'get_bean_info',
     'get_all_beans_info',
     'list_all_beans',
     'print_container_info',
-    # 子类查询
+    # Subclass queries
     'get_all_subclasses',
 ]

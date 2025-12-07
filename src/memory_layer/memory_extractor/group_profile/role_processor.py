@@ -9,14 +9,14 @@ logger = get_logger(__name__)
 
 
 class RoleProcessor:
-    """角色处理器 - 负责角色分配和证据管理"""
+    """Role processor - responsible for role assignment and evidence management"""
 
     def __init__(self, data_processor):
         """
-        初始化角色处理器
+        Initialize the role processor
 
         Args:
-            data_processor: GroupProfileDataProcessor 实例，用于验证和合并 memcell_ids
+            data_processor: GroupProfileDataProcessor instance, used to validate and merge memcell_ids
         """
         self.data_processor = data_processor
 
@@ -29,25 +29,25 @@ class RoleProcessor:
         memcell_list: List,
     ) -> Dict[str, List[Dict[str, str]]]:
         """
-        处理所有 roles（包括 weak 的），合并历史 evidences，并按 confidence 排序（strong 在前）
+        Process all roles (including weak ones), merge historical evidences, and sort by confidence (strong first)
 
         Args:
-            role_data: LLM 输出的 role 数据（包含 evidences 和 confidence）
-            speaker_mapping: speaker_id 到 user_name 的映射
-            existing_roles: 历史 roles 数据（包含 evidences 和 confidence）
-            valid_memcell_ids: 有效的 memcell_ids 集合
-            memcell_list: 当前的 memcell 列表（用于获取时间戳进行排序）
+            role_data: Role data output by LLM (includes evidences and confidence)
+            speaker_mapping: Mapping from speaker_id to user_name
+            existing_roles: Historical role data (includes evidences and confidence)
+            valid_memcell_ids: Set of valid memcell_ids
+            memcell_list: Current list of memcells (used to get timestamps for sorting)
 
         Returns:
-            处理后的 roles，格式为 role -> [{"user_id": "xxx", "user_name": "xxx", "confidence": "strong|weak", "evidences": [...]}]
+            Processed roles, formatted as role -> [{"user_id": "xxx", "user_name": "xxx", "confidence": "strong|weak", "evidences": [...]}]
         """
         from ..group_profile_memory_extractor import GroupRole
 
-        # 定义有效的角色列表（基于 GroupRole 枚举）
+        # Define valid roles list (based on GroupRole enum)
         VALID_ROLES = {role.value for role in GroupRole}
 
         def validate_and_filter_roles(roles_dict: Dict, source: str) -> Dict:
-            """验证并过滤非法角色"""
+            """Validate and filter invalid roles"""
             if not roles_dict:
                 return {}
 
@@ -67,13 +67,13 @@ class RoleProcessor:
 
             return filtered
 
-        # 过滤 LLM 输出和历史数据中的非法角色
+        # Filter invalid roles in LLM output and historical data
         role_data = validate_and_filter_roles(role_data, "LLM output")
         existing_roles = validate_and_filter_roles(existing_roles, "historical data")
 
         processed_roles = {}
 
-        # 1. 构建历史 roles 的映射 (role_name, user_id) -> evidences
+        # 1. Build mapping for historical roles (role_name, user_id) -> evidences
         historical_role_map = {}
         for role_name, assignments in existing_roles.items():
             for assignment in assignments:
@@ -85,7 +85,7 @@ class RoleProcessor:
                         "confidence": assignment.get("confidence", "weak"),
                     }
 
-        # 2. 处理 LLM 输出的 roles
+        # 2. Process roles from LLM output
         for role_name, assignments in role_data.items():
             if not assignments:
                 continue
@@ -113,13 +113,13 @@ class RoleProcessor:
                     speaker_id, speaker_mapping
                 )
 
-                # 3. 合并历史 evidences
+                # 3. Merge historical evidences
                 key = (role_name, speaker_id)
                 if key in historical_role_map:
                     historical_evidences = historical_role_map[key]["evidences"]
                     historical_confidence = historical_role_map[key]["confidence"]
 
-                    # 合并 evidences（会验证 user 是否在 participants 中）
+                    # Merge evidences (will validate if user is in participants)
                     merged_evidences = self.data_processor.merge_memcell_ids(
                         historical=historical_evidences,
                         new=llm_evidences,
@@ -129,13 +129,13 @@ class RoleProcessor:
                         max_count=50,
                     )
 
-                    # 更新 confidence（如果新的更强）
+                    # Update confidence (if the new one is stronger)
                     if confidence == "strong" or historical_confidence == "strong":
                         final_confidence = "strong"
                     else:
                         final_confidence = confidence
                 else:
-                    # 新 role，验证 evidences（包括 participants 检查）
+                    # New role, validate evidences (including participants check)
                     merged_evidences = (
                         self.data_processor.validate_and_filter_memcell_ids(
                             llm_evidences,

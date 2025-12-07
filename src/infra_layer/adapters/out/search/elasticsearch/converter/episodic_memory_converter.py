@@ -1,7 +1,7 @@
 """
-EpisodicMemory ES转换器
+EpisodicMemory ES Converter
 
-负责将MongoDB的EpisodicMemory文档转换为Elasticsearch的EpisodicMemoryDoc文档。
+Responsible for converting EpisodicMemory documents from MongoDB to EpisodicMemoryDoc documents in Elasticsearch.
 """
 
 from typing import List
@@ -9,7 +9,7 @@ import jieba
 from core.oxm.es.base_converter import BaseEsConverter
 from core.observation.logger import get_logger
 
-# EpisodicMemory类型不再需要导入，因为参数类型已经简化为Any
+# EpisodicMemory type no longer needs to be imported, as parameter types have been simplified to Any
 from core.nlp.stopwords_utils import filter_stopwords
 from infra_layer.adapters.out.search.elasticsearch.memory.episodic_memory import (
     EpisodicMemoryDoc,
@@ -23,43 +23,43 @@ logger = get_logger(__name__)
 
 class EpisodicMemoryConverter(BaseEsConverter[EpisodicMemoryDoc]):
     """
-    EpisodicMemory转换器
+    EpisodicMemory Converter
 
-    将MongoDB的EpisodicMemory文档转换为Elasticsearch的EpisodicMemoryDoc文档。
-    主要处理字段映射、搜索内容构建和数据格式转换。
-    ES文档类型自动从泛型 BaseEsConverter[EpisodicMemoryDoc] 中获取。
+    Converts EpisodicMemory documents from MongoDB to EpisodicMemoryDoc documents in Elasticsearch.
+    Mainly handles field mapping, search content construction, and data format conversion.
+    ES document type is automatically obtained from the generic BaseEsConverter[EpisodicMemoryDoc].
     """
 
     @classmethod
     def from_mongo(cls, source_doc: MongoEpisodicMemory) -> EpisodicMemoryDoc:
         """
-        从MongoDB EpisodicMemory文档转换为ES EpisodicMemoryDoc实例
+        Convert from MongoDB EpisodicMemory document to ES EpisodicMemoryDoc instance
 
-        使用场景：
-        - ES索引重建时，从MongoDB文档转换为ES文档
-        - 数据同步时，确保MongoDB数据正确映射到ES字段
-        - 处理字段映射和数据格式转换
+        Usage scenarios:
+        - During ES index rebuilding, convert MongoDB documents to ES documents
+        - During data synchronization, ensure MongoDB data is correctly mapped to ES fields
+        - Handle field mapping and data format conversion
 
         Args:
-            source_doc: MongoDB的EpisodicMemory文档实例
+            source_doc: Instance of MongoDB's EpisodicMemory document
 
         Returns:
-            EpisodicMemoryDoc: ES文档实例，可直接用于索引
+            EpisodicMemoryDoc: ES document instance, ready for indexing
 
         Raises:
-            Exception: 当转换过程中发生错误时抛出异常
+            Exception: Throws an exception if an error occurs during conversion
         """
-        # 基本验证
+        # Basic validation
         if source_doc is None:
-            raise ValueError("MongoDB文档不能为空")
+            raise ValueError("MongoDB document cannot be empty")
 
         try:
-            # 构建搜索内容列表，用于BM25检索
+            # Build search content list for BM25 retrieval
             search_content = cls._build_search_content(source_doc)
 
-            # 创建ES文档实例
+            # Create ES document instance
             es_doc = EpisodicMemoryDoc(
-                # 基础标识字段
+                # Basic identifier fields
                 event_id=(
                     str(source_doc.id)
                     if hasattr(source_doc, 'id') and source_doc.id
@@ -67,29 +67,29 @@ class EpisodicMemoryConverter(BaseEsConverter[EpisodicMemoryDoc]):
                 ),
                 user_id=source_doc.user_id,
                 user_name=getattr(source_doc, 'user_name', None),
-                # 时间字段
+                # Timestamp fields
                 timestamp=source_doc.timestamp,
-                # 核心内容字段
+                # Core content fields
                 title=getattr(
                     source_doc, 'subject', None
-                ),  # MongoDB的subject映射到ES的title
+                ),  # Map MongoDB's subject to ES's title
                 episode=source_doc.episode,
-                search_content=search_content,  # BM25搜索的核心字段
+                search_content=search_content,  # Core field for BM25 search
                 summary=getattr(source_doc, 'summary', None),
-                # 分类和标签字段
+                # Category and tag fields
                 group_id=getattr(source_doc, 'group_id', None),
                 participants=getattr(source_doc, 'participants', None),
                 type=getattr(source_doc, 'type', None),
                 keywords=getattr(source_doc, 'keywords', None),
                 linked_entities=getattr(source_doc, 'linked_entities', None),
-                # MongoDB特有字段
+                # MongoDB-specific fields
                 subject=getattr(source_doc, 'subject', None),
                 memcell_event_id_list=getattr(
                     source_doc, 'memcell_event_id_list', None
                 ),
-                # 扩展字段
+                # Extension fields
                 extend=getattr(source_doc, 'extend', None),
-                # 审计字段
+                # Audit fields
                 created_at=getattr(source_doc, 'created_at', None),
                 updated_at=getattr(source_doc, 'updated_at', None),
             )
@@ -97,40 +97,40 @@ class EpisodicMemoryConverter(BaseEsConverter[EpisodicMemoryDoc]):
             return es_doc
 
         except Exception as e:
-            logger.error("从MongoDB文档转换为ES文档失败: %s", e)
+            logger.error("Failed to convert MongoDB document to ES document: %s", e)
             raise
 
     @classmethod
     def _build_search_content(cls, source_doc: MongoEpisodicMemory) -> List[str]:
         """
-        构建搜索内容列表
+        Build search content list
 
-        将MongoDB文档中的多个文本字段组合并使用jieba分词处理，
-        生成用于BM25检索的搜索内容列表。
+        Combines multiple text fields from the MongoDB document and processes them with jieba word segmentation,
+        generating a list of search content for BM25 retrieval.
 
         Args:
-            source_doc: MongoDB的EpisodicMemory文档实例
+            source_doc: Instance of MongoDB's EpisodicMemory document
 
         Returns:
-            List[str]: jieba分词后的搜索内容列表
+            List[str]: List of search content after jieba word segmentation
         """
         text_content = []
 
-        # 收集所有文本内容 - 包含 subject, summary, episode
+        # Collect all text content - including subject, summary, episode
         if hasattr(source_doc, 'subject') and source_doc.subject:
             text_content.append(source_doc.subject)
-        
+
         if hasattr(source_doc, 'summary') and source_doc.summary:
             text_content.append(source_doc.summary)
-        
+
         if hasattr(source_doc, 'episode') and source_doc.episode:
             text_content.append(source_doc.episode)
 
-        # 将所有文本内容合并并使用jieba分词
+        # Combine all text content and apply jieba word segmentation
         combined_text = ' '.join(text_content)
         search_content = list(jieba.cut(combined_text))
 
-        # 过滤空字符串
+        # Filter out empty strings
         query_words = filter_stopwords(search_content, min_length=2)
 
         search_content = [word.strip() for word in query_words if word.strip()]
@@ -140,22 +140,23 @@ class EpisodicMemoryConverter(BaseEsConverter[EpisodicMemoryDoc]):
     @classmethod
     def from_memory(cls, episode_memory) -> EpisodicMemoryDoc:
         """
-        从Memory对象转换为ES EpisodicMemoryDoc实例
+        Convert from Memory object to ES EpisodicMemoryDoc instance
 
-        !!!!!!!!!!!!后面干掉！！！！！！！！！！！！！
-        后面就这个原则，es完全从mongodb里面派生，就一个single source of truth 。
+        !!!!!!!!!!!! Remove this later !!!!!!!!!!!!!!!
+        Going forward, ES will be derived entirely from MongoDB, following the single source of truth principle.
 
-
-        专门用于处理从memory_manager获取的Memory对象，
-        包含jieba分词处理和字段映射逻辑。
+        Specifically used for handling Memory objects obtained from memory_manager,
+        including jieba word segmentation and field mapping logic.
 
         Args:
-            episode_memory: Memory对象实例
+            episode_memory: Instance of Memory object
 
         Returns:
-            EpisodicMemoryDoc: ES文档实例，可直接用于索引
+            EpisodicMemoryDoc: ES document instance, ready for indexing
 
         Raises:
-            Exception: 当转换过程中发生错误时抛出异常
+            Exception: Throws an exception if an error occurs during conversion
         """
-        raise NotImplementedError("from_memory方法不再使用，请使用 from_mongo 方法从MongoDB文档转换")
+        raise NotImplementedError(
+            "The from_memory method is no longer used. Please use the from_mongo method to convert from MongoDB document"
+        )

@@ -9,22 +9,22 @@ from common_utils.project_path import CURRENT_DIR
 
 @component(name="config_provider")
 class ConfigProvider:
-    """配置提供者"""
+    """Configuration provider"""
 
     def __init__(self):
-        """初始化配置提供者"""
+        """Initialize configuration provider"""
         self.config_dir = CURRENT_DIR / "config"
         self._cache: Dict[str, Any] = {}
 
     def get_config(self, config_name: str) -> Dict[str, Any]:
         """
-        获取配置
+        Get configuration
 
         Args:
-            config_name: 配置文件名（不含扩展名）
+            config_name: Configuration file name (without extension)
 
         Returns:
-            Dict[str, Any]: 配置数据
+            Dict[str, Any]: Configuration data
         """
         if config_name in self._cache:
             return self._cache[config_name]
@@ -36,7 +36,7 @@ class ConfigProvider:
             config_file = self.config_dir / f"{config_name}.json"
 
         if not config_file.exists():
-            raise FileNotFoundError(f"配置文件不存在: {config_name}")
+            raise FileNotFoundError(f"Configuration file does not exist: {config_name}")
 
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
@@ -49,47 +49,47 @@ class ConfigProvider:
             return config_data
 
         except Exception as e:
-            raise RuntimeError(f"加载配置文件失败 {config_name}: {e}")
+            raise RuntimeError(f"Failed to load configuration file {config_name}: {e}")
 
     def get_raw_config(self, config_name: str) -> str:
         """
-        获取原始配置文本内容
+        Get raw configuration text content
 
         Args:
-            config_name: 配置文件名（带后缀）
+            config_name: Configuration file name (with extension)
 
         Returns:
-            str: 配置文件的原始文本内容
+            str: Raw text content of the configuration file
         """
-        # 检查缓存
+        # Check cache
         cache_key = f"raw_{config_name}"
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        # 构建配置文件路径（config_name已包含后缀）
+        # Build configuration file path (config_name already includes extension)
         config_file = self.config_dir / config_name
 
         if not config_file.exists():
-            raise FileNotFoundError(f"配置文件不存在: {config_name}")
+            raise FileNotFoundError(f"Configuration file does not exist: {config_name}")
 
         try:
-            # 直接读取文本文件内容
+            # Directly read text file content
             with open(config_file, 'r', encoding='utf-8') as f:
                 raw_content = f.read()
 
-            # 缓存原始文本内容
+            # Cache raw text content
             self._cache[cache_key] = raw_content
             return raw_content
 
         except Exception as e:
-            raise RuntimeError(f"读取配置文件失败 {config_name}: {e}")
+            raise RuntimeError(f"Failed to read configuration file {config_name}: {e}")
 
     def get_available_configs(self) -> list:
         """
-        获取config目录下的所有文件列表
+        Get list of all files in the config directory
 
         Returns:
-            list: 文件名列表
+            list: List of file names
         """
         configs = []
         for file in self.config_dir.iterdir():

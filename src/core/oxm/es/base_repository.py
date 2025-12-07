@@ -1,8 +1,8 @@
 """
-Elasticsearch 基础仓库类
+Elasticsearch Base Repository Class
 
-基于 elasticsearch-dsl 的基础仓库类，提供通用的基础 CRUD 操作。
-所有 Elasticsearch 仓库都应该继承这个基类以获得统一的操作支持。
+Base repository class based on elasticsearch-dsl, providing common basic CRUD operations.
+All Elasticsearch repositories should inherit from this base class to obtain unified operation support.
 """
 
 from abc import ABC
@@ -13,212 +13,220 @@ from core.observation.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 泛型类型变量
+# Generic type variable
 T = TypeVar('T', bound=DocBase)
 
 
 class BaseRepository(ABC, Generic[T]):
     """
-    Elasticsearch 基础仓库类
+    Elasticsearch Base Repository Class
 
-    提供通用的基础操作，所有 Elasticsearch 仓库都应该继承这个类。
+    Provides common basic operations; all Elasticsearch repositories should inherit from this class.
 
-    特性：
-    - 异步 Elasticsearch 客户端管理
-    - 基础 CRUD 操作模板
-    - 统一的错误处理和日志记录
-    - 索引管理
+    Features:
+    - Async Elasticsearch client management
+    - Basic CRUD operation templates
+    - Unified error handling and logging
+    - Index management
     """
 
     def __init__(self, model: Type[T]):
         """
-        初始化基础仓库
+        Initialize base repository
 
         Args:
-            model: Elasticsearch 文档模型类
+            model: Elasticsearch document model class
         """
         self.model = model
         self.model_name = model.__name__
 
-    # ==================== 客户端管理 ====================
+    # ==================== Client Management ====================
 
     async def get_client(self) -> AsyncElasticsearch:
         """
-        获取 Elasticsearch 异步客户端
+        Get Elasticsearch async client
 
         Returns:
-            AsyncElasticsearch: 异步客户端实例
+            AsyncElasticsearch: Async client instance
         """
         return self.model.get_connection()
 
     def get_index_name(self) -> str:
         """
-        获取索引名称
+        Get index name
 
-        委托给模型类的 get_index_name 方法，确保所有获取索引名的逻辑统一。
+        Delegates to the model class's get_index_name method to ensure consistent index name retrieval logic.
 
         Returns:
-            str: 索引别名
+            str: Index alias
         """
         return self.model.get_index_name()
 
-    # ==================== 基础 CRUD 模板方法 ====================
+    # ==================== Basic CRUD Template Methods ====================
 
     async def create(self, document: T, refresh: bool = False) -> T:
         """
-        创建新文档
+        Create a new document
 
         Args:
-            document: 文档实例
-            refresh: 是否立即刷新索引
+            document: Document instance
+            refresh: Whether to refresh the index immediately
 
         Returns:
-            创建成功的文档实例
+            Created document instance
         """
         try:
             client = await self.get_client()
             await document.save(using=client, refresh=refresh)
             return document
         except Exception as e:
-            logger.error("❌ 创建文档失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Failed to create document [%s]: %s", self.model_name, e)
             raise
 
     async def get_by_id(self, doc_id: str) -> Optional[T]:
         """
-        根据文档 ID 获取文档
+        Get document by document ID
 
         Args:
-            doc_id: 文档 ID
+            doc_id: Document ID
 
         Returns:
-            文档实例或 None
+            Document instance or None
         """
         try:
             client = await self.get_client()
             return await self.model.get(id=doc_id, using=client)
         except Exception as e:
-            logger.error("❌ 根据 ID 获取文档失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Failed to get document by ID [%s]: %s", self.model_name, e)
             return None
 
     async def update(self, document: T, refresh: bool = False) -> T:
         """
-        更新文档
+        Update document
 
         Args:
-            document: 要更新的文档实例
-            refresh: 是否立即刷新索引
+            document: Document instance to update
+            refresh: Whether to refresh the index immediately
 
         Returns:
-            更新后的文档实例
+            Updated document instance
         """
         try:
             client = await self.get_client()
             await document.save(using=client, refresh=refresh)
             doc_id = getattr(getattr(document, 'meta', None), 'id', 'unknown')
-            logger.debug("✅ 更新文档成功 [%s]: %s", self.model_name, doc_id)
+            logger.debug(
+                "✅ Document updated successfully [%s]: %s", self.model_name, doc_id
+            )
             return document
         except Exception as e:
-            logger.error("❌ 更新文档失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Failed to update document [%s]: %s", self.model_name, e)
             raise
 
     async def delete_by_id(self, doc_id: str, refresh: bool = False) -> bool:
         """
-        根据文档 ID 删除文档
+        Delete document by document ID
 
         Args:
-            doc_id: 文档 ID
-            refresh: 是否立即刷新索引
+            doc_id: Document ID
+            refresh: Whether to refresh the index immediately
 
         Returns:
-            删除成功返回 True，否则返回 False
+            Returns True if deletion succeeds, otherwise False
         """
         try:
             document = await self.get_by_id(doc_id)
             if document:
                 client = await self.get_client()
                 await document.delete(using=client, refresh=refresh)
-                logger.debug("✅ 删除文档成功 [%s]: %s", self.model_name, doc_id)
+                logger.debug(
+                    "✅ Document deleted successfully [%s]: %s", self.model_name, doc_id
+                )
                 return True
             return False
         except Exception as e:
-            logger.error("❌ 删除文档失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Failed to delete document [%s]: %s", self.model_name, e)
             return False
 
     async def delete(self, document: T, refresh: bool = False) -> bool:
         """
-        删除文档实例
+        Delete document instance
 
         Args:
-            document: 要删除的文档实例
-            refresh: 是否立即刷新索引
+            document: Document instance to delete
+            refresh: Whether to refresh the index immediately
 
         Returns:
-            删除成功返回 True，否则返回 False
+            Returns True if deletion succeeds, otherwise False
         """
         try:
             client = await self.get_client()
             await document.delete(using=client, refresh=refresh)
             logger.debug(
-                "✅ 删除文档成功 [%s]: %s",
+                "✅ Document deleted successfully [%s]: %s",
                 self.model_name,
                 getattr(document, 'meta', {}).get('id', 'unknown'),
             )
             return True
         except Exception as e:
-            logger.error("❌ 删除文档失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Failed to delete document [%s]: %s", self.model_name, e)
             return False
 
-    # ==================== 批量操作 ====================
+    # ==================== Batch Operations ====================
 
     async def create_batch(self, documents: List[T], refresh: bool = False) -> List[T]:
         """
-        批量创建文档
+        Batch create documents
 
         Args:
-            documents: 文档列表
-            refresh: 是否立即刷新索引
+            documents: List of documents
+            refresh: Whether to refresh the index immediately
 
         Returns:
-            成功创建的文档列表
+            List of successfully created documents
         """
         try:
             client = await self.get_client()
             index_name = self.get_index_name()
 
-            # 构建批量操作
+            # Build bulk operations
             actions = []
             for doc in documents:
                 action = {"_index": index_name, "_source": doc.to_dict()}
                 actions.append(action)
 
-            # 执行批量操作
+            # Execute bulk operation
             from elasticsearch.helpers import async_bulk
 
             await async_bulk(client, actions, refresh=refresh)
 
             logger.debug(
-                "✅ 批量创建文档成功 [%s]: %d 条记录", self.model_name, len(documents)
+                "✅ Batch document creation succeeded [%s]: %d records",
+                self.model_name,
+                len(documents),
             )
             return documents
         except Exception as e:
-            logger.error("❌ 批量创建文档失败 [%s]: %s", self.model_name, e)
+            logger.error(
+                "❌ Failed to batch create documents [%s]: %s", self.model_name, e
+            )
             raise
 
-    # ==================== 搜索方法 ====================
+    # ==================== Search Methods ====================
 
     async def search(
         self, query: Dict[str, Any], size: int = 10, from_: int = 0
     ) -> Dict[str, Any]:
         """
-        执行搜索查询
+        Execute search query
 
         Args:
-            query: Elasticsearch 查询 DSL
-            size: 返回结果数量
-            from_: 分页起始位置
+            query: Elasticsearch query DSL
+            size: Number of results to return
+            from_: Pagination starting position
 
         Returns:
-            搜索结果
+            Search results
         """
         try:
             client = await self.get_client()
@@ -229,25 +237,25 @@ class BaseRepository(ABC, Generic[T]):
             )
 
             logger.debug(
-                "✅ 搜索执行成功 [%s]: 找到 %d 条结果",
+                "✅ Search executed successfully [%s]: Found %d results",
                 self.model_name,
                 response.get('hits', {}).get('total', {}).get('value', 0),
             )
             return response
         except Exception as e:
-            logger.error("❌ 搜索执行失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Failed to execute search [%s]: %s", self.model_name, e)
             raise
 
     async def match_all(self, size: int = 10, from_: int = 0) -> List[T]:
         """
-        获取所有文档
+        Get all documents
 
         Args:
-            size: 返回结果数量
-            from_: 分页起始位置
+            size: Number of results to return
+            from_: Pagination starting position
 
         Returns:
-            文档列表
+            List of documents
         """
         try:
             response = await self.search(
@@ -262,20 +270,20 @@ class BaseRepository(ABC, Generic[T]):
 
             return documents
         except Exception as e:
-            logger.error("❌ 获取所有文档失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Failed to get all documents [%s]: %s", self.model_name, e)
             return []
 
-    # ==================== 统计方法 ====================
+    # ==================== Statistics Methods ====================
 
     async def exists_by_id(self, doc_id: str) -> bool:
         """
-        检查文档是否存在
+        Check if document exists
 
         Args:
-            doc_id: 文档 ID
+            doc_id: Document ID
 
         Returns:
-            存在返回 True，否则返回 False
+            Returns True if exists, otherwise False
         """
         try:
             client = await self.get_client()
@@ -286,49 +294,57 @@ class BaseRepository(ABC, Generic[T]):
         except Exception:
             return False
 
-    # ==================== 索引管理 ====================
+    # ==================== Index Management ====================
 
     async def refresh_index(self) -> bool:
         """
-        手动刷新索引
+        Manually refresh index
 
-        使用 connection.indices.refresh(index=index_name) 来手动刷新索引，
-        确保新写入的数据立即可搜索。
+        Uses connection.indices.refresh(index=index_name) to manually refresh the index,
+        ensuring newly written data is immediately searchable.
 
         Returns:
-            刷新成功返回 True，否则返回 False
+            Returns True if refresh succeeds, otherwise False
         """
         try:
             client = await self.get_client()
             index_name = self.get_index_name()
 
             await client.indices.refresh(index=index_name)
-            logger.debug("✅ 手动刷新索引成功 [%s]: %s", self.model_name, index_name)
+            logger.debug(
+                "✅ Manual index refresh succeeded [%s]: %s",
+                self.model_name,
+                index_name,
+            )
             return True
 
         except (ConnectionError, TimeoutError) as e:
-            logger.error("❌ 手动刷新索引失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Manual index refresh failed [%s]: %s", self.model_name, e)
             return False
         except Exception as e:
-            logger.error("❌ 手动刷新索引失败（未知错误） [%s]: %s", self.model_name, e)
+            logger.error(
+                "❌ Manual index refresh failed (unknown error) [%s]: %s",
+                self.model_name,
+                e,
+            )
             return False
 
     async def create_index(self) -> bool:
         """
-        创建索引
+        Create index
 
         Returns:
-            创建成功返回 True，否则返回 False
+            Returns True if creation succeeds, otherwise False
         """
         try:
             client = await self.get_client()
 
-            # 使用文档类的 init 方法创建索引
+            # Use document class's init method to create index
             index_name = self.model.dest()
 
             await self.model.init(index=index_name, using=client)
 
-            # 创建别名
+            # Create alias
             alias = self.get_index_name()
             await client.indices.update_aliases(
                 body={
@@ -345,37 +361,42 @@ class BaseRepository(ABC, Generic[T]):
             )
 
             logger.debug(
-                "✅ 创建索引成功 [%s]: %s -> %s", self.model_name, index_name, alias
+                "✅ Index creation succeeded [%s]: %s -> %s",
+                self.model_name,
+                index_name,
+                alias,
             )
             return True
         except Exception as e:
-            logger.error("❌ 创建索引失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Index creation failed [%s]: %s", self.model_name, e)
             return False
 
     async def delete_index(self) -> bool:
         """
-        删除索引
+        Delete index
 
         Returns:
-            删除成功返回 True，否则返回 False
+            Returns True if deletion succeeds, otherwise False
         """
         try:
             client = await self.get_client()
             index_name = self.get_index_name()
 
             await client.indices.delete(index=index_name)
-            logger.debug("✅ 删除索引成功 [%s]: %s", self.model_name, index_name)
+            logger.debug(
+                "✅ Index deletion succeeded [%s]: %s", self.model_name, index_name
+            )
             return True
         except Exception as e:
-            logger.error("❌ 删除索引失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Index deletion failed [%s]: %s", self.model_name, e)
             return False
 
     async def index_exists(self) -> bool:
         """
-        检查索引是否存在
+        Check if index exists
 
         Returns:
-            存在返回 True，否则返回 False
+            Returns True if exists, otherwise False
         """
         try:
             client = await self.get_client()
@@ -385,26 +406,26 @@ class BaseRepository(ABC, Generic[T]):
         except Exception:
             return False
 
-    # ==================== 辅助方法 ====================
+    # ==================== Helper Methods ====================
 
     def get_model_name(self) -> str:
         """
-        获取模型名称
+        Get model name
 
         Returns:
-            模型类名
+            Model class name
         """
         return self.model_name
 
     def get_collection_name(self) -> str:
         """
-        获取索引名称（兼容 MongoDB 仓库接口）
+        Get index name (compatible with MongoDB repository interface)
 
         Returns:
-            Elasticsearch 索引名称
+            Elasticsearch index name
         """
         return self.get_index_name()
 
 
-# 导出
+# Export
 __all__ = ["BaseRepository"]

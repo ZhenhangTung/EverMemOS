@@ -1,8 +1,8 @@
 """
-全局异常处理器
+Global exception handler
 
-为FastAPI应用提供统一的异常处理机制，确保所有HTTP异常
-（包括中间件抛出的异常）都能被正确处理并返回给客户端。
+Provides a unified exception handling mechanism for FastAPI applications, ensuring all HTTP exceptions
+(including exceptions raised by middleware) are properly handled and returned to the client.
 """
 
 from fastapi import Request, HTTPException
@@ -17,22 +17,22 @@ logger = get_logger(__name__)
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
-    全局异常处理器
+    Global exception handler
 
-    统一处理所有异常，包括HTTPException和其他异常，
-    确保它们被正确格式化并返回给客户端。
+    Handles all exceptions uniformly, including HTTPException and other exceptions,
+    ensuring they are properly formatted and returned to the client.
 
     Args:
-        request: FastAPI请求对象
-        exc: 异常对象
+        request: FastAPI request object
+        exc: Exception object
 
     Returns:
-        JSONResponse: 格式化的错误响应
+        JSONResponse: Formatted error response
     """
-    # 处理HTTP异常
+    # Handle HTTP exceptions
     if isinstance(exc, HTTPException):
         logger.warning(
-            "HTTP异常: %s %s - 状态码: %d, 详情: %s",
+            "HTTP exception: %s %s - Status code: %d, Detail: %s",
             request.method,
             str(request.url),
             exc.status_code,
@@ -50,9 +50,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             },
         )
 
-    # 处理其他异常
+    # Handle other exceptions
     logger.error(
-        "未处理异常: %s %s - 异常类型: %s, 详情: %s",
+        "Unhandled exception: %s %s - Exception type: %s, Detail: %s",
         request.method,
         str(request.url),
         type(exc).__name__,
@@ -65,7 +65,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         content={
             "status": ErrorStatus.FAILED.value,
             "code": ErrorCode.SYSTEM_ERROR.value,
-            "message": "内部服务器错误",
+            "message": "Internal server error",
             "timestamp": to_iso_format(get_now_with_timezone()),
             "path": str(request.url.path),
         },

@@ -15,15 +15,15 @@ logger = get_logger(__name__)
 @repository("relationship_raw_repository", primary=True)
 class RelationshipRawRepository(BaseRepository[Relationship]):
     """
-    关系库原始数据仓库
+    Relationship repository for raw data
 
-    提供实体关系数据的CRUD操作和查询功能。
+    Provides CRUD operations and query capabilities for entity relationship data.
     """
 
     def __init__(self):
         super().__init__(Relationship)
 
-    # ==================== 基础CRUD操作 ====================
+    # ==================== Basic CRUD Operations ====================
 
     async def get_by_entity_ids(
         self,
@@ -31,7 +31,7 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
         target_entity_id: str,
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[Relationship]:
-        """根据源实体ID和目标实体ID获取关系"""
+        """Get relationship by source and target entity IDs"""
         try:
             result = await self.model.find_one(
                 {
@@ -42,19 +42,19 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
             )
             if result:
                 logger.debug(
-                    "✅ 根据实体ID获取关系成功: %s -> %s",
+                    "✅ Successfully retrieved relationship by entity IDs: %s -> %s",
                     source_entity_id,
                     target_entity_id,
                 )
             else:
                 logger.debug(
-                    "⚠️  未找到关系: source=%s, target=%s",
+                    "⚠️  Relationship not found: source=%s, target=%s",
                     source_entity_id,
                     target_entity_id,
                 )
             return result
         except Exception as e:
-            logger.error("❌ 根据实体ID获取关系失败: %s", e)
+            logger.error("❌ Failed to retrieve relationship by entity IDs: %s", e)
             return None
 
     async def get_by_source_entity(
@@ -63,7 +63,7 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
         limit: int = 100,
         session: Optional[AsyncClientSession] = None,
     ) -> List[Relationship]:
-        """根据源实体ID获取所有关系"""
+        """Get all relationships by source entity ID"""
         try:
             results = (
                 await self.model.find(
@@ -73,13 +73,15 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
                 .to_list()
             )
             logger.debug(
-                "✅ 根据源实体ID获取关系成功: %s, count=%d",
+                "✅ Successfully retrieved relationships by source entity ID: %s, count=%d",
                 source_entity_id,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据源实体ID获取关系失败: %s", e)
+            logger.error(
+                "❌ Failed to retrieve relationships by source entity ID: %s", e
+            )
             return []
 
     async def get_by_target_entity(
@@ -88,7 +90,7 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
         limit: int = 100,
         session: Optional[AsyncClientSession] = None,
     ) -> List[Relationship]:
-        """根据目标实体ID获取所有关系"""
+        """Get all relationships by target entity ID"""
         try:
             results = (
                 await self.model.find(
@@ -98,13 +100,15 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
                 .to_list()
             )
             logger.debug(
-                "✅ 根据目标实体ID获取关系成功: %s, count=%d",
+                "✅ Successfully retrieved relationships by target entity ID: %s, count=%d",
                 target_entity_id,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据目标实体ID获取关系失败: %s", e)
+            logger.error(
+                "❌ Failed to retrieve relationships by target entity ID: %s", e
+            )
             return []
 
     async def update_by_entity_ids(
@@ -114,7 +118,7 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
         update_data: Dict[str, Any],
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[Relationship]:
-        """根据实体ID更新关系"""
+        """Update relationship by entity IDs"""
         try:
             existing_doc = await self.model.find_one(
                 {
@@ -125,7 +129,7 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
             )
             if not existing_doc:
                 logger.warning(
-                    "⚠️  未找到要更新的关系: source=%s, target=%s",
+                    "⚠️  Relationship to update not found: source=%s, target=%s",
                     source_entity_id,
                     target_entity_id,
                 )
@@ -135,13 +139,13 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
                 setattr(existing_doc, key, value)
             await existing_doc.save(session=session)
             logger.debug(
-                "✅ 根据实体ID更新关系成功: %s -> %s",
+                "✅ Successfully updated relationship by entity IDs: %s -> %s",
                 source_entity_id,
                 target_entity_id,
             )
             return existing_doc
         except Exception as e:
-            logger.error("❌ 根据实体ID更新关系失败: %s", e)
+            logger.error("❌ Failed to update relationship by entity IDs: %s", e)
             return None
 
     async def delete_by_entity_ids(
@@ -150,7 +154,7 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
         target_entity_id: str,
         session: Optional[AsyncClientSession] = None,
     ) -> bool:
-        """根据实体ID删除关系"""
+        """Delete relationship by entity IDs"""
         try:
             result = await self.model.find_one(
                 {
@@ -161,7 +165,7 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
             )
             if not result:
                 logger.warning(
-                    "⚠️  未找到要删除的关系: source=%s, target=%s",
+                    "⚠️  Relationship to delete not found: source=%s, target=%s",
                     source_entity_id,
                     target_entity_id,
                 )
@@ -169,16 +173,16 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
 
             await result.delete(session=session)
             logger.info(
-                "✅ 根据实体ID删除关系成功: %s -> %s",
+                "✅ Successfully deleted relationship by entity IDs: %s -> %s",
                 source_entity_id,
                 target_entity_id,
             )
             return True
         except Exception as e:
-            logger.error("❌ 根据实体ID删除关系失败: %s", e)
+            logger.error("❌ Failed to delete relationship by entity IDs: %s", e)
             return False
 
-    # ==================== 批量操作 ====================
+    # ==================== Batch Operations ====================
 
     async def get_relationships_by_entity(
         self,
@@ -186,7 +190,7 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
         limit: int = 100,
         session: Optional[AsyncClientSession] = None,
     ) -> List[Relationship]:
-        """获取与指定实体相关的所有关系（作为源或目标）"""
+        """Get all relationships associated with the specified entity (as source or target)"""
         try:
             results = (
                 await self.model.find(
@@ -202,19 +206,21 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
                 .to_list()
             )
             logger.debug(
-                "✅ 获取实体相关关系成功: entity=%s, count=%d", entity_id, len(results)
+                "✅ Successfully retrieved relationships for entity: entity=%s, count=%d",
+                entity_id,
+                len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 获取实体相关关系失败: %s", e)
+            logger.error("❌ Failed to retrieve relationships for entity: %s", e)
             return []
 
-    # ==================== 统计方法 ====================
+    # ==================== Statistics Methods ====================
 
     async def count_by_entity(
         self, entity_id: str, session: Optional[AsyncClientSession] = None
     ) -> int:
-        """统计与指定实体相关的关系数量"""
+        """Count the number of relationships associated with the specified entity"""
         try:
             count = await self.model.find(
                 {
@@ -226,19 +232,21 @@ class RelationshipRawRepository(BaseRepository[Relationship]):
                 session=session,
             ).count()
             logger.debug(
-                "✅ 统计实体关系数量成功: entity=%s, count=%d", entity_id, count
+                "✅ Successfully counted entity relationships: entity=%s, count=%d",
+                entity_id,
+                count,
             )
             return count
         except Exception as e:
-            logger.error("❌ 统计实体关系数量失败: %s", e)
+            logger.error("❌ Failed to count entity relationships: %s", e)
             return 0
 
     async def count_all(self, session: Optional[AsyncClientSession] = None) -> int:
-        """统计所有关系数量"""
+        """Count all relationships"""
         try:
             count = await self.model.count()
-            logger.debug("✅ 统计所有关系数量成功: count=%d", count)
+            logger.debug("✅ Successfully counted all relationships: count=%d", count)
             return count
         except Exception as e:
-            logger.error("❌ 统计所有关系数量失败: %s", e)
+            logger.error("❌ Failed to count all relationships: %s", e)
             return 0

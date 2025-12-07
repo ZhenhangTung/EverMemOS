@@ -1,9 +1,9 @@
 """
-消息分组队列管理器工厂
+Message group queue manager factory
 
-提供基于配置的 MsgGroupQueueManager 实例缓存和管理功能。
-支持从环境变量读取配置，提供默认实例和命名实例。
-参考 mongodb_client_factory.py 的设计模式。
+Provides caching and management of MsgGroupQueueManager instances based on configuration.
+Supports reading configuration from environment variables, provides default and named instances.
+Refer to the design pattern in mongodb_client_factory.py.
 """
 
 import os
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 
 class MsgGroupQueueConfig:
-    """消息分组队列配置类"""
+    """Message group queue configuration class"""
 
     def __init__(
         self,
@@ -37,32 +37,32 @@ class MsgGroupQueueConfig:
 
     def get_cache_key(self) -> str:
         """
-        获取缓存键
+        Get cache key
 
-        基于核心配置参数生成唯一标识
+        Generate unique identifier based on core configuration parameters
         """
         return f"{self.name}:{self.num_queues}:{self.max_total_messages}:{self.enable_metrics}:{self.log_interval_seconds}"
 
     @classmethod
     def from_env(cls, prefix: str = "") -> 'MsgGroupQueueConfig':
         """
-        从环境变量创建配置
+        Create configuration from environment variables
 
-        prefix 规则：若提供 prefix，将按 "{prefix}_XXX" 的形式读取变量，否则读取 "XXX"。
-        例如：prefix="CLIENT" 则读取 "CLIENT_MSG_QUEUE_NUM_QUEUES"、"CLIENT_MSG_QUEUE_MAX_TOTAL_MESSAGES" 等。
+        Prefix rule: if prefix is provided, read variables in the format "{prefix}_XXX", otherwise read "XXX".
+        For example: prefix="CLIENT" reads "CLIENT_MSG_QUEUE_NUM_QUEUES", "CLIENT_MSG_QUEUE_MAX_TOTAL_MESSAGES", etc.
 
         Args:
-            prefix: 环境变量前缀
+            prefix: environment variable prefix
 
         Returns:
-            MsgGroupQueueConfig: 配置实例
+            MsgGroupQueueConfig: configuration instance
         """
 
         def _env(name: str, default: str) -> str:
             key = f"{prefix}_{name}" if prefix else name
             return os.getenv(key, default)
 
-        # 读取配置项
+        # Read configuration items
         name = _env("MSG_QUEUE_NAME", "default")
         num_queues = int(_env("MSG_QUEUE_NUM_QUEUES", "10"))
         max_total_messages = int(_env("MSG_QUEUE_MAX_TOTAL_MESSAGES", "100"))
@@ -87,10 +87,10 @@ class MsgGroupQueueConfig:
 
 @component(name="msg_group_queue_manager_factory", primary=True)
 class MsgGroupQueueManagerFactory:
-    """消息分组队列管理器工厂"""
+    """Message group queue manager factory"""
 
     def __init__(self):
-        """初始化工厂"""
+        """Initialize factory"""
         self._managers: Dict[str, MsgGroupQueueManager] = {}
         self._default_config: Optional[MsgGroupQueueConfig] = None
         self._default_manager: Optional[MsgGroupQueueManager] = None
@@ -100,14 +100,14 @@ class MsgGroupQueueManagerFactory:
         self, config: Optional[MsgGroupQueueConfig] = None, auto_start: bool = True
     ) -> MsgGroupQueueManager:
         """
-        获取消息分组队列管理器
+        Get message group queue manager
 
         Args:
-            config: 队列管理器配置，如果为 None 则使用默认配置
-            auto_start: 是否自动启动管理器
+            config: queue manager configuration, use default if None
+            auto_start: whether to automatically start the manager
 
         Returns:
-            MsgGroupQueueManager: 队列管理器
+            MsgGroupQueueManager: queue manager
         """
         if config is None:
             config = await self._get_default_config()
@@ -115,13 +115,13 @@ class MsgGroupQueueManagerFactory:
         cache_key = config.get_cache_key()
 
         async with self._lock:
-            # 检查缓存
+            # Check cache
             if cache_key in self._managers:
                 manager = self._managers[cache_key]
                 return manager
 
-            # 创建新管理器
-            logger.info("正在创建新的 MsgGroupQueueManager: %s", config)
+            # Create new manager
+            logger.info("Creating new MsgGroupQueueManager: %s", config)
 
             try:
                 manager = MsgGroupQueueManager(
@@ -136,15 +136,18 @@ class MsgGroupQueueManagerFactory:
                 if auto_start:
                     await manager.start_periodic_logging()
 
-                # 缓存管理器
+                # Cache manager
                 self._managers[cache_key] = manager
-                logger.info("✅ MsgGroupQueueManager 创建成功并已缓存: %s", config)
+                logger.info(
+                    "✅ MsgGroupQueueManager created successfully and cached: %s",
+                    config,
+                )
 
                 return manager
 
             except Exception as e:
                 logger.error(
-                    "❌ 创建 MsgGroupQueueManager 失败: %s, 错误: %s", config, e
+                    "❌ Failed to create MsgGroupQueueManager: %s, error: %s", config, e
                 )
                 raise
 
@@ -152,13 +155,13 @@ class MsgGroupQueueManagerFactory:
         self, auto_start: bool = True
     ) -> MsgGroupQueueManager:
         """
-        获取默认消息分组队列管理器
+        Get default message group queue manager
 
         Args:
-            auto_start: 是否自动启动管理器
+            auto_start: whether to automatically start the manager
 
         Returns:
-            MsgGroupQueueManager: 默认队列管理器
+            MsgGroupQueueManager: default queue manager
         """
         if self._default_manager is None:
             config = await self._get_default_config()
@@ -170,34 +173,39 @@ class MsgGroupQueueManagerFactory:
         self, name: str, auto_start: bool = True
     ) -> MsgGroupQueueManager:
         """
-        按名称获取消息分组队列管理器
+        Get message group queue manager by name
 
-        约定：name 作为环境变量前缀，从 "{name}_MSG_QUEUE_XXX" 读取配置。
-        例如 name="CLIENT" 时，将尝试读取 "CLIENT_MSG_QUEUE_NUM_QUEUES"、"CLIENT_MSG_QUEUE_MAX_TOTAL_MESSAGES" 等。
+        Convention: use name as environment variable prefix, read configuration from "{name}_MSG_QUEUE_XXX".
+        For example, when name="CLIENT", it will try to read "CLIENT_MSG_QUEUE_NUM_QUEUES", "CLIENT_MSG_QUEUE_MAX_TOTAL_MESSAGES", etc.
 
         Args:
-            name: 前缀名称（即环境变量前缀）
-            auto_start: 是否自动启动管理器
+            name: prefix name (i.e., environment variable prefix)
+            auto_start: whether to automatically start the manager
 
         Returns:
-            MsgGroupQueueManager: 队列管理器
+            MsgGroupQueueManager: queue manager
         """
         if name.lower() == "default":
             return await self.get_default_manager(auto_start)
 
         config = MsgGroupQueueConfig.from_env(prefix=name)
-        # 确保配置名称与请求名称一致
+        # Ensure configuration name matches requested name
         config.name = name.lower()
 
-        logger.info("📋 加载命名 MsgGroupQueueManager 配置[name=%s]: %s", name, config)
+        logger.info(
+            "📋 Loading named MsgGroupQueueManager configuration[name=%s]: %s",
+            name,
+            config,
+        )
         return await self.get_manager(config, auto_start)
 
     async def _get_default_config(self) -> MsgGroupQueueConfig:
-        """获取默认配置"""
+        """Get default configuration"""
         if self._default_config is None:
             self._default_config = MsgGroupQueueConfig.from_env()
             logger.info(
-                "📋 加载默认 MsgGroupQueueManager 配置: %s", self._default_config
+                "📋 Loaded default MsgGroupQueueManager configuration: %s",
+                self._default_config,
             )
 
         return self._default_config
@@ -213,19 +221,19 @@ class MsgGroupQueueManagerFactory:
         **kwargs,
     ) -> MsgGroupQueueManager:
         """
-        使用指定配置创建管理器
+        Create manager with specified configuration
 
         Args:
-            name: 管理器名称
-            num_queues: 队列数量
-            max_total_messages: 最大总消息数量
-            enable_metrics: 是否启用统计
-            log_interval_seconds: 日志间隔
-            auto_start: 是否自动启动
-            **kwargs: 其他参数
+            name: manager name
+            num_queues: number of queues
+            max_total_messages: maximum total number of messages
+            enable_metrics: whether to enable metrics
+            log_interval_seconds: logging interval
+            auto_start: whether to automatically start
+            **kwargs: additional parameters
 
         Returns:
-            MsgGroupQueueManager: 队列管理器
+            MsgGroupQueueManager: queue manager
         """
         config = MsgGroupQueueConfig(
             name=name,
@@ -240,10 +248,10 @@ class MsgGroupQueueManagerFactory:
 
     async def stop_manager(self, config: Optional[MsgGroupQueueConfig] = None):
         """
-        停止指定管理器
+        Stop specified manager
 
         Args:
-            config: 配置，如果为 None 则停止默认管理器
+            config: configuration, if None then stop default manager
         """
         if config is None:
             if self._default_manager:
@@ -257,7 +265,7 @@ class MsgGroupQueueManagerFactory:
                 await self._managers[cache_key].shutdown()
 
     async def stop_all_managers(self):
-        """停止所有管理器"""
+        """Stop all managers"""
         async with self._lock:
             for manager in self._managers.values():
                 await manager.shutdown()
@@ -267,16 +275,16 @@ class MsgGroupQueueManagerFactory:
             if self._default_manager:
                 self._default_manager = None
 
-            logger.info("🔌 所有 MsgGroupQueueManager 已停止")
+            logger.info("🔌 All MsgGroupQueueManager instances have been stopped")
 
     def get_cached_managers_info(self) -> Dict[str, Dict]:
-        """获取缓存的管理器信息"""
+        """Get cached manager information"""
         return {
             cache_key: {
                 "name": manager.name,
                 "num_queues": manager.num_queues,
                 "max_total_messages": manager.max_total_messages,
-                "manager_stats": "需要异步调用get_manager_stats()获取",
+                "manager_stats": "Need to call get_manager_stats() asynchronously to retrieve",
             }
             for cache_key, manager in self._managers.items()
         }
@@ -285,12 +293,12 @@ class MsgGroupQueueManagerFactory:
         self, auto_start: bool = True
     ) -> MsgGroupQueueManager:
         """
-        获取默认消息分组队列管理器的便捷函数
+        Convenience function to get default message group queue manager
 
         Args:
-            auto_start: 是否自动启动管理器
+            auto_start: whether to automatically start the manager
 
         Returns:
-            MsgGroupQueueManager: 默认队列管理器
+            MsgGroupQueueManager: default queue manager
         """
         return await self.get_default_manager(auto_start)

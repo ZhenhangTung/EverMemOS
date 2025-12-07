@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-依赖注入工具函数
+Dependency injection utility functions
 """
 
 from typing import Type, TypeVar, List, Dict, Any, Optional, Callable
@@ -15,55 +15,55 @@ T = TypeVar('T')
 
 def get_bean(name: str) -> Any:
     """
-    根据名称获取Bean
+    Get Bean by name
 
     Args:
-        name: Bean名称
+        name: Bean name
 
     Returns:
-        Bean实例
+        Bean instance
 
     Raises:
-        BeanNotFoundError: 当Bean不存在时
+        BeanNotFoundError: When Bean does not exist
     """
     return get_container().get_bean(name)
 
 
 def get_beans() -> Dict[str, Any]:
     """
-    获取所有Bean
+    Get all Beans
 
     Returns:
-        所有Bean的字典，key为name，value为实例
+        Dictionary of all Beans, key is name, value is instance
     """
     return get_container().get_beans()
 
 
 def get_bean_by_type(bean_type: Type[T]) -> T:
     """
-    根据类型获取Bean（Primary实现或唯一实现）
+    Get Bean by type (Primary implementation or unique implementation)
 
     Args:
-        bean_type: Bean类型
+        bean_type: Bean type
 
     Returns:
-        Bean实例
+        Bean instance
 
     Raises:
-        BeanNotFoundError: 当Bean不存在时
+        BeanNotFoundError: When Bean does not exist
     """
     return get_container().get_bean_by_type(bean_type)
 
 
 def get_beans_by_type(bean_type: Type[T]) -> List[T]:
     """
-    根据类型获取所有Bean实现
+    Get all Bean implementations by type
 
     Args:
-        bean_type: Bean类型
+        bean_type: Bean type
 
     Returns:
-        Bean实例列表
+        List of Bean instances
     """
     return get_container().get_beans_by_type(bean_type)
 
@@ -78,16 +78,16 @@ def register_bean(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
-    注册Bean
+    Register Bean
 
     Args:
-        bean_type: Bean类型
-        instance: Bean实例（可选，如果不提供则会自动创建）
-        name: Bean名称
-        scope: Bean作用域
-        is_primary: 是否为Primary实现
-        is_mock: 是否为Mock实现
-        metadata: Bean的元数据，可用于存储额外信息
+        bean_type: Bean type
+        instance: Bean instance (optional, will be created automatically if not provided)
+        name: Bean name
+        scope: Bean scope
+        is_primary: Whether it is a Primary implementation
+        is_mock: Whether it is a Mock implementation
+        metadata: Bean metadata, can be used to store additional information
     """
     get_container().register_bean(
         bean_type=bean_type,
@@ -109,15 +109,15 @@ def register_factory(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
-    注册Factory方法
+    Register Factory method
 
     Args:
-        bean_type: Bean类型
-        factory_method: Factory方法
-        name: Bean名称
-        is_primary: 是否为Primary实现
-        is_mock: 是否为Mock实现
-        metadata: Bean的元数据，可用于存储额外信息
+        bean_type: Bean type
+        factory_method: Factory method
+        name: Bean name
+        is_primary: Whether it is a Primary implementation
+        is_mock: Whether it is a Mock implementation
+        metadata: Bean metadata, can be used to store additional information
     """
     get_container().register_factory(
         bean_type=bean_type,
@@ -133,123 +133,123 @@ def register_singleton(
     bean_type: Type[T], instance: T = None, name: str = None
 ) -> None:
     """
-    注册单例Bean
+    Register singleton Bean
 
     Args:
-        bean_type: Bean类型
-        instance: Bean实例
-        name: Bean名称
+        bean_type: Bean type
+        instance: Bean instance
+        name: Bean name
     """
     register_bean(bean_type, instance, name, BeanScope.SINGLETON)
 
 
 def register_prototype(bean_type: Type[T], name: str = None) -> None:
     """
-    注册原型Bean（每次获取都创建新实例）
+    Register prototype Bean (create new instance every time it is retrieved)
 
     Args:
-        bean_type: Bean类型
-        name: Bean名称
+        bean_type: Bean type
+        name: Bean name
     """
     register_bean(bean_type, None, name, BeanScope.PROTOTYPE)
 
 
 def register_primary(bean_type: Type[T], instance: T = None, name: str = None) -> None:
     """
-    注册Primary Bean
+    Register Primary Bean
 
     Args:
-        bean_type: Bean类型
-        instance: Bean实例
-        name: Bean名称
+        bean_type: Bean type
+        instance: Bean instance
+        name: Bean name
     """
     register_bean(bean_type, instance, name, BeanScope.SINGLETON, is_primary=True)
 
 
 def register_mock(bean_type: Type[T], instance: T = None, name: str = None) -> None:
     """
-    注册Mock Bean
+    Register Mock Bean
 
     Args:
-        bean_type: Bean类型
-        instance: Bean实例
-        name: Bean名称
+        bean_type: Bean type
+        instance: Bean instance
+        name: Bean name
     """
     register_bean(bean_type, instance, name, BeanScope.SINGLETON, is_mock=True)
 
 
 def contains_bean(name: str) -> bool:
     """
-    检查是否包含指定名称的Bean
+    Check if Bean with specified name exists
 
     Args:
-        name: Bean名称
+        name: Bean name
 
     Returns:
-        是否包含Bean
+        Whether Bean exists
     """
     return get_container().contains_bean(name)
 
 
 def contains_bean_by_type(bean_type: Type) -> bool:
     """
-    检查是否包含指定类型的Bean
+    Check if Bean with specified type exists
 
     Args:
-        bean_type: Bean类型
+        bean_type: Bean type
 
     Returns:
-        是否包含Bean
+        Whether Bean exists
     """
     return get_container().contains_bean_by_type(bean_type)
 
 
 def enable_mock_mode() -> None:
-    """启用Mock模式"""
+    """Enable mock mode"""
     get_container().enable_mock_mode()
 
 
 def disable_mock_mode() -> None:
-    """禁用Mock模式"""
+    """Disable mock mode"""
     get_container().disable_mock_mode()
 
 
 def is_mock_mode() -> bool:
-    """检查是否为Mock模式"""
+    """Check if in mock mode"""
     return get_container().is_mock_mode()
 
 
 def clear_container() -> None:
-    """清空容器"""
+    """Clear container"""
     get_container().clear()
 
 
 def inject(target_func: Callable) -> Callable:
     """
-    函数依赖注入装饰器
+    Function dependency injection decorator
 
-    将函数参数按类型自动注入Bean
+    Automatically inject Bean by parameter type
     """
 
     def wrapper(*args, **kwargs):
-        # 获取函数签名
+        # Get function signature
         signature = inspect.signature(target_func)
 
-        # 准备注入参数
+        # Prepare injected parameters
         injected_kwargs = {}
         for param_name, param in signature.parameters.items():
             if param_name not in kwargs and param.annotation != inspect.Parameter.empty:
                 try:
                     injected_kwargs[param_name] = get_bean_by_type(param.annotation)
                 except BeanNotFoundError:
-                    # 如果找不到Bean且参数有默认值，使用默认值
+                    # If Bean not found and parameter has default value, use default value
                     if param.default != inspect.Parameter.empty:
                         injected_kwargs[param_name] = param.default
                     else:
-                        # 必需参数但找不到Bean，抛出异常
+                        # Required parameter but Bean not found, raise exception
                         raise
 
-        # 合并参数
+        # Merge parameters
         kwargs.update(injected_kwargs)
         return target_func(*args, **kwargs)
 
@@ -258,29 +258,29 @@ def inject(target_func: Callable) -> Callable:
 
 def lazy_inject(bean_type: Type[T]) -> Callable[[], T]:
     """
-    延迟注入函数
+    Lazy injection function
 
-    返回一个lambda函数，调用时才获取Bean
+    Returns a lambda function that retrieves Bean when called
 
     Args:
-        bean_type: Bean类型
+        bean_type: Bean type
 
     Returns:
-        延迟获取Bean的函数
+        Function to lazily retrieve Bean
     """
     return lambda: get_bean_by_type(bean_type)
 
 
 def get_or_create(bean_type: Type[T], factory: Callable[[], T] = None) -> T:
     """
-    获取Bean，如果不存在则创建
+    Get Bean, create if not exists
 
     Args:
-        bean_type: Bean类型
-        factory: Factory方法（可选）
+        bean_type: Bean type
+        factory: Factory method (optional)
 
     Returns:
-        Bean实例
+        Bean instance
     """
     try:
         return get_bean_by_type(bean_type)
@@ -290,7 +290,7 @@ def get_or_create(bean_type: Type[T], factory: Callable[[], T] = None) -> T:
             register_bean(bean_type, instance)
             return instance
         else:
-            # 尝试自动创建
+            # Try to create automatically
             try:
                 instance = bean_type()
                 register_bean(bean_type, instance)
@@ -306,13 +306,13 @@ def conditional_register(
     name: str = None,
 ) -> None:
     """
-    条件注册Bean
+    Conditionally register Bean
 
     Args:
-        condition: 条件函数
-        bean_type: Bean类型
-        instance: Bean实例
-        name: Bean名称
+        condition: Condition function
+        bean_type: Bean type
+        instance: Bean instance
+        name: Bean name
     """
     if condition():
         register_bean(bean_type, instance, name)
@@ -320,10 +320,10 @@ def conditional_register(
 
 def batch_register(beans: Dict[Type, Any]) -> None:
     """
-    批量注册Bean
+    Batch register Beans
 
     Args:
-        beans: Bean字典，key为类型，value为实例
+        beans: Bean dictionary, key is type, value is instance
     """
     for bean_type, instance in beans.items():
         register_bean(bean_type, instance)
@@ -331,14 +331,14 @@ def batch_register(beans: Dict[Type, Any]) -> None:
 
 def get_bean_info(bean_type: Type = None, bean_name: str = None) -> Dict[str, Any]:
     """
-    获取Bean信息
+    Get Bean information
 
     Args:
-        bean_type: Bean类型
-        bean_name: Bean名称
+        bean_type: Bean type
+        bean_name: Bean name
 
     Returns:
-        Bean信息字典
+        Bean information dictionary
     """
     container = get_container()
     info = {}
@@ -375,20 +375,20 @@ def get_bean_info(bean_type: Type = None, bean_name: str = None) -> Dict[str, An
 
 def get_all_beans_info() -> List[Dict[str, Any]]:
     """
-    获取所有已注册的Bean信息（结构化数据）
+    Get information of all registered Beans (structured data)
 
     Returns:
-        Bean信息结构化数据列表
+        List of structured Bean information data
     """
     return get_container().list_all_beans_info()
 
 
 def list_all_beans() -> List[str]:
     """
-    列出所有已注册的Bean信息（格式化字符串）
+    List all registered Bean information (formatted strings)
 
     Returns:
-        格式化的Bean信息字符串列表
+        List of formatted Bean information strings
     """
     beans_info = get_all_beans_info()
 
@@ -409,20 +409,22 @@ def list_all_beans() -> List[str]:
 
 
 def print_container_info():
-    """打印容器信息"""
+    """Print container information"""
     formatted_beans = list_all_beans()
-    from core.observation.logger import info  # 便捷用法，适合偶尔调用
+    from core.observation.logger import (
+        info,
+    )  # Convenient usage, suitable for occasional calls
 
-    info(f"\n📦 依赖注入容器信息:")
-    info(f"   总Bean数量: {len(formatted_beans)}")
-    info(f"   Mock模式: {'启用' if is_mock_mode() else '禁用'}")
+    info(f"\n📦 Dependency injection container information:")
+    info(f"   Total Bean count: {len(formatted_beans)}")
+    info(f"   Mock mode: {'enabled' if is_mock_mode() else 'disabled'}")
 
     if formatted_beans:
-        info("\n📋 已注册的Bean:")
+        info("\n📋 Registered Beans:")
         for bean_line in formatted_beans:
             info(bean_line)
     else:
-        info("   无已注册的Bean")
+        info("   No registered Beans")
     info("")
 
 
@@ -433,18 +435,18 @@ def print_container_info():
 
 def get_all_subclasses(base_class: Type[T]) -> List[Type[T]]:
     """
-    递归获取指定类的所有子类（包括子类的子类）
+    Recursively get all subclasses of specified class (including subclasses of subclasses)
 
     Args:
-        base_class: 基类
+        base_class: Base class
 
     Returns:
-        List[Type[T]]: 所有子类的列表，包括直接子类和间接子类
+        List[Type[T]]: List of all subclasses, including direct and indirect subclasses
     """
     subclasses = []
     for subclass in base_class.__subclasses__():
         if subclass != base_class:
             subclasses.append(subclass)
-            # 递归获取子类的子类
+            # Recursively get subclasses of subclass
             subclasses.extend(get_all_subclasses(subclass))
     return subclasses

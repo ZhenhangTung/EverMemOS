@@ -1,9 +1,9 @@
 """
 Rerank Service
-重排序服务
+Reranking service
 
 This module provides methods to call DeepInfra or vLLM API for reranking retrieved memories.
-该模块提供调用DeepInfra或vLLM API对检索到的记忆进行重排序的方法。
+This module provides methods to call DeepInfra or vLLM API to rerank retrieved memories.
 """
 
 from __future__ import annotations
@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 class RerankProvider(str, Enum):
-    """Rerank服务提供商枚举"""
+    """Rerank service provider enumeration"""
+
     DEEPINFRA = "deepinfra"
     VLLM = "vllm"
 
@@ -32,8 +33,8 @@ class RerankProvider(str, Enum):
 @dataclass
 @service(name="rerank_config", primary=True)
 class RerankConfig:
-    """Rerank API配置类"""
-    
+    """Rerank API configuration class"""
+
     provider: RerankProvider = RerankProvider.DEEPINFRA
     api_key: str = ""
     base_url: str = ""
@@ -44,16 +45,20 @@ class RerankConfig:
     max_concurrent_requests: int = 5
 
     def __post_init__(self):
-        """初始化后从环境变量加载配置值"""
-        # 处理 provider
+        """Initialize after loading configuration values from environment variables"""
+        # Handle provider
         env_provider = os.getenv("RERANK_PROVIDER")
         if env_provider:
             provider_str = env_provider.lower()
             try:
                 self.provider = RerankProvider(provider_str)
             except ValueError:
-                logger.error(f"Invalid rerank provider '{provider_str}', expected one of {[p.value for p in RerankProvider]}")
-                raise ValueError(f"Invalid rerank provider '{provider_str}', expected one of {[p.value for p in RerankProvider]}")
+                logger.error(
+                    f"Invalid rerank provider '{provider_str}', expected one of {[p.value for p in RerankProvider]}"
+                )
+                raise ValueError(
+                    f"Invalid rerank provider '{provider_str}', expected one of {[p.value for p in RerankProvider]}"
+                )
 
         if not self.api_key:
             self.api_key = os.getenv("RERANK_API_KEY", "")
@@ -62,12 +67,16 @@ class RerankConfig:
 
         if not self.base_url:
             # vLLM/Local default might be http://localhost:12000/score
-            default_url = "https://api.deepinfra.com/v1/inference" if self.provider == RerankProvider.DEEPINFRA else "http://localhost:12000/score"
+            default_url = (
+                "https://api.deepinfra.com/v1/inference"
+                if self.provider == RerankProvider.DEEPINFRA
+                else "http://localhost:12000/score"
+            )
             self.base_url = os.getenv("RERANK_BASE_URL", default_url)
 
         if not self.model:
             self.model = os.getenv("RERANK_MODEL", "Qwen/Qwen3-Reranker-4B")
-        
+
         if self.timeout == 30:
             self.timeout = int(os.getenv("RERANK_TIMEOUT", "30"))
         if self.max_retries == 3:
@@ -79,13 +88,15 @@ class RerankConfig:
 
 
 class RerankError(Exception):
-    """Rerank API错误异常类"""
+    """Rerank API error exception class"""
+
     pass
 
 
 @dataclass
 class RerankMemResponse:
-    """重排序后的记忆检索响应"""
+    """Reranked memory retrieval response"""
+
     memories: List[Dict[str, List[Any]]] = field(default_factory=list)
     scores: List[Dict[str, List[float]]] = field(default_factory=list)
     rerank_scores: List[Dict[str, List[float]]] = field(default_factory=list)
@@ -98,7 +109,7 @@ class RerankMemResponse:
 
 
 class RerankServiceInterface(ABC):
-    """重排序服务接口"""
+    """Reranking service interface"""
 
     @abstractmethod
     async def rerank_memories(
@@ -110,7 +121,7 @@ class RerankServiceInterface(ABC):
 @service(name="rerank_service", primary=True)
 class RerankService(RerankServiceInterface):
     """
-    重排序服务类 (支持 DeepInfra, vLLM)
+    Reranking service class (supports DeepInfra, vLLM)
     """
 
     def __init__(self, config: Optional[RerankConfig] = None):
@@ -123,7 +134,9 @@ class RerankService(RerankServiceInterface):
         self.config = config
         self.session: Optional[aiohttp.ClientSession] = None
         self._semaphore = asyncio.Semaphore(config.max_concurrent_requests)
-        logger.info(f"Initialized Rerank Service | provider={config.provider.value} | model={config.model}")
+        logger.info(
+            f"Initialized Rerank Service | provider={config.provider.value} | model={config.model}"
+        )
 
     def _load_config_from_env(self) -> RerankConfig:
         return RerankConfig()
@@ -156,16 +169,21 @@ class RerankService(RerankServiceInterface):
         if not documents:
             return {"results": []}
 
-        # 拆分成批次
+        # Split into batches
         batch_size = self.config.batch_size
-        if batch_size <= 0: batch_size = 10
-        
-        batches = [documents[i:i + batch_size] for i in range(0, len(documents), batch_size)]
+        if batch_size <= 0:
+            batch_size = 10
+
+        batches = [
+            documents[i : i + batch_size] for i in range(0, len(documents), batch_size)
+        ]
 
         batch_tasks = []
         for i, batch in enumerate(batches):
             start_index = i * batch_size
-            batch_tasks.append(self._send_rerank_request_batch(query, batch, start_index, instruction))
+            batch_tasks.append(
+                self._send_rerank_request_batch(query, batch, start_index, instruction)
+            )
 
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
@@ -186,7 +204,7 @@ class RerankService(RerankServiceInterface):
             last_response = result
 
         if not last_response and not all_scores:
-             pass 
+            pass
 
         combined_response = {
             "scores": all_scores,
@@ -195,35 +213,43 @@ class RerankService(RerankServiceInterface):
         }
         return self._convert_response_format(combined_response, len(documents))
 
-    def _format_rerank_texts(self, query: str, documents: List[str], instruction: Optional[str] = None):
-        """构建 Rerank 请求文本（Qwen-Reranker 通用格式）"""
-        prefix = '<|im_start|>system\nJudge whether the Document meets the requirements based on the Query and the Instruct provided. Note that the answer can only be "yes" or "no".<|im_end|>\n<|im_start|>user\n'
-        suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
-        instruction = instruction or "Given a question and a passage, determine if the passage contains information relevant to answering the question."
-        
+    def _format_rerank_texts(
+        self, query: str, documents: List[str], instruction: Optional[str] = None
+    ):
+        """Build Rerank request text (Qwen-Reranker general format)"""
+        prefix = '<tool_call>system\nJudge whether the Document meets the requirements based on the Query and the Instruct provided. Note that the answer can only be "yes" or "no".</tool_call>\n<tool_call>user\n'
+        suffix = "</tool_call>\n<tool_call>assistant\n<tool_call>\n\nFound\n\n"
+        instruction = (
+            instruction
+            or "Given a question and a passage, determine if the passage contains information relevant to answering the question."
+        )
+
         formatted_query = f"{prefix}<Instruct>: {instruction}\n<Query>: {query}\n"
         formatted_docs = [f"<Document>: {doc}{suffix}" for doc in documents]
-        
+
         return [formatted_query] * len(documents), formatted_docs
 
     async def _send_rerank_request_batch(
-        self, query: str, documents: List[str], start_index: int, instruction: Optional[str] = None
+        self,
+        query: str,
+        documents: List[str],
+        start_index: int,
+        instruction: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """根据 provider 发送请求"""
+        """Send request based on provider"""
         await self._ensure_session()
 
-        # 统一格式化文本（Qwen-Reranker 模型格式）
-        queries, formatted_docs = self._format_rerank_texts(query, documents, instruction)
-        
+        # Uniformly format text (Qwen-Reranker model format)
+        queries, formatted_docs = self._format_rerank_texts(
+            query, documents, instruction
+        )
+
         url = self.config.base_url
-        
+
         if self.config.provider == RerankProvider.DEEPINFRA:
             if not url.endswith(self.config.model):
                 url = f"{url}/{self.config.model}"
-            request_data = {
-                "queries": queries,
-                "documents": formatted_docs,
-            }
+            request_data = {"queries": queries, "documents": formatted_docs}
         else:
             # vLLM
             request_data = {
@@ -241,20 +267,26 @@ class RerankService(RerankServiceInterface):
                             return self._parse_provider_response(json_body)
                         else:
                             error_text = await response.text()
-                            logger.error(f"Rerank API error ({self.config.provider.value}) {response.status}: {error_text}")
+                            logger.error(
+                                f"Rerank API error ({self.config.provider.value}) {response.status}: {error_text}"
+                            )
                             if attempt < self.config.max_retries - 1:
                                 await asyncio.sleep(2**attempt)
                                 continue
-                            raise RerankError(f"API failed: {response.status} - {error_text}")
+                            raise RerankError(
+                                f"API failed: {response.status} - {error_text}"
+                            )
                 except Exception as e:
-                    logger.error(f"Rerank Exception ({self.config.provider.value}): {e}")
+                    logger.error(
+                        f"Rerank Exception ({self.config.provider.value}): {e}"
+                    )
                     if attempt < self.config.max_retries - 1:
                         await asyncio.sleep(2**attempt)
                         continue
                     raise RerankError(f"Exception: {e}")
 
     def _parse_provider_response(self, json_body: Dict[str, Any]) -> Dict[str, Any]:
-        """解析不同 provider 的响应为统一格式: {scores: [], input_tokens: int, ...}"""
+        """Parse responses from different providers into a unified format: {scores: [], input_tokens: int, ...}"""
         scores = []
         if self.config.provider == RerankProvider.DEEPINFRA:
             if "results" in json_body:
@@ -268,10 +300,11 @@ class RerankService(RerankServiceInterface):
                 scores = [item.get("score", 0.0) for item in json_body["data"]]
             elif "scores" in json_body:
                 scores = json_body["scores"]
-        
+
         return {
             "scores": scores,
-            "input_tokens": json_body.get("usage", {}).get("prompt_tokens", 0) or json_body.get("input_tokens", 0),
+            "input_tokens": json_body.get("usage", {}).get("prompt_tokens", 0)
+            or json_body.get("input_tokens", 0),
             "request_id": json_body.get("id") or json_body.get("request_id"),
         }
 
@@ -297,7 +330,7 @@ class RerankService(RerankServiceInterface):
             "input_tokens": combined_response.get("input_tokens", 0),
             "request_id": combined_response.get("request_id"),
         }
-    
+
     def _extract_memory_text(self, memory: Any) -> str:
         if hasattr(memory, 'episode') and memory.episode:
             return memory.episode
@@ -306,29 +339,35 @@ class RerankService(RerankServiceInterface):
         elif hasattr(memory, 'subject') and memory.subject:
             return memory.subject
         return str(memory)
-    
+
     def _extract_text_from_hit(self, hit: Dict[str, Any]) -> str:
         source = hit.get('_source', hit)
-        if source.get('episode'): return source['episode']
-        if source.get('summary'): return source['summary']
-        if source.get('subject'): return source['subject']
+        if source.get('episode'):
+            return source['episode']
+        if source.get('summary'):
+            return source['summary']
+        if source.get('subject'):
+            return source['subject']
         return str(hit)
-        
+
     async def rerank_memories(
         self, query: str, retrieve_response: Any, instruction: str = None
     ) -> Union[RerankMemResponse, List[Dict[str, Any]]]:
-        
+
         # 1. Handle List of hits (raw dicts)
         if isinstance(retrieve_response, list):
             all_hits = retrieve_response
-            if not all_hits: return []
+            if not all_hits:
+                return []
             all_texts = [self._extract_text_from_hit(hit) for hit in all_hits]
-            
+
             try:
-                rerank_result = await self._make_rerank_request(query, all_texts, instruction)
-                
+                rerank_result = await self._make_rerank_request(
+                    query, all_texts, instruction
+                )
+
                 results_meta = rerank_result.get("results", [])
-                
+
                 reranked_hits = []
                 for item in results_meta:
                     idx = item["index"]
@@ -337,7 +376,7 @@ class RerankService(RerankServiceInterface):
                         hit = all_hits[idx].copy()
                         hit['_rerank_score'] = score
                         reranked_hits.append(hit)
-                
+
                 return reranked_hits
 
             except Exception as e:
@@ -346,61 +385,76 @@ class RerankService(RerankServiceInterface):
 
         # 2. Handle RetrieveMemResponse object
         if not hasattr(retrieve_response, 'memories') or not retrieve_response.memories:
-             return RerankMemResponse(memories=[], scores=[])
+            return RerankMemResponse(memories=[], scores=[])
 
-        all_memories_meta = [] 
+        all_memories_meta = []
         all_texts = []
-        
+
         for group_idx, memory_dict_by_group in enumerate(retrieve_response.memories):
             for group_id, memory_list in memory_dict_by_group.items():
                 for mem_idx, memory in enumerate(memory_list):
                     all_memories_meta.append((group_idx, group_id, mem_idx, memory))
                     all_texts.append(self._extract_memory_text(memory))
-        
+
         if not all_texts:
-             return RerankMemResponse(
-                 memories=retrieve_response.memories,
-                 scores=retrieve_response.scores,
-                 total_count=getattr(retrieve_response, 'total_count', 0)
-             )
+            return RerankMemResponse(
+                memories=retrieve_response.memories,
+                scores=retrieve_response.scores,
+                total_count=getattr(retrieve_response, 'total_count', 0),
+            )
 
         try:
-            rerank_result = await self._make_rerank_request(query, all_texts, instruction)
-            results_meta = rerank_result.get("results", []) 
+            rerank_result = await self._make_rerank_request(
+                query, all_texts, instruction
+            )
+            results_meta = rerank_result.get("results", [])
 
-            group_data_map = {} 
-            
+            group_data_map = {}
+
             for item in results_meta:
                 original_idx = item["index"]
                 score = item["relevance_score"]
-                
+
                 group_idx, group_id, mem_idx, memory = all_memories_meta[original_idx]
-                
+
                 if group_id not in group_data_map:
                     group_data_map[group_id] = {
-                        "memories": [], "scores": [], "rerank_scores": [], "original_data": []
+                        "memories": [],
+                        "scores": [],
+                        "rerank_scores": [],
+                        "original_data": [],
                     }
-                
+
                 orig_score = 0.0
                 if group_idx < len(retrieve_response.scores):
-                     g_scores = retrieve_response.scores[group_idx].get(group_id, [])
-                     if mem_idx < len(g_scores): orig_score = g_scores[mem_idx]
-                
+                    g_scores = retrieve_response.scores[group_idx].get(group_id, [])
+                    if mem_idx < len(g_scores):
+                        orig_score = g_scores[mem_idx]
+
                 orig_data = {}
-                if hasattr(retrieve_response, 'original_data') and group_idx < len(retrieve_response.original_data):
-                    g_data = retrieve_response.original_data[group_idx].get(group_id, [])
-                    if mem_idx < len(g_data): orig_data = g_data[mem_idx]
+                if hasattr(retrieve_response, 'original_data') and group_idx < len(
+                    retrieve_response.original_data
+                ):
+                    g_data = retrieve_response.original_data[group_idx].get(
+                        group_id, []
+                    )
+                    if mem_idx < len(g_data):
+                        orig_data = g_data[mem_idx]
 
                 group_data_map[group_id]["memories"].append(memory)
                 group_data_map[group_id]["scores"].append(orig_score)
                 group_data_map[group_id]["rerank_scores"].append(score)
                 group_data_map[group_id]["original_data"].append(orig_data)
 
-            final_memories = [ {gid: d["memories"] for gid, d in group_data_map.items()} ]
-            final_scores = [ {gid: d["scores"] for gid, d in group_data_map.items()} ]
-            final_rerank_scores = [ {gid: d["rerank_scores"] for gid, d in group_data_map.items()} ]
-            final_original_data = [ {gid: d["original_data"] for gid, d in group_data_map.items()} ]
-            
+            final_memories = [{gid: d["memories"] for gid, d in group_data_map.items()}]
+            final_scores = [{gid: d["scores"] for gid, d in group_data_map.items()}]
+            final_rerank_scores = [
+                {gid: d["rerank_scores"] for gid, d in group_data_map.items()}
+            ]
+            final_original_data = [
+                {gid: d["original_data"] for gid, d in group_data_map.items()}
+            ]
+
             return RerankMemResponse(
                 memories=final_memories,
                 scores=final_scores,
@@ -408,7 +462,7 @@ class RerankService(RerankServiceInterface):
                 original_data=final_original_data,
                 total_count=len(all_texts),
                 has_more=getattr(retrieve_response, 'has_more', False),
-                metadata=getattr(retrieve_response, 'metadata', {})
+                metadata=getattr(retrieve_response, 'metadata', {}),
             )
 
         except Exception as e:
@@ -416,7 +470,7 @@ class RerankService(RerankServiceInterface):
             return RerankMemResponse(
                 memories=retrieve_response.memories,
                 scores=retrieve_response.scores,
-                total_count=getattr(retrieve_response, 'total_count', 0)
+                total_count=getattr(retrieve_response, 'total_count', 0),
             )
 
     async def _rerank_all_hits(
@@ -426,21 +480,21 @@ class RerankService(RerankServiceInterface):
         top_k: int = None,
         instruction: str = None,
     ) -> List[Dict[str, Any]]:
-        """对 all_hits 列表进行重排序，返回 top_k 个结果
+        """Rerank the all_hits list and return top_k results
 
         Args:
-            query: 查询文本
-            all_hits: 搜索结果列表，每个元素是 Dict[str, Any]
-            top_k: 返回的最大结果数量，如果为 None 则返回所有结果
-            instruction: 可选的重排序指令
+            query: Query text
+            all_hits: Search result list, each element is Dict[str, Any]
+            top_k: Maximum number of results to return, if None return all results
+            instruction: Optional reranking instruction
 
         Returns:
-            重排序后的 hit 列表，每个 hit 包含 relevance_score 和 _rerank_score 字段
+            Reranked hit list, each hit contains relevance_score and _rerank_score fields
         """
         if not all_hits:
             return []
 
-        # 从 all_hits 中提取文本内容用于重排序
+        # Extract text content from all_hits for reranking
         all_texts = []
         for hit in all_hits:
             text = self._extract_text_from_hit(hit)
@@ -449,39 +503,45 @@ class RerankService(RerankServiceInterface):
         if not all_texts:
             return []
 
-        # 调用重排序 API
+        # Call reranking API
         try:
-            logger.debug(f"开始重排序，查询文本: {query}, 文本数量: {len(all_texts)}")
-            rerank_result = await self._make_rerank_request(query, all_texts, instruction)
+            logger.debug(
+                f"Starting reranking, query text: {query}, number of texts: {len(all_texts)}"
+            )
+            rerank_result = await self._make_rerank_request(
+                query, all_texts, instruction
+            )
 
             if "results" not in rerank_result:
                 raise RerankError("Invalid rerank API response: missing results field")
 
-            # 解析重排序结果
+            # Parse reranking results
             results_meta = rerank_result.get("results", [])
 
-            # 按照重排序后的顺序重新组织 hits
+            # Reorganize hits according to reranked order
             reranked_hits = []
             for item in results_meta:
                 original_idx = item.get("index", 0)
                 score = item.get("relevance_score", 0.0)
                 if 0 <= original_idx < len(all_hits):
-                    hit = all_hits[original_idx].copy()  # 复制 hit 以避免修改原始数据
-                    # 添加重排序分数到 hit 中（同时提供两个字段以兼容不同调用方）
+                    hit = all_hits[
+                        original_idx
+                    ].copy()  # Copy hit to avoid modifying original data
+                    # Add reranking score to hit (provide both fields for compatibility with different callers)
                     hit['_rerank_score'] = score
                     hit['relevance_score'] = score
                     reranked_hits.append(hit)
 
-            # 如果指定了 top_k，则只返回前 top_k 个结果
+            # If top_k is specified, return only the top_k results
             if top_k is not None and top_k > 0:
                 reranked_hits = reranked_hits[:top_k]
 
-            logger.debug(f"重排序完成，返回 {len(reranked_hits)} 个结果")
+            logger.debug(f"Reranking completed, returning {len(reranked_hits)} results")
             return reranked_hits
 
         except Exception as e:
             logger.error(f"Error during reranking all_hits: {e}")
-            # 如果重排序失败，返回原始结果（按原始得分排序）
+            # If reranking fails, return original results (sorted by original score)
             sorted_hits = sorted(
                 all_hits, key=self._extract_score_from_hit, reverse=True
             )
@@ -490,13 +550,13 @@ class RerankService(RerankServiceInterface):
             return sorted_hits
 
     def _extract_score_from_hit(self, hit: Dict[str, Any]) -> float:
-        """从 hit 中提取得分
+        """Extract score from hit
 
         Args:
-            hit: 搜索结果 hit
+            hit: Search result hit
 
         Returns:
-            得分
+            Score
         """
         if '_score' in hit:
             return hit['_score']

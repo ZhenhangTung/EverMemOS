@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-依赖注入容器核心实现
+Core implementation of dependency injection container
 
-锁使用策略：
-- 纯读操作（如 is_mock_mode, contains_bean*）：无锁，因为读取不可变属性
-- 修改容器状态的操作：使用 self._lock 保护
-- 获取Bean的操作：需要锁，因为可能创建和缓存单例实例
-- 全局容器创建：使用 _container_lock 保证单例
+Lock usage strategy:
+- Read-only operations (e.g., is_mock_mode, contains_bean*): no lock, because reading immutable attributes
+- Operations modifying container state: protected by self._lock
+- Bean retrieval operations: require lock, because they may create and cache singleton instances
+- Global container creation: use _container_lock to ensure singleton
 """
 
 import inspect
@@ -42,64 +42,64 @@ T = TypeVar('T')
 
 
 class DIContainer:
-    """依赖注入容器"""
+    """Dependency injection container"""
 
-    # 类级别的Bean排序策略，可以被替换
+    # Class-level Bean ordering strategy, can be replaced
     _bean_order_strategy_class = BeanOrderStrategy
 
     @classmethod
     def replace_bean_order_strategy(cls, strategy_class):
         """
-        替换Bean排序策略类
+        Replace Bean ordering strategy class
 
         Args:
-            strategy_class: 新的排序策略类，必须具有与BeanOrderStrategy兼容的接口
+            strategy_class: New ordering strategy class, must have interface compatible with BeanOrderStrategy
 
-        注意:
-            这是一个临时方案，因为DI机制还没有完全建立。
-            此方法会影响所有DIContainer实例的排序行为。
+        Note:
+            This is a temporary solution because the DI mechanism is not fully established.
+            This method affects the ordering behavior of all DIContainer instances.
         """
         cls._bean_order_strategy_class = strategy_class
 
     def __init__(self):
         self._lock = RLock()
-        # 按类型存储Bean定义 {Type: [BeanDefinition]}
+        # Store Bean definitions by type {Type: [BeanDefinition]}
         self._bean_definitions: Dict[Type, List[BeanDefinition]] = {}
-        # 按名称存储Bean定义 {name: BeanDefinition}
+        # Store Bean definitions by name {name: BeanDefinition}
         self._named_beans: Dict[str, BeanDefinition] = {}
 
-        # 存储单例实例 {BeanDefinition: instance}
+        # Store singleton instances {BeanDefinition: instance}
         self._singleton_instances: Dict[BeanDefinition, Any] = {}
 
-        # Mock模式
+        # Mock mode
         self._mock_mode = False
-        # 依赖解析栈，用于检测循环依赖
+        # Dependency resolution stack, used to detect circular dependencies
         self._resolving_stack: List[Type] = []
 
-        # 性能优化缓存
-        # 类型继承关系缓存 {parent_type: [child_types]}
+        # Performance optimization cache
+        # Inheritance relationship cache {parent_type: [child_types]}
         self._inheritance_cache: Dict[Type, List[Type]] = {}
-        # 候选Bean缓存 {(Type, mock_mode): [BeanDefinition]}
+        # Candidate Bean cache {(Type, mock_mode): [BeanDefinition]}
         self._candidates_cache: Dict[tuple, List[BeanDefinition]] = {}
-        # 缓存失效标志
+        # Cache invalidation flag
         self._cache_dirty = False
 
     def enable_mock_mode(self):
-        """启用Mock模式"""
+        """Enable mock mode"""
         with self._lock:
             if not self._mock_mode:
                 self._mock_mode = True
                 self._invalidate_cache()
 
     def disable_mock_mode(self):
-        """禁用Mock模式"""
+        """Disable mock mode"""
         with self._lock:
             if self._mock_mode:
                 self._mock_mode = False
                 self._invalidate_cache()
 
     def is_mock_mode(self) -> bool:
-        """检查是否为Mock模式"""
+        """Check if in mock mode"""
         return self._mock_mode
 
     def _create_bean_definition(
@@ -114,34 +114,34 @@ class DIContainer:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> BeanDefinition:
         """
-        创建 BeanDefinition，并自动合并扫描上下文中的 metadata
+        Create BeanDefinition, automatically merging metadata from scan context
 
         Args:
-            bean_type: Bean的类型
-            bean_name: Bean的名称
-            scope: Bean的作用域
-            is_primary: 是否为主Bean
-            is_mock: 是否为Mock实现
-            factory_method: 工厂方法
-            instance: 预先创建的实例
-            metadata: Bean的元数据
+            bean_type: Type of the Bean
+            bean_name: Name of the Bean
+            scope: Scope of the Bean
+            is_primary: Whether it is the primary Bean
+            is_mock: Whether it is a mock implementation
+            factory_method: Factory method
+            instance: Pre-created instance
+            metadata: Metadata of the Bean
 
         Returns:
-            BeanDefinition 实例
+            BeanDefinition instance
         """
-        # 合并 metadata：先从 scan_context 获取，再与传入的 metadata 合并
+        # Merge metadata: first get from scan_context, then merge with passed metadata
         merged_metadata = {}
 
-        # 1. 通过 bean_type 获取其所在文件路径，并搜索对应的上下文 metadata
+        # 1. Get file path through bean_type and search for corresponding context metadata
         context_metadata = ScanContextRegistry.search_metadata_for_type(bean_type)
         if context_metadata:
             merged_metadata.update(context_metadata)
 
-        # 2. 合并传入的 metadata（传入的优先级更高，可以覆盖扫描上下文的）
+        # 2. Merge passed metadata (passed metadata has higher priority, can override scan context)
         if metadata:
             merged_metadata.update(metadata)
 
-        # 3. 创建 BeanDefinition
+        # 3. Create BeanDefinition
         bean_def = BeanDefinition(
             bean_type=bean_type,
             bean_name=bean_name,
@@ -166,19 +166,19 @@ class DIContainer:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> 'DIContainer':
         """
-        注册Bean
+        Register Bean
 
         Args:
-            bean_type: Bean的类型
-            bean_name: Bean的名称
-            scope: Bean的作用域
-            is_primary: 是否为主Bean
-            is_mock: 是否为Mock实现
-            instance: 预先创建的实例
-            metadata: Bean的元数据，可用于存储额外信息
+            bean_type: Type of the Bean
+            bean_name: Name of the Bean
+            scope: Scope of the Bean
+            is_primary: Whether it is the primary Bean
+            is_mock: Whether it is a mock implementation
+            instance: Pre-created instance
+            metadata: Metadata of the Bean, can be used to store extra information
         """
         with self._lock:
-            # 使用统一的方法创建 BeanDefinition，会自动合并扫描上下文的 metadata
+            # Use unified method to create BeanDefinition, automatically merges scan context metadata
             bean_def = self._create_bean_definition(
                 bean_type=bean_type,
                 bean_name=bean_name,
@@ -189,26 +189,26 @@ class DIContainer:
                 metadata=metadata,
             )
 
-            # 检查重复注册
+            # Check for duplicate registration
             if bean_def.bean_name in self._named_beans:
                 existing = self._named_beans[bean_def.bean_name]
                 if not (is_mock or existing.is_mock):
                     raise DuplicateBeanError(bean_name=bean_def.bean_name)
 
-            # 注册Bean定义
+            # Register Bean definition
             if bean_type not in self._bean_definitions:
                 self._bean_definitions[bean_type] = []
             self._bean_definitions[bean_type].append(bean_def)
             self._named_beans[bean_def.bean_name] = bean_def
 
-            # 分析依赖关系
+            # Analyze dependency relationships
             self._analyze_dependencies(bean_def)
 
-            # 如果提供了实例，直接存储
+            # If instance is provided, store directly
             if instance is not None:
                 self._singleton_instances[bean_def] = instance
 
-            # 使缓存失效
+            # Invalidate cache
             self._invalidate_cache()
 
             return self
@@ -223,18 +223,18 @@ class DIContainer:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> 'DIContainer':
         """
-        注册Factory方法
+        Register factory method
 
         Args:
-            bean_type: Bean的类型
-            factory_method: 工厂方法
-            bean_name: Bean的名称
-            is_primary: 是否为主Bean
-            is_mock: 是否为Mock实现
-            metadata: Bean的元数据，可用于存储额外信息
+            bean_type: Type of the Bean
+            factory_method: Factory method
+            bean_name: Name of the Bean
+            is_primary: Whether it is the primary Bean
+            is_mock: Whether it is a mock implementation
+            metadata: Metadata of the Bean, can be used to store extra information
         """
         with self._lock:
-            # 使用统一的方法创建 BeanDefinition，会自动合并扫描上下文的 metadata
+            # Use unified method to create BeanDefinition, automatically merges scan context metadata
             bean_def = self._create_bean_definition(
                 bean_type=bean_type,
                 bean_name=bean_name,
@@ -245,25 +245,25 @@ class DIContainer:
                 metadata=metadata,
             )
 
-            # 检查重复注册
+            # Check for duplicate registration
             if bean_def.bean_name in self._named_beans:
                 existing = self._named_beans[bean_def.bean_name]
                 if not (is_mock or existing.is_mock):
                     raise DuplicateBeanError(bean_name=bean_def.bean_name)
 
-            # 注册Bean定义
+            # Register Bean definition
             if bean_type not in self._bean_definitions:
                 self._bean_definitions[bean_type] = []
             self._bean_definitions[bean_type].append(bean_def)
             self._named_beans[bean_def.bean_name] = bean_def
 
-            # 使缓存失效
+            # Invalidate cache
             self._invalidate_cache()
 
             return self
 
     def get_bean(self, bean_name: str) -> Any:
-        """根据名称获取Bean"""
+        """Get Bean by name"""
         with self._lock:
             if bean_name not in self._named_beans:
                 raise BeanNotFoundError(bean_name=bean_name)
@@ -272,79 +272,79 @@ class DIContainer:
             return self._create_instance(bean_def)
 
     def get_bean_by_type(self, bean_type: Type[T]) -> T:
-        """根据类型获取Bean（返回Primary或唯一实现）"""
+        """Get Bean by type (return Primary or unique implementation)"""
         with self._lock:
             candidates = self._get_candidates_with_priority(bean_type)
 
             if not candidates:
                 raise BeanNotFoundError(bean_type=bean_type)
 
-            # 如果只有一个候选者，返回它
+            # If only one candidate, return it
             if len(candidates) == 1:
                 return self._create_instance(candidates[0])
 
-            # 多个候选者，返回优先级最高的
+            # Multiple candidates, return the highest priority one
             return self._create_instance(candidates[0])
 
     def _get_candidates_with_priority(self, bean_type: Type) -> List[BeanDefinition]:
         """
-        获取类型的候选Bean定义（按优先级排序）
+        Get candidate Bean definitions for the type (sorted by priority)
 
-        优先级排序规则（从高到低）：
-        1. is_mock: Mock Bean > 非Mock Bean（仅在Mock模式下生效）
-        2. 匹配方式: 直接匹配 > 实现类匹配
-        3. primary: Primary Bean > 非Primary Bean
+        Priority sorting rules (from high to low):
+        1. is_mock: Mock Bean > Non-Mock Bean (only effective in mock mode)
+        2. Matching method: Direct match > Implementation class match
+        3. primary: Primary Bean > Non-Primary Bean
         4. scope: Factory Bean > Regular Bean
         """
-        # 使用缓存键
+        # Use cache key
         cache_key = (bean_type, self._mock_mode)
 
-        # 检查缓存
+        # Check cache
         if cache_key in self._candidates_cache:
             return self._candidates_cache[cache_key]
 
-        # 确保继承关系缓存是最新的
+        # Ensure inheritance relationship cache is up to date
         self._build_inheritance_cache()
 
-        # 收集所有候选Bean
+        # Collect all candidate Beans
         all_candidates = []
         direct_match_types = set()
 
-        # 1. 收集直接匹配的Bean（包括Primary和非Primary）
+        # 1. Collect directly matched Beans (including Primary and non-Primary)
         if bean_type in self._bean_definitions:
             for bean_def in self._bean_definitions[bean_type]:
                 if self._is_bean_available(bean_def):
                     all_candidates.append(bean_def)
                     direct_match_types.add(bean_def.bean_type)
 
-        # 2. 收集实现类匹配的Bean（接口/抽象类的实现）
+        # 2. Collect implementation class matched Beans (implementations of interface/abstract class)
         impl_types = self._inheritance_cache.get(bean_type, [])
         for impl_type in impl_types:
             if impl_type in self._bean_definitions:
                 for bean_def in self._bean_definitions[impl_type]:
                     if self._is_bean_available(bean_def):
                         all_candidates.append(bean_def)
-                        # impl_type 不加入 direct_match_types，因为它是实现类匹配
+                        # impl_type not added to direct_match_types, because it's implementation class match
 
-        # 3. 使用当前配置的Bean排序策略进行统一排序
+        # 3. Use current configured Bean ordering strategy for unified sorting
         priority_candidates = self._bean_order_strategy_class.sort_beans_with_context(
             bean_defs=all_candidates,
             direct_match_types=direct_match_types,
             mock_mode=self._mock_mode,
         )
 
-        # 缓存结果
+        # Cache result
         self._candidates_cache[cache_key] = priority_candidates
         return priority_candidates
 
     def get_beans_by_type(self, bean_type: Type[T]) -> List[T]:
-        """根据类型获取所有Bean实现"""
+        """Get all Bean implementations by type"""
         with self._lock:
             candidates = self._get_candidates_with_priority(bean_type)
             return [self._create_instance(bean_def) for bean_def in candidates]
 
     def get_beans(self) -> Dict[str, Any]:
-        """获取所有已注册的Bean"""
+        """Get all registered Beans"""
         with self._lock:
             result = {}
             for name, bean_def in self._named_beans.items():
@@ -352,20 +352,20 @@ class DIContainer:
                     try:
                         result[name] = self._create_instance(bean_def)
                     except Exception:
-                        # 跳过无法创建的Bean
+                        # Skip Beans that cannot be created
                         continue
             return result
 
     def contains_bean(self, bean_name: str) -> bool:
-        """检查是否包含指定名称的Bean"""
+        """Check if container contains Bean with specified name"""
         return bean_name in self._named_beans
 
     def contains_bean_by_type(self, bean_type: Type) -> bool:
-        """检查是否包含指定类型的Bean"""
+        """Check if container contains Bean with specified type"""
         return bean_type in self._bean_definitions
 
     def clear(self):
-        """清空容器"""
+        """Clear container"""
         with self._lock:
             self._bean_definitions.clear()
             self._named_beans.clear()
@@ -375,19 +375,19 @@ class DIContainer:
 
     def list_all_beans_info(self) -> List[Dict[str, Any]]:
         """
-        列出所有已注册的Bean信息
+        List all registered Bean information
 
         Returns:
-            Bean信息列表，每个Bean包含：
-            - name: Bean名称
-            - type_name: Bean类型名称
-            - scope: Bean作用域
-            - is_primary: 是否为Primary Bean
-            - is_mock: 是否为Mock Bean
+            List of Bean information, each Bean contains:
+            - name: Bean name
+            - type_name: Bean type name
+            - scope: Bean scope
+            - is_primary: Whether it is a Primary Bean
+            - is_mock: Whether it is a Mock Bean
         """
         beans_info = []
 
-        # 收集所有Bean信息
+        # Collect all Bean information
         for name, bean_def in self._named_beans.items():
             if self._is_bean_available(bean_def):
                 beans_info.append(
@@ -403,49 +403,49 @@ class DIContainer:
         return beans_info
 
     def _invalidate_cache(self):
-        """使所有缓存失效"""
+        """Invalidate all caches"""
         self._inheritance_cache.clear()
         self._candidates_cache.clear()
         self._cache_dirty = True
 
     def _is_bean_available(self, bean_def: BeanDefinition) -> bool:
-        """检查Bean是否在当前模式下可用"""
+        """Check if Bean is available in current mode"""
         if self._mock_mode:
-            # Mock模式下，mock和非mock的bean都可用
+            # In mock mode, both mock and non-mock beans are available
             return True
         else:
-            # 非Mock模式下，只有非mock的bean可用
+            # In non-mock mode, only non-mock beans are available
             return not bean_def.is_mock
 
     def _build_inheritance_cache(self):
-        """构建类型继承关系缓存"""
+        """Build type inheritance relationship cache"""
         if not self._cache_dirty:
             return
 
         self._inheritance_cache.clear()
 
-        # 获取已注册的类型
+        # Get registered types
         registered_types = list(self._bean_definitions.keys())
 
-        # 额外收集ABC父类类型（排除abc.ABC基类）
+        # Additionally collect ABC parent types (exclude abc.ABC base class)
         all_parent_types = set(registered_types)
         for registered_type in registered_types:
             try:
-                # 获取所有父类，特别是ABC抽象基类
-                for base in registered_type.__mro__[1:]:  # 跳过自身
-                    # 排除abc.ABC基类和object基类，它们太通用了
+                # Get all parent classes, especially ABC abstract base classes
+                for base in registered_type.__mro__[1:]:  # Skip self
+                    # Exclude abc.ABC base class and object base class, they are too generic
                     if (
                         base != abc.ABC
                         and base != object
                         and hasattr(base, '__abstractmethods__')
-                    ):  # ABC类型
+                    ):  # ABC type
                         all_parent_types.add(base)
             except (AttributeError, TypeError):
-                # 处理非类型的情况
+                # Handle non-type cases
                 continue
 
-        # 为所有类型（包括ABC父类）建立继承关系索引
-        # parent_type -> [实现它的子类列表]
+        # Build inheritance relationship index for all types (including ABC parents)
+        # parent_type -> [list of its child implementations]
         for parent_type in all_parent_types:
             child_implementations = []
             for child_type in registered_types:
@@ -454,7 +454,7 @@ class DIContainer:
                         if issubclass(child_type, parent_type):
                             child_implementations.append(child_type)
                     except TypeError:
-                        # 处理非类型的情况
+                        # Handle non-type cases
                         continue
             if child_implementations:
                 self._inheritance_cache[parent_type] = child_implementations
@@ -462,30 +462,30 @@ class DIContainer:
         self._cache_dirty = False
 
     def _create_instance(self, bean_def: BeanDefinition) -> Any:
-        """创建Bean实例"""
-        # 检查循环依赖
+        """Create Bean instance"""
+        # Check for circular dependency
         if bean_def.bean_type in self._resolving_stack:
             dependency_chain = self._resolving_stack + [bean_def.bean_type]
             raise CircularDependencyError(dependency_chain)
 
-        # 处理不同作用域
+        # Handle different scopes
         if bean_def.scope == BeanScope.SINGLETON:
-            # 单例模式：检查缓存，如果有直接返回
+            # Singleton mode: check cache, return directly if exists
             if bean_def in self._singleton_instances:
                 return self._singleton_instances[bean_def]
 
         elif bean_def.scope == BeanScope.FACTORY:
-            # 工厂模式：每次调用工厂方法创建新实例
+            # Factory mode: create new instance by calling factory method each time
             if bean_def.factory_method:
                 try:
                     return bean_def.factory_method()
                 except Exception as e:
                     raise FactoryError(bean_def.bean_type, str(e))
             else:
-                raise FactoryError(bean_def.bean_type, "未设置Factory方法")
+                raise FactoryError(bean_def.bean_type, "Factory method not set")
 
         elif bean_def.scope == BeanScope.PROTOTYPE:
-            # 原型模式：每次都创建新实例，不缓存
+            # Prototype mode: create new instance each time, no caching
             try:
                 self._resolving_stack.append(bean_def.bean_type)
                 return self._instantiate_with_dependencies(bean_def)
@@ -493,16 +493,16 @@ class DIContainer:
                 if bean_def.bean_type in self._resolving_stack:
                     self._resolving_stack.remove(bean_def.bean_type)
 
-        # 如果有预设实例，直接返回
+        # If preset instance exists, return directly
         if bean_def.instance is not None:
             return bean_def.instance
 
-        # 创建新实例（SINGLETON 作用域）
+        # Create new instance (SINGLETON scope)
         try:
             self._resolving_stack.append(bean_def.bean_type)
             instance = self._instantiate_with_dependencies(bean_def)
 
-            # 存储单例实例
+            # Store singleton instance
             if bean_def.scope == BeanScope.SINGLETON:
                 self._singleton_instances[bean_def] = instance
 
@@ -512,52 +512,52 @@ class DIContainer:
                 self._resolving_stack.remove(bean_def.bean_type)
 
     def _instantiate_with_dependencies(self, bean_def: BeanDefinition) -> Any:
-        """实例化Bean并注入依赖"""
+        """Instantiate Bean and inject dependencies"""
         bean_type = bean_def.bean_type
 
-        # 获取构造函数签名
+        # Get constructor signature
         try:
             signature = inspect.signature(bean_type.__init__)
         except Exception:
-            # 如果无法获取签名，尝试无参构造
+            # If signature cannot be obtained, try parameterless constructor
             return bean_type()
 
-        # 准备构造函数参数
+        # Prepare constructor parameters
         init_params = {}
         for param_name, param in signature.parameters.items():
             if param_name == 'self':
                 continue
 
-            # 尝试根据类型注入依赖
+            # Try to inject dependency by type
             if param.annotation != inspect.Parameter.empty:
                 try:
-                    # 检查是否为泛型类型（如 List[T]）
+                    # Check if it is a generic type (e.g., List[T])
                     origin = get_origin(param.annotation)
                     if origin is list or origin is List:
-                        # 处理 List[T] 类型的依赖注入
+                        # Handle dependency injection for List[T] type
                         args = get_args(param.annotation)
                         if args:
-                            # 获取泛型参数类型
+                            # Get generic parameter type
                             element_type = args[0]
-                            # 注入该类型的所有实现
+                            # Inject all implementations of this type
                             dependencies = self.get_beans_by_type(element_type)
                             init_params[param_name] = dependencies
                         else:
-                            # 如果没有泛型参数，尝试空列表
+                            # If no generic parameters, try empty list
                             init_params[param_name] = []
                     else:
-                        # 普通类型的依赖注入
+                        # Dependency injection for normal types
                         dependency = self.get_bean_by_type(param.annotation)
                         init_params[param_name] = dependency
                 except BeanNotFoundError:
                     if param.default == inspect.Parameter.empty:
-                        # 必需参数但找不到依赖
+                        # Required parameter but dependency not found
                         raise DependencyResolutionError(bean_type, param.annotation)
 
         return bean_type(**init_params)
 
     def _analyze_dependencies(self, bean_def: BeanDefinition):
-        """分析Bean的依赖关系"""
+        """Analyze Bean's dependency relationships"""
         try:
             signature = inspect.signature(bean_def.bean_type.__init__)
             for param_name, param in signature.parameters.items():
@@ -566,17 +566,17 @@ class DIContainer:
                 if param.annotation != inspect.Parameter.empty:
                     bean_def.dependencies.add(param.annotation)
         except Exception:
-            # 如果无法分析，跳过
+            # If analysis fails, skip
             pass
 
 
-# 全局容器实例
+# Global container instance
 _global_container: Optional[DIContainer] = None
 _container_lock = RLock()
 
 
 def get_container() -> DIContainer:
-    """获取全局容器实例"""
+    """Get global container instance"""
     global _global_container
     if _global_container is None:
         with _container_lock:

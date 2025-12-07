@@ -11,14 +11,14 @@ logger = get_logger(__name__)
 
 
 class TopicProcessor:
-    """话题处理器 - 负责话题的增量更新和管理"""
+    """Topic processor - responsible for incremental updates and management of topics"""
 
     def __init__(self, data_processor):
         """
-        初始化话题处理器
+        Initialize topic processor
 
         Args:
-            data_processor: GroupProfileDataProcessor 实例，用于验证和合并 memcell_ids
+            data_processor: GroupProfileDataProcessor instance, used to validate and merge memcell_ids
         """
         self.data_processor = data_processor
 
@@ -26,35 +26,35 @@ class TopicProcessor:
         self, topics: List, reference_time: Optional[datetime] = None
     ) -> object:
         """
-        找到要被替换的topic
-        策略：
-        1. 优先替换 30 天前已 implemented 的 topic
-        2. 否则替换最老的 topic（无论状态）
+        Find the topic to be replaced
+        Strategy:
+        1. Prioritize replacing topics that were implemented over 30 days ago
+        2. Otherwise, replace the oldest topic (regardless of status)
 
-        这样既能保护近期完成的重要项目，又能合理淘汰长期 implemented 的老旧 topics。
+        This protects recently completed important projects while reasonably phasing out long-implemented outdated topics.
 
         Args:
-            topics: TopicInfo 对象列表
-            reference_time: 参考时间点（通常是 memcell 列表中的最晚时间）。
-                           如果不提供，使用当前系统时间。
+            topics: List of TopicInfo objects
+            reference_time: Reference time point (usually the latest time in the memcell list).
+                           If not provided, use current system time.
 
         Returns:
-            要被替换的 TopicInfo 对象
+            The TopicInfo object to be replaced
         """
         from datetime import timedelta
 
-        # 使用提供的参考时间，如果没有则使用当前时间
+        # Use provided reference time, otherwise use current time
         now = reference_time if reference_time else get_now_with_timezone()
-        threshold = now - timedelta(days=30)  # 30天阈值
+        threshold = now - timedelta(days=30)  # 30-day threshold
 
         return sorted(
             topics,
             key=lambda t: (
-                # 第一优先级：不是"老旧的implemented"（最新的和非implemented的排后面）
+                # First priority: not "old implemented" (newest and non-implemented come later)
                 not (
                     t.status == "implemented" and (t.last_active_at or now) < threshold
                 ),
-                # 第二优先级：按时间从旧到新
+                # Second priority: sort from oldest to newest
                 t.last_active_at or get_now_with_timezone().replace(year=1900),
             ),
         )[0]
@@ -84,7 +84,7 @@ class TopicProcessor:
 
         for memcell in memcell_list:
             # If filter_ids provided, only consider memcells in the filter
-            # 转换为字符串以匹配 filter_ids 中的格式
+            # Convert to string to match format in filter_ids
             if filter_ids and hasattr(memcell, 'event_id'):
                 memcell_id_str = str(memcell.event_id)
                 if memcell_id_str not in filter_ids:
@@ -106,9 +106,9 @@ class TopicProcessor:
     def apply_topic_incremental_updates(
         self,
         llm_topics: List[Dict],
-        existing_topics_with_evidences: List,  # 包含 evidences 的历史 topics
+        existing_topics_with_evidences: List,  # Historical topics containing evidences
         memcell_list: List,
-        valid_memcell_ids: Set[str],  # 有效的 memcell_ids
+        valid_memcell_ids: Set[str],  # Set of valid memcell_ids
         max_topics: int = 5,
     ) -> List:
         """
@@ -117,19 +117,19 @@ class TopicProcessor:
         Now handles evidences merging internally.
 
         Args:
-            llm_topics: LLM 输出的话题列表（包含 evidences 和 confidence）
-            existing_topics_with_evidences: 历史话题列表（包含 evidences）
-            memcell_list: 当前的 memcell 列表
-            valid_memcell_ids: 有效的 memcell_ids 集合
-            max_topics: 最大话题数量
+            llm_topics: List of topics output by LLM (containing evidences and confidence)
+            existing_topics_with_evidences: List of historical topics (containing evidences)
+            memcell_list: Current memcell list
+            valid_memcell_ids: Set of valid memcell_ids
+            max_topics: Maximum number of topics
 
         Returns:
-            处理后的 TopicInfo 对象列表（按 last_active_at 排序）
+            Processed list of TopicInfo objects (sorted by last_active_at)
         """
         from ..group_profile_memory_extractor import TopicInfo
 
-        # 计算 memcell 列表中的最晚时间作为参考时间点
-        # 用于 topic 替换策略的时间判断（离线批处理场景）
+        # Calculate the latest time in memcell list as reference time point
+        # Used for time judgment in topic replacement strategy (offline batch processing scenario)
         reference_time = self.get_latest_memcell_timestamp(memcell_list)
 
         # Parse existing topics (preserving evidences)
@@ -175,16 +175,16 @@ class TopicProcessor:
             old_topic_id = llm_topic.get("old_topic_id")
             topic_name = llm_topic.get("name", "")
 
-            # 获取 LLM 输出的 evidences 和 confidence
+            # Get evidences and confidence from LLM output
             llm_evidences = llm_topic.get("evidences", [])
             llm_confidence = llm_topic.get("confidence", "weak")
 
             if update_type == "update" and old_topic_id and old_topic_id in topic_dict:
-                # Update existing topic - 合并历史和新的 evidences
+                # Update existing topic - merge historical and new evidences
                 old_topic = topic_dict[old_topic_id]
                 historical_evidences = old_topic.evidences or []
 
-                # 合并 evidences（内部会验证）
+                # Merge evidences (validation done internally)
                 merged_evidences = self.data_processor.merge_memcell_ids(
                     historical=historical_evidences,
                     new=llm_evidences,
@@ -219,7 +219,7 @@ class TopicProcessor:
                 )
 
             elif update_type == "new":
-                # Add new topic - 验证 evidences
+                # Add new topic - validate evidences
                 valid_llm_evidences = (
                     self.data_processor.validate_and_filter_memcell_ids(
                         llm_evidences, valid_memcell_ids
@@ -263,7 +263,7 @@ class TopicProcessor:
                     f"[TopicIncremental] Added new topic: {new_id} -> {new_topic.name}"
                 )
 
-        # 按照 last_active_at 时间排序（最新的在前）
+        # Sort by last_active_at (newest first)
         final_topics = sorted(
             topic_dict.values(),
             key=lambda t: t.last_active_at or datetime.min,

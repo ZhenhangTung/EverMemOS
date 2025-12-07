@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-依赖注入装饰器
+Dependency injection decorator
 """
 
 from typing import Type, TypeVar, Optional, Callable, Any, Dict
@@ -20,14 +20,14 @@ def component(
     metadata: Optional[Dict[str, Any]] = None,
 ):
     """
-    组件装饰器
+    Component decorator
 
     Args:
-        name: Bean名称
-        scope: Bean作用域
-        lazy: 是否延迟注册
-        primary: 是否为主Bean
-        metadata: Bean的元数据，可用于存储额外信息
+        name: Bean name
+        scope: Bean scope
+        lazy: Whether to register lazily
+        primary: Whether it is a primary Bean
+        metadata: Metadata of the Bean, can be used to store additional information
     """
 
     def decorator(cls: Type[T]) -> Type[T]:
@@ -38,12 +38,12 @@ def component(
         cls._di_primary = primary
         cls._di_metadata = metadata
 
-        # 检查是否被标记为跳过（通过conditional装饰器）
+        # Check if marked to skip (via conditional decorator)
         if getattr(cls, '_di_skip', False):
             return cls
 
         if not lazy:
-            # 立即注册
+            # Register immediately
             container = get_container()
             container.register_bean(
                 bean_type=cls,
@@ -66,7 +66,7 @@ def service(
     metadata: Optional[Dict[str, Any]] = None,
 ):
     """
-    服务组件装饰器
+    Service component decorator
     """
     return component(name, scope, lazy, primary, metadata)
 
@@ -79,7 +79,7 @@ def repository(
     metadata: Optional[Dict[str, Any]] = None,
 ):
     """
-    存储库组件装饰器
+    Repository component decorator
     """
     return component(name, scope, lazy, primary, metadata)
 
@@ -92,7 +92,7 @@ def controller(
     metadata: Optional[Dict[str, Any]] = None,
 ):
     """
-    控制器组件装饰器
+    Controller component decorator
     """
     return component(name, scope, lazy, primary, metadata)
 
@@ -105,7 +105,7 @@ def injectable(
     metadata: Optional[Dict[str, Any]] = None,
 ):
     """
-    可注入组件装饰器
+    Injectable component decorator
     """
     return component(name, scope, lazy, primary, metadata)
 
@@ -117,23 +117,23 @@ def mock_impl(
     metadata: Optional[Dict[str, Any]] = None,
 ):
     """
-    Mock实现装饰器 - 直接注册Mock Bean，由容器机制决定优先级
+    Mock implementation decorator - directly register Mock Bean, priority determined by container mechanism
 
     Args:
-        name: Bean名称
-        scope: Bean作用域
-        primary: 是否为主Bean
-        metadata: Bean的元数据，可用于存储额外信息
+        name: Bean name
+        scope: Bean scope
+        primary: Whether it is a primary Bean
+        metadata: Metadata of the Bean, can be used to store additional information
     """
 
     def decorator(cls: Type[T]) -> Type[T]:
         cls._di_mock = True
         cls._di_name = name
         cls._di_scope = scope
-        cls._di_component = True  # 标记为组件
+        cls._di_component = True  # Mark as component
         cls._di_metadata = metadata
 
-        # 直接注册Mock实现，保持与其他装饰器的一致性
+        # Directly register Mock implementation, maintain consistency with other decorators
         container = get_container()
         container.register_bean(
             bean_type=cls,
@@ -156,20 +156,20 @@ def factory(
     metadata: Optional[Dict[str, Any]] = None,
 ):
     """
-    Factory装饰器
+    Factory decorator
 
     Args:
-        bean_type: 要创建的Bean类型
-        name: Bean名称
-        lazy: 是否延迟注册
-        metadata: Bean的元数据，可用于存储额外信息
+        bean_type: The type of Bean to create
+        name: Bean name
+        lazy: Whether to register lazily
+        metadata: Metadata of the Bean, can be used to store additional information
     """
 
     def decorator(func: Callable[[], T]) -> Callable[[], T]:
         target_type = bean_type or func.__annotations__.get('return', None)
 
         if not target_type:
-            raise ValueError("Factory装饰器必须指定返回类型")
+            raise ValueError("Factory decorator must specify return type")
 
         func._di_factory = True
         func._di_bean_type = target_type
@@ -178,7 +178,7 @@ def factory(
         func._di_metadata = metadata
 
         if not lazy:
-            # 立即注册Factory
+            # Register Factory immediately
             container = get_container()
             container.register_factory(
                 bean_type=target_type,
@@ -194,11 +194,11 @@ def factory(
 
 def prototype(cls: Type[T]) -> Type[T]:
     """
-    原型作用域装饰器（每次获取都创建新实例）
+    Prototype scope decorator (create a new instance every time it is retrieved)
     """
     cls._di_scope = BeanScope.PROTOTYPE
 
-    # 如果已经是组件，更新作用域
+    # If already a component, update scope
     if hasattr(cls, '_di_component'):
         container = get_container()
         container.register_bean(
@@ -214,15 +214,15 @@ def prototype(cls: Type[T]) -> Type[T]:
 
 def conditional(condition: Callable[[], bool]):
     """
-    条件装饰器 - 控制Bean的条件注册
-    注意：应该在 @component 等装饰器之前使用
+    Conditional decorator - control conditional registration of Bean
+    Note: Should be used before decorators like @component
     """
 
     def decorator(cls: Type[T]) -> Type[T]:
-        # 设置条件标记，让后续的装饰器（如component）根据此条件决定是否注册
+        # Set conditional flag, let subsequent decorators (e.g., component) decide whether to register based on this
         cls._di_conditional = condition
 
-        # 如果条件不满足，标记为跳过
+        # If condition is not met, mark as skipped
         if not condition():
             cls._di_skip = True
 
@@ -233,7 +233,7 @@ def conditional(condition: Callable[[], bool]):
 
 def depends_on(*dependencies: Type):
     """
-    依赖装饰器 - 声明Bean的依赖关系
+    Dependency decorator - declare dependency relationships of Bean
     """
 
     def decorator(cls: Type[T]) -> Type[T]:

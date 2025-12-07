@@ -1,7 +1,7 @@
 """
 ConversationMeta Raw Repository
 
-提供对话元数据的数据库操作接口
+Provides database operation interfaces for conversation metadata
 """
 
 import logging
@@ -16,35 +16,35 @@ from infra_layer.adapters.out.persistence.document.memory.conversation_meta impo
 
 logger = logging.getLogger(__name__)
 
-# 允许的 scene 枚举值
+# Allowed scene enum values
 ALLOWED_SCENES = ["assistant", "companion"]
 
 
 @repository("conversation_meta_raw_repository", primary=True)
 class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
     """
-    对话元数据原始仓储层
+    Raw repository layer for conversation metadata
 
-    提供对话元数据的基础数据库操作
+    Provides basic database operations for conversation metadata
     """
 
     def __init__(self):
-        """初始化仓储"""
+        """Initialize repository"""
         super().__init__(ConversationMeta)
 
     def _validate_scene(self, scene: str) -> bool:
         """
-        验证 scene 是否合法
+        Validate if scene is valid
 
         Args:
-            scene: 场景标识
+            scene: Scene identifier
 
         Returns:
-            bool: 合法返回 True，不合法返回 False
+            bool: Returns True if valid, False otherwise
         """
         if scene not in ALLOWED_SCENES:
             logger.warning(
-                "❌ 不合法的 scene 值: %s, 允许的值: %s", scene, ALLOWED_SCENES
+                "❌ Invalid scene value: %s, allowed values: %s", scene, ALLOWED_SCENES
             )
             return False
         return True
@@ -53,24 +53,29 @@ class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
         self, group_id: str, session: Optional[AsyncClientSession] = None
     ) -> Optional[ConversationMeta]:
         """
-        根据群组ID获取对话元数据
+        Get conversation metadata by group ID
 
         Args:
-            group_id: 群组ID
-            session: 可选的 MongoDB 会话，用于事务支持
+            group_id: Group ID
+            session: Optional MongoDB session, used for transaction support
 
         Returns:
-            对话元数据对象或 None
+            Conversation metadata object or None
         """
         try:
             conversation_meta = await self.model.find_one(
                 {"group_id": group_id}, session=session
             )
             if conversation_meta:
-                logger.debug("✅ 根据 group_id 获取对话元数据成功: %s", group_id)
+                logger.debug(
+                    "✅ Successfully retrieved conversation metadata by group_id: %s",
+                    group_id,
+                )
             return conversation_meta
         except Exception as e:
-            logger.error("❌ 根据 group_id 获取对话元数据失败: %s", e)
+            logger.error(
+                "❌ Failed to retrieve conversation metadata by group_id: %s", e
+            )
             return None
 
     async def list_by_scene(
@@ -81,22 +86,22 @@ class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
         session: Optional[AsyncClientSession] = None,
     ) -> List[ConversationMeta]:
         """
-        根据场景标识获取对话元数据列表
+        Get list of conversation metadata by scene identifier
 
         Args:
-            scene: 场景标识
-            limit: 返回数量限制
-            skip: 跳过数量
-            session: 可选的 MongoDB 会话
+            scene: Scene identifier
+            limit: Limit on number of returned items
+            skip: Number of items to skip
+            session: Optional MongoDB session
 
         Returns:
-            对话元数据列表
+            List of conversation metadata
         """
         try:
-            # 验证 scene 字段
+            # Validate scene field
             if not self._validate_scene(scene):
                 logger.warning(
-                    "❌ 查询对话元数据列表时 scene 值不合法: %s, 允许的值: %s",
+                    "❌ Invalid scene value when querying conversation metadata list: %s, allowed values: %s",
                     scene,
                     ALLOWED_SCENES,
                 )
@@ -110,13 +115,15 @@ class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
 
             result = await query.to_list()
             logger.debug(
-                "✅ 根据场景获取对话元数据列表成功: scene=%s, count=%d",
+                "✅ Successfully retrieved conversation metadata list by scene: scene=%s, count=%d",
                 scene,
                 len(result),
             )
             return result
         except Exception as e:
-            logger.error("❌ 根据场景获取对话元数据列表失败: %s", e)
+            logger.error(
+                "❌ Failed to retrieve conversation metadata list by scene: %s", e
+            )
             return []
 
     async def create_conversation_meta(
@@ -125,20 +132,20 @@ class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[ConversationMeta]:
         """
-        创建新的对话元数据
+        Create new conversation metadata
 
         Args:
-            conversation_meta: 对话元数据对象
-            session: 可选的 MongoDB 会话，用于事务支持
+            conversation_meta: Conversation metadata object
+            session: Optional MongoDB session, used for transaction support
 
         Returns:
-            创建的对话元数据对象或 None
+            Created conversation metadata object or None
         """
         try:
-            # 验证 scene 字段
+            # Validate scene field
             if not self._validate_scene(conversation_meta.scene):
                 logger.error(
-                    "❌ 创建对话元数据失败: scene 值不合法: %s, 允许的值: %s",
+                    "❌ Failed to create conversation metadata: invalid scene value: %s, allowed values: %s",
                     conversation_meta.scene,
                     ALLOWED_SCENES,
                 )
@@ -146,13 +153,15 @@ class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
 
             await conversation_meta.insert(session=session)
             logger.info(
-                "✅ 创建对话元数据成功: group_id=%s, scene=%s",
+                "✅ Successfully created conversation metadata: group_id=%s, scene=%s",
                 conversation_meta.group_id,
                 conversation_meta.scene,
             )
             return conversation_meta
         except Exception as e:
-            logger.error("❌ 创建对话元数据失败: %s", e, exc_info=True)
+            logger.error(
+                "❌ Failed to create conversation metadata: %s", e, exc_info=True
+            )
             return None
 
     async def update_by_group_id(
@@ -162,23 +171,23 @@ class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[ConversationMeta]:
         """
-        根据群组ID更新对话元数据
+        Update conversation metadata by group ID
 
         Args:
-            group_id: 群组ID
-            update_data: 更新数据字典
-            session: 可选的 MongoDB 会话，用于事务支持
+            group_id: Group ID
+            update_data: Dictionary of update data
+            session: Optional MongoDB session, used for transaction support
 
         Returns:
-            更新后的对话元数据对象或 None
+            Updated conversation metadata object or None
         """
         try:
-            # 如果更新数据中包含 scene，先验证
+            # If scene is in update data, validate first
             if "scene" in update_data and not self._validate_scene(
                 update_data["scene"]
             ):
                 logger.error(
-                    "❌ 更新对话元数据失败: scene 值不合法: %s, 允许的值: %s",
+                    "❌ Failed to update conversation metadata: invalid scene value: %s, allowed values: %s",
                     update_data["scene"],
                     ALLOWED_SCENES,
                 )
@@ -190,11 +199,18 @@ class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
                     if hasattr(conversation_meta, key):
                         setattr(conversation_meta, key, value)
                 await conversation_meta.save(session=session)
-                logger.debug("✅ 根据 group_id 更新对话元数据成功: %s", group_id)
+                logger.debug(
+                    "✅ Successfully updated conversation metadata by group_id: %s",
+                    group_id,
+                )
                 return conversation_meta
             return None
         except Exception as e:
-            logger.error("❌ 根据 group_id 更新对话元数据失败: %s", e, exc_info=True)
+            logger.error(
+                "❌ Failed to update conversation metadata by group_id: %s",
+                e,
+                exc_info=True,
+            )
             return None
 
     async def upsert_by_group_id(
@@ -204,79 +220,94 @@ class ConversationMetaRawRepository(BaseRepository[ConversationMeta]):
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[ConversationMeta]:
         """
-        根据群组ID更新或插入对话元数据
+        Update or insert conversation metadata by group ID
 
-        使用 MongoDB 原子 upsert 操作来避免并发竞态条件
+        Uses MongoDB atomic upsert operation to avoid concurrency race conditions
 
         Args:
-            group_id: 群组ID
-            conversation_data: 对话元数据字典
-            session: 可选的 MongoDB 会话
+            group_id: Group ID
+            conversation_data: Conversation metadata dictionary
+            session: Optional MongoDB session
 
         Returns:
-            更新或创建的对话元数据对象
+            Updated or created conversation metadata object
         """
         try:
-            # 如果数据中包含 scene，先验证
+            # If data contains scene, validate first
             if "scene" in conversation_data and not self._validate_scene(
                 conversation_data["scene"]
             ):
                 logger.error(
-                    "❌ Upsert 对话元数据失败: scene 值不合法: %s, 允许的值: %s",
+                    "❌ Failed to upsert conversation metadata: invalid scene value: %s, allowed values: %s",
                     conversation_data["scene"],
                     ALLOWED_SCENES,
                 )
                 return None
 
-            # 1. 首先尝试查找现有记录
+            # 1. First try to find existing record
             existing_doc = await self.model.find_one(
                 {"group_id": group_id}, session=session
             )
 
             if existing_doc:
-                # 找到记录，直接更新
+                # Found record, update directly
                 for key, value in conversation_data.items():
                     if hasattr(existing_doc, key):
                         setattr(existing_doc, key, value)
                 await existing_doc.save(session=session)
-                logger.debug("✅ 更新现有对话元数据成功: group_id=%s", group_id)
+                logger.debug(
+                    "✅ Successfully updated existing conversation metadata: group_id=%s",
+                    group_id,
+                )
                 return existing_doc
 
-            # 2. 没找到记录，创建新记录
+            # 2. No record found, create new one
             try:
                 new_doc = ConversationMeta(group_id=group_id, **conversation_data)
                 await new_doc.insert(session=session)
-                logger.info("✅ 创建新对话元数据成功: group_id=%s", group_id)
+                logger.info(
+                    "✅ Successfully created new conversation metadata: group_id=%s",
+                    group_id,
+                )
                 return new_doc
             except Exception as create_error:
-                logger.error("❌ 创建对话元数据失败: %s", create_error, exc_info=True)
+                logger.error(
+                    "❌ Failed to create conversation metadata: %s",
+                    create_error,
+                    exc_info=True,
+                )
                 return None
 
         except Exception as e:
-            logger.error("❌ Upsert 对话元数据失败: %s", e, exc_info=True)
+            logger.error(
+                "❌ Failed to upsert conversation metadata: %s", e, exc_info=True
+            )
             return None
 
     async def delete_by_group_id(
         self, group_id: str, session: Optional[AsyncClientSession] = None
     ) -> bool:
         """
-        根据群组ID删除对话元数据
+        Delete conversation metadata by group ID
 
         Args:
-            group_id: 群组ID
-            session: 可选的 MongoDB 会话
+            group_id: Group ID
+            session: Optional MongoDB session
 
         Returns:
-            是否删除成功
+            Whether deletion was successful
         """
         try:
             result = await self.model.find_one(
                 {"group_id": group_id}, session=session
             ).delete()
             if result:
-                logger.info("✅ 删除对话元数据成功: group_id=%s", group_id)
+                logger.info(
+                    "✅ Successfully deleted conversation metadata: group_id=%s",
+                    group_id,
+                )
                 return True
             return False
         except Exception as e:
-            logger.error("❌ 删除对话元数据失败: %s", e)
+            logger.error("❌ Failed to delete conversation metadata: %s", e)
             return False

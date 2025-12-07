@@ -1,6 +1,6 @@
-"""前瞻与事件日志同步服务
+"""Foresight and event log synchronization service
 
-负责将统一的前瞻与事件日志写入 Milvus / Elasticsearch。
+Responsible for writing unified foresight and event logs into Milvus / Elasticsearch.
 """
 
 from typing import Optional, List, Dict, Any
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 @service(name="memory_sync_service", primary=True)
 class MemorySyncService:
-    """前瞻与事件日志同步服务"""
+    """Foresight and event log synchronization service"""
 
     def __init__(
         self,
@@ -54,13 +54,13 @@ class MemorySyncService:
         foresight_es_repo: Optional[ForesightEsRepository] = None,
         eventlog_es_repo: Optional[EventLogEsRepository] = None,
     ):
-        """初始化同步服务
-        
+        """Initialize synchronization service
+
         Args:
-            foresight_milvus_repo: 前瞻 Milvus 仓库实例（可选，不提供则从 DI 获取）
-            eventlog_milvus_repo: 事件日志 Milvus 仓库实例（可选，不提供则从 DI 获取）
-            foresight_es_repo: 前瞻 ES 仓库实例（可选，不提供则从 DI 获取）
-            eventlog_es_repo: 事件日志 ES 仓库实例（可选，不提供则从 DI 获取）
+            foresight_milvus_repo: Foresight Milvus repository instance (optional, obtained from DI if not provided)
+            eventlog_milvus_repo: Event log Milvus repository instance (optional, obtained from DI if not provided)
+            foresight_es_repo: Foresight ES repository instance (optional, obtained from DI if not provided)
+            eventlog_es_repo: Event log ES repository instance (optional, obtained from DI if not provided)
         """
         self.foresight_milvus_repo = foresight_milvus_repo or get_bean_by_type(
             ForesightMilvusRepository
@@ -74,13 +74,12 @@ class MemorySyncService:
         self.eventlog_es_repo = eventlog_es_repo or get_bean_by_type(
             EventLogEsRepository
         )
-        
-        
-        logger.info("MemorySyncService 初始化完成")
+
+        logger.info("MemorySyncService initialization completed")
 
     @staticmethod
     def _normalize_datetime(value: Optional[datetime | str]) -> Optional[datetime]:
-        """将 str/None 转为 datetime（仅日期字符串也支持）"""
+        """Convert str/None to datetime (supports date-only strings)"""
         if isinstance(value, datetime):
             return value
         if isinstance(value, str) and value:
@@ -90,172 +89,179 @@ class MemorySyncService:
                 try:
                     return datetime.strptime(value, "%Y-%m-%d")
                 except ValueError:
-                    logger.warning("无法解析日期字符串: %s", value)
+                    logger.warning("Unable to parse date string: %s", value)
                     return None
         return None
 
     async def sync_foresight(
-        self, 
+        self,
         foresight: ForesightRecord,
         sync_to_es: bool = True,
-        sync_to_milvus: bool = True
+        sync_to_milvus: bool = True,
     ) -> Dict[str, int]:
-        """同步单条前瞻到 Milvus/ES
-        
+        """Synchronize a single foresight to Milvus/ES
+
         Args:
-            foresight: ForesightRecord 文档对象
-            sync_to_es: 是否同步到 ES（默认 True）
-            sync_to_milvus: 是否同步到 Milvus（默认 True）
-            
+            foresight: ForesightRecord document object
+            sync_to_es: Whether to sync to ES (default True)
+            sync_to_milvus: Whether to sync to Milvus (default True)
+
         Returns:
-            同步统计信息 {"foresight": 1}
+            Synchronization statistics {"foresight": 1}
         """
         stats = {"foresight": 0, "es_records": 0}
-        
+
         try:
-            # 从 MongoDB 读取 embedding，如果没有则跳过
+            # Read embedding from MongoDB, skip if not exists
             if not foresight.vector:
-                logger.warning(f"前瞻 {foresight.id} 没有 embedding，跳过同步")
+                logger.warning(
+                    f"Foresight {foresight.id} has no embedding, skipping sync"
+                )
                 return stats
-            
-            # 同步到 Milvus
+
+            # Sync to Milvus
             if sync_to_milvus:
-                # 使用转换器生成 Milvus 实体
+                # Use converter to generate Milvus entity
                 milvus_entity = ForesightMilvusConverter.from_mongo(foresight)
                 await self.foresight_milvus_repo.insert(milvus_entity, flush=False)
                 stats["foresight"] += 1
-                logger.debug(f"已同步前瞻到 Milvus: {foresight.id}")
-            
-            # 同步到 ES
+                logger.debug(f"Foresight synced to Milvus: {foresight.id}")
+
+            # Sync to ES
             if sync_to_es:
-                # 使用转换器生成正确的 ES 文档(包括 jieba 分词的 search_content)
+                # Use converter to generate correct ES document (including jieba tokenized search_content)
                 es_doc = ForesightConverter.from_mongo(foresight)
                 await self.foresight_es_repo.create(es_doc)
                 stats["es_records"] += 1
-                logger.debug(f"已同步前瞻到 ES: {foresight.id}")
-            
+                logger.debug(f"Foresight synced to ES: {foresight.id}")
+
         except Exception as e:
-            logger.error(f"同步前瞻失败: {e}", exc_info=True)
+            logger.error(f"Failed to sync foresight: {e}", exc_info=True)
             raise
-        
+
         return stats
 
     async def sync_event_log(
         self,
         event_log: EventLogRecord,
         sync_to_es: bool = True,
-        sync_to_milvus: bool = True
+        sync_to_milvus: bool = True,
     ) -> Dict[str, int]:
-        """同步单条事件日志到 Milvus/ES
-        
+        """Synchronize a single event log to Milvus/ES
+
         Args:
-            event_log: EventLogRecord 文档对象
-            sync_to_es: 是否同步到 ES（默认 True）
-            sync_to_milvus: 是否同步到 Milvus（默认 True）
-            
+            event_log: EventLogRecord document object
+            sync_to_es: Whether to sync to ES (default True)
+            sync_to_milvus: Whether to sync to Milvus (default True)
+
         Returns:
-            同步统计信息 {"event_log": 1}
+            Synchronization statistics {"event_log": 1}
         """
         stats = {"event_log": 0, "es_records": 0}
-        
+
         try:
-            # 从 MongoDB 读取已有的 vector
+            # Read existing vector from MongoDB
             if not event_log.vector:
-                logger.warning(f"事件日志 {event_log.id} 没有 embedding，跳过同步")
+                logger.warning(
+                    f"Event log {event_log.id} has no embedding, skipping sync"
+                )
                 return stats
-            
-            # 同步到 Milvus
+
+            # Sync to Milvus
             if sync_to_milvus:
-                # 使用转换器生成 Milvus 实体
+                # Use converter to generate Milvus entity
                 milvus_entity = EventLogMilvusConverter.from_mongo(event_log)
                 await self.eventlog_milvus_repo.insert(milvus_entity, flush=False)
                 stats["event_log"] += 1
-                logger.debug(f"已同步事件日志到 Milvus: {event_log.id}")
-            
-            # 同步到 ES
+                logger.debug(f"Event log synced to Milvus: {event_log.id}")
+
+            # Sync to ES
             if sync_to_es:
-                # 使用转换器生成正确的 ES 文档(包括 jieba 分词的 search_content)
+                # Use converter to generate correct ES document (including jieba tokenized search_content)
                 es_doc = EventLogConverter.from_mongo(event_log)
                 await self.eventlog_es_repo.create(es_doc)
                 stats["es_records"] += 1
-                logger.debug(f"已同步事件日志到 ES: {event_log.id}")
-            
+                logger.debug(f"Event log synced to ES: {event_log.id}")
+
         except Exception as e:
-            logger.error(f"同步事件日志失败: {e}", exc_info=True)
+            logger.error(f"Failed to sync event log: {e}", exc_info=True)
             raise
-        
+
         return stats
 
     async def sync_batch_foresights(
         self,
         foresights: List[ForesightRecord],
         sync_to_es: bool = True,
-        sync_to_milvus: bool = True
+        sync_to_milvus: bool = True,
     ) -> Dict[str, int]:
-        """批量同步前瞻
-        
+        """Batch synchronize foresights
+
         Args:
-            foresights: ForesightRecord 列表
-            sync_to_es: 是否同步到 ES（默认 True）
-            sync_to_milvus: 是否同步到 Milvus（默认 True）
-            
+            foresights: List of ForesightRecord
+            sync_to_es: Whether to sync to ES (default True)
+            sync_to_milvus: Whether to sync to Milvus (default True)
+
         Returns:
-            同步统计信息
+            Synchronization statistics
         """
         total_stats = {"foresight": 0, "es_records": 0}
-        
+
         for foresight_mem in foresights:
             try:
                 stats = await self.sync_foresight(
-                    foresight_mem, 
-                    sync_to_es=sync_to_es, 
-                    sync_to_milvus=sync_to_milvus
+                    foresight_mem, sync_to_es=sync_to_es, sync_to_milvus=sync_to_milvus
                 )
                 total_stats["foresight"] += stats.get("foresight", 0)
                 total_stats["es_records"] += stats.get("es_records", 0)
             except Exception as e:
-                logger.error(f"批量同步前瞻失败: {foresight_mem.id}, 错误: {e}", exc_info=True)
-                # 不要静默吞掉异常
-        
-        
-        logger.info(f"✅ 前瞻 Milvus flush 完成: {total_stats['foresight']} 条")
-        
+                logger.error(
+                    f"Failed to batch sync foresight: {foresight_mem.id}, error: {e}",
+                    exc_info=True,
+                )
+                # Do not silently swallow exceptions
+
+        logger.info(
+            f"✅ Foresight Milvus flush completed: {total_stats['foresight']} records"
+        )
+
         return total_stats
 
     async def sync_batch_event_logs(
         self,
         event_logs: List[EventLogRecord],
         sync_to_es: bool = True,
-        sync_to_milvus: bool = True
+        sync_to_milvus: bool = True,
     ) -> Dict[str, int]:
-        """批量同步事件日志
-        
+        """Batch synchronize event logs
+
         Args:
-            event_logs: EventLogRecord 列表
-            sync_to_es: 是否同步到 ES（默认 True）
-            sync_to_milvus: 是否同步到 Milvus（默认 True）
-            
+            event_logs: List of EventLogRecord
+            sync_to_es: Whether to sync to ES (default True)
+            sync_to_milvus: Whether to sync to Milvus (default True)
+
         Returns:
-            同步统计信息
+            Synchronization statistics
         """
         total_stats = {"event_log": 0, "es_records": 0}
-        
+
         for evt_log in event_logs:
             try:
                 stats = await self.sync_event_log(
-                    evt_log,
-                    sync_to_es=sync_to_es,
-                    sync_to_milvus=sync_to_milvus
+                    evt_log, sync_to_es=sync_to_es, sync_to_milvus=sync_to_milvus
                 )
                 total_stats["event_log"] += stats.get("event_log", 0)
                 total_stats["es_records"] += stats.get("es_records", 0)
             except Exception as e:
-                logger.error(f"批量同步事件日志失败: {evt_log.id}, 错误: {e}", exc_info=True)
-                # 不要静默吞掉异常，让它暴露出来
+                logger.error(
+                    f"Failed to batch sync event log: {evt_log.id}, error: {e}",
+                    exc_info=True,
+                )
+                # Do not silently swallow exceptions, let it surface
                 raise
-        
-        
-        logger.info(f"✅ 事件日志 Milvus flush 完成: {total_stats['event_log']} 条")
-        
-        return total_stats
 
+        logger.info(
+            f"✅ Event log Milvus flush completed: {total_stats['event_log']} records"
+        )
+
+        return total_stats

@@ -1,7 +1,7 @@
 """
-Hello World 任务
+Hello World task
 
-提供一个简单的 Hello World 任务
+Provides a simple Hello World task
 """
 
 from core.asynctasks.task_manager import task

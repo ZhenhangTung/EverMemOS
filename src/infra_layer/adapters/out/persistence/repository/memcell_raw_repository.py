@@ -1,8 +1,8 @@
 """
-MemCell 原生 CRUD 仓库
+MemCell Native CRUD Repository
 
-基于 Beanie ODM 的 MemCell 原生数据访问层，提供完整的 CRUD 操作。
-不依赖领域层接口，直接操作 MemCell 文档模型。
+Native data access layer for MemCell based on Beanie ODM, providing complete CRUD operations.
+Does not depend on domain layer interfaces, directly operates on MemCell document models.
 """
 
 from datetime import datetime
@@ -26,115 +26,117 @@ logger = get_logger(__name__)
 @repository("memcell_raw_repository", primary=True)
 class MemCellRawRepository(BaseRepository[MemCell]):
     """
-    MemCell 原生 CRUD 仓库
+    MemCell Native CRUD Repository
 
-    提供对 MemCell 文档的直接数据库操作，包括：
-    - 基本 CRUD 操作（继承自 BaseRepository）
-    - 复合查询和筛选
-    - 批量操作
-    - 统计和聚合查询
-    - 事务管理（继承自 BaseRepository）
+    Provides direct database operations on MemCell documents, including:
+    - Basic CRUD operations (inherited from BaseRepository)
+    - Composite queries and filtering
+    - Batch operations
+    - Statistics and aggregation queries
+    - Transaction management (inherited from BaseRepository)
     """
 
     def __init__(self):
-        """初始化仓库"""
+        """Initialize repository"""
         super().__init__(MemCell)
 
     async def get_by_event_id(self, event_id: str) -> Optional[MemCell]:
         """
-        根据 event_id 获取 MemCell
+        Get MemCell by event_id
 
         Args:
-            event_id: 事件 ID
+            event_id: Event ID
 
         Returns:
-            MemCell 实例或 None
+            MemCell instance or None
         """
         try:
             result = await self.model.find_one({"_id": ObjectId(event_id)})
             if result:
-                logger.debug("✅ 根据 event_id 获取 MemCell 成功: %s", event_id)
+                logger.debug(
+                    "✅ Successfully retrieved MemCell by event_id: %s", event_id
+                )
             else:
-                logger.debug("⚠️  未找到 MemCell: event_id=%s", event_id)
+                logger.debug("⚠️  MemCell not found: event_id=%s", event_id)
             return result
         except Exception as e:
-            logger.error("❌ 根据 event_id 获取 MemCell 失败: %s", e)
+            logger.error("❌ Failed to retrieve MemCell by event_id: %s", e)
             return None
 
     async def get_by_event_ids(
         self, event_ids: List[str], projection_model: Optional[Type[BaseModel]] = None
     ) -> Dict[str, Any]:
         """
-        根据 event_id 列表批量获取 MemCell
+        Batch get MemCell by event_id list
 
         Args:
-            event_ids: 事件 ID 列表
-            projection_model: Pydantic 投影模型类，用于指定返回的字段
-                             例如：传入一个只包含部分字段的 Pydantic 模型
-                             None 表示返回完整的 MemCell 对象
+            event_ids: List of event IDs
+            projection_model: Pydantic projection model class, used to specify returned fields
+                             For example: pass a Pydantic model containing only specific fields
+                             None means return complete MemCell objects
 
         Returns:
-            Dict[event_id, MemCell | ProjectionModel]：event_id 到 MemCell（或投影模型）的映射字典
-            未找到的 event_id 不会出现在字典中
+            Dict[event_id, MemCell | ProjectionModel]: Mapping dictionary from event_id to MemCell (or projection model)
+            Unfound event_ids will not appear in the dictionary
         """
         try:
             if not event_ids:
-                logger.debug("⚠️  event_ids 列表为空，返回空字典")
+                logger.debug("⚠️  event_ids list is empty, returning empty dictionary")
                 return {}
 
-            # 将 event_id 列表转换为 ObjectId 列表
+            # Convert event_id list to ObjectId list
             object_ids = []
-            valid_event_ids = []  # 保存有效的原始 event_id 字符串
+            valid_event_ids = []  # Store valid original event_id strings
             for event_id in event_ids:
                 try:
                     object_ids.append(ObjectId(event_id))
                     valid_event_ids.append(event_id)
                 except Exception as e:
-                    logger.warning("⚠️  无效的 event_id: %s, 错误: %s", event_id, e)
+                    logger.warning("⚠️  Invalid event_id: %s, error: %s", event_id, e)
 
             if not object_ids:
-                logger.debug("⚠️  没有有效的 event_id，返回空字典")
+                logger.debug("⚠️  No valid event_ids, returning empty dictionary")
                 return {}
 
-            # 构建查询
+            # Build query
             query = self.model.find({"_id": {"$in": object_ids}})
 
-            # 应用字段投影
-            # 使用 Beanie 的 .project() 方法，传入 projection_model 参数
+            # Apply field projection
+            # Use Beanie's .project() method, passing projection_model parameter
             if projection_model:
                 query = query.project(projection_model=projection_model)
 
-            # 批量查询
+            # Batch query
             results = await query.to_list()
 
-            # 创建 event_id 到 MemCell（或投影模型）的映射字典
+            # Create mapping dictionary from event_id to MemCell (or projection model)
             result_dict = {str(result.id): result for result in results}
 
             logger.debug(
-                "✅ 根据 event_ids 批量获取 MemCell 成功: 请求 %d 个, 找到 %d 个, 投影: %s",
+                "✅ Successfully batch retrieved MemCell by event_ids: requested %d, found %d, projection: %s",
                 len(event_ids),
                 len(result_dict),
-                "有" if projection_model else "无",
+                "yes" if projection_model else "no",
             )
 
             return result_dict
 
         except Exception as e:
-            logger.error("❌ 根据 event_ids 批量获取 MemCell 失败: %s", e)
+            logger.error("❌ Failed to batch retrieve MemCell by event_ids: %s", e)
             return {}
 
     async def append_memcell(
         self, memcell: MemCell, session: Optional[AsyncClientSession] = None
     ) -> Optional[MemCell]:
         """
-        追加 MemCell
+        Append MemCell
         """
         try:
             await memcell.insert(session=session)
-            print(f"✅ 追加 MemCell 成功: {memcell.event_id}")
+            print(f"✅ Successfully appended MemCell: {memcell.event_id}")
             return memcell
         except Exception as e:
-            logger.error("❌ 追加 MemCell 失败: %s", e)
+            logger.error("❌ Failed to append MemCell: %s", e)
             return None
 
     async def update_by_event_id(
@@ -144,15 +146,15 @@ class MemCellRawRepository(BaseRepository[MemCell]):
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[MemCell]:
         """
-        根据 event_id 更新 MemCell
+        Update MemCell by event_id
 
         Args:
-            event_id: 事件 ID
-            update_data: 更新数据字典
-            session: 可选的 MongoDB 会话，用于事务支持
+            event_id: Event ID
+            update_data: Dictionary of update data
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            更新后的 MemCell 实例或 None
+            Updated MemCell instance or None
         """
         try:
             memcell = await self.get_by_event_id(event_id)
@@ -161,38 +163,42 @@ class MemCellRawRepository(BaseRepository[MemCell]):
                     if hasattr(memcell, key):
                         setattr(memcell, key, value)
                 await memcell.save(session=session)
-                logger.debug("✅ 根据 event_id 更新 MemCell 成功: %s", event_id)
+                logger.debug(
+                    "✅ Successfully updated MemCell by event_id: %s", event_id
+                )
                 return memcell
             return None
         except Exception as e:
-            logger.error("❌ 根据 event_id 更新 MemCell 失败: %s", e)
+            logger.error("❌ Failed to update MemCell by event_id: %s", e)
             raise e
 
     async def delete_by_event_id(
         self, event_id: str, session: Optional[AsyncClientSession] = None
     ) -> bool:
         """
-        根据 event_id 删除 MemCell
+        Delete MemCell by event_id
 
         Args:
-            event_id: 事件 ID
-            session: 可选的 MongoDB 会话，用于事务支持
+            event_id: Event ID
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            删除成功返回 True，否则返回 False
+            Returns True if deletion succeeds, otherwise False
         """
         try:
             memcell = await self.get_by_event_id(event_id)
             if memcell:
                 await memcell.delete(session=session)
-                logger.debug("✅ 根据 event_id 删除 MemCell 成功: %s", event_id)
+                logger.debug(
+                    "✅ Successfully deleted MemCell by event_id: %s", event_id
+                )
                 return True
             return False
         except Exception as e:
-            logger.error("❌ 根据 event_id 删除 MemCell 失败: %s", e)
+            logger.error("❌ Failed to delete MemCell by event_id: %s", e)
             return False
 
-    # ==================== 查询方法 ====================
+    # ==================== Query Methods ====================
 
     async def find_by_user_id(
         self,
@@ -202,27 +208,27 @@ class MemCellRawRepository(BaseRepository[MemCell]):
         sort_desc: bool = True,
     ) -> List[MemCell]:
         """
-        根据用户 ID 查询 MemCell
+        Query MemCell by user ID
 
         Args:
-            user_id: 用户 ID
-            limit: 限制返回数量
-            skip: 跳过数量
-            sort_desc: 是否按时间降序排序
+            user_id: User ID
+            limit: Limit number of returned results
+            skip: Number of results to skip
+            sort_desc: Whether to sort by time in descending order
 
         Returns:
-            MemCell 列表
+            List of MemCell
         """
         try:
             query = self.model.find({"user_id": user_id})
 
-            # 排序
+            # Sorting
             if sort_desc:
                 query = query.sort("-timestamp")
             else:
                 query = query.sort("timestamp")
 
-            # 分页
+            # Pagination
             if skip:
                 query = query.skip(skip)
             if limit:
@@ -230,13 +236,13 @@ class MemCellRawRepository(BaseRepository[MemCell]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据用户 ID 查询 MemCell 成功: %s, 找到 %d 条记录",
+                "✅ Successfully queried MemCell by user ID: %s, found %d records",
                 user_id,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据用户 ID 查询 MemCell 失败: %s", e)
+            logger.error("❌ Failed to query MemCell by user ID: %s", e)
             return []
 
     async def find_by_user_and_time_range(
@@ -248,31 +254,31 @@ class MemCellRawRepository(BaseRepository[MemCell]):
         skip: Optional[int] = None,
     ) -> List[MemCell]:
         """
-        根据用户 ID 和时间范围查询 MemCell
+        Query MemCell by user ID and time range
 
-        同时检查 user_id 字段和 participants 数组，只要 user_id 在其中之一即可
+        Check both user_id field and participants array, match if user_id is in either
 
         Args:
-            user_id: 用户 ID
-            start_time: 开始时间
-            end_time: 结束时间
-            limit: 限制返回数量
-            skip: 跳过数量
+            user_id: User ID
+            start_time: Start time
+            end_time: End time
+            limit: Limit number of returned results
+            skip: Number of results to skip
 
         Returns:
-            MemCell 列表
+            List of MemCell
         """
         try:
-            # 同时检查 user_id 字段和 participants 数组
-            # 使用 OR 逻辑：user_id 匹配 或者 user_id 在 participants 中
-            # 注意：MongoDB 对数组字段使用 Eq 会自动检查数组是否包含该值
+            # Check both user_id field and participants array
+            # Use OR logic: user_id matches OR user_id is in participants
+            # Note: MongoDB automatically checks if array contains the value when using Eq on array fields
             query = self.model.find(
                 And(
                     Or(
                         Eq(MemCell.user_id, user_id),
                         Eq(
                             MemCell.participants, user_id
-                        ),  # MongoDB 会检查数组中是否包含该值
+                        ),  # MongoDB checks if array contains the value
                     ),
                     GTE(MemCell.timestamp, start_time),
                     LT(MemCell.timestamp, end_time),
@@ -286,7 +292,7 @@ class MemCellRawRepository(BaseRepository[MemCell]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据用户和时间范围查询 MemCell 成功: %s, 时间范围: %s - %s, 找到 %d 条记录",
+                "✅ Successfully queried MemCell by user and time range: %s, time range: %s - %s, found %d records",
                 user_id,
                 start_time,
                 end_time,
@@ -294,7 +300,7 @@ class MemCellRawRepository(BaseRepository[MemCell]):
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据用户和时间范围查询 MemCell 失败: %s", e)
+            logger.error("❌ Failed to query MemCell by user and time range: %s", e)
             return []
 
     async def find_by_group_id(
@@ -305,16 +311,16 @@ class MemCellRawRepository(BaseRepository[MemCell]):
         sort_desc: bool = True,
     ) -> List[MemCell]:
         """
-        根据群组 ID 查询 MemCell
+        Query MemCell by group ID
 
         Args:
-            group_id: 群组 ID
-            limit: 限制返回数量
-            skip: 跳过数量
-            sort_desc: 是否按时间降序排序
+            group_id: Group ID
+            limit: Limit number of returned results
+            skip: Number of results to skip
+            sort_desc: Whether to sort by time in descending order
 
         Returns:
-            MemCell 列表
+            List of MemCell
         """
         try:
             query = self.model.find({"group_id": group_id})
@@ -331,13 +337,13 @@ class MemCellRawRepository(BaseRepository[MemCell]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据群组 ID 查询 MemCell 成功: %s, 找到 %d 条记录",
+                "✅ Successfully queried MemCell by group ID: %s, found %d records",
                 group_id,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据群组 ID 查询 MemCell 失败: %s", e)
+            logger.error("❌ Failed to query MemCell by group ID: %s", e)
             return []
 
     async def find_by_time_range(
@@ -349,17 +355,17 @@ class MemCellRawRepository(BaseRepository[MemCell]):
         sort_desc: bool = False,
     ) -> List[MemCell]:
         """
-        根据时间范围查询 MemCell
+        Query MemCell by time range
 
         Args:
-            start_time: 开始时间
-            end_time: 结束时间
-            limit: 限制返回数量
-            skip: 跳过数量
-            sort_desc: 是否按时间降序排序，默认False（升序）
+            start_time: Start time
+            end_time: End time
+            limit: Limit number of returned results
+            skip: Number of results to skip
+            sort_desc: Whether to sort by time in descending order, default False (ascending)
 
         Returns:
-            MemCell 列表
+            List of MemCell
         """
         try:
             query = self.model.find(
@@ -378,17 +384,17 @@ class MemCellRawRepository(BaseRepository[MemCell]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据时间范围查询 MemCell 成功: 时间范围: %s - %s, 找到 %d 条记录",
+                "✅ Successfully queried MemCell by time range: time range: %s - %s, found %d records",
                 start_time,
                 end_time,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据时间范围查询 MemCell 失败: %s", e)
+            logger.error("❌ Failed to query MemCell by time range: %s", e)
             import traceback
 
-            logger.error("详细错误信息: %s", traceback.format_exc())
+            logger.error("Detailed error information: %s", traceback.format_exc())
             return []
 
     async def find_by_participants(
@@ -399,23 +405,23 @@ class MemCellRawRepository(BaseRepository[MemCell]):
         skip: Optional[int] = None,
     ) -> List[MemCell]:
         """
-        根据参与者查询 MemCell
+        Query MemCell by participants
 
         Args:
-            participants: 参与者列表
-            match_all: 是否匹配所有参与者（True）或匹配任一参与者（False）
-            limit: 限制返回数量
-            skip: 跳过数量
+            participants: List of participants
+            match_all: Whether to match all participants (True) or any participant (False)
+            limit: Limit number of returned results
+            skip: Number of results to skip
 
         Returns:
-            MemCell 列表
+            List of MemCell
         """
         try:
             if match_all:
-                # 匹配所有参与者
+                # Match all participants
                 query = self.model.find({"participants": {"$all": participants}})
             else:
-                # 匹配任一参与者
+                # Match any participant
                 query = self.model.find({"participants": {"$in": participants}})
 
             query = query.sort("-timestamp")
@@ -427,14 +433,14 @@ class MemCellRawRepository(BaseRepository[MemCell]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据参与者查询 MemCell 成功: %s, 匹配模式: %s, 找到 %d 条记录",
+                "✅ Successfully queried MemCell by participants: %s, match mode: %s, found %d records",
                 participants,
-                '全部' if match_all else '任一',
+                'all' if match_all else 'any',
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据参与者查询 MemCell 失败: %s", e)
+            logger.error("❌ Failed to query MemCell by participants: %s", e)
             return []
 
     async def search_by_keywords(
@@ -445,16 +451,16 @@ class MemCellRawRepository(BaseRepository[MemCell]):
         skip: Optional[int] = None,
     ) -> List[MemCell]:
         """
-        根据关键词查询 MemCell
+        Query MemCell by keywords
 
         Args:
-            keywords: 关键词列表
-            match_all: 是否匹配所有关键词（True）或匹配任一关键词（False）
-            limit: 限制返回数量
-            skip: 跳过数量
+            keywords: List of keywords
+            match_all: Whether to match all keywords (True) or any keyword (False)
+            limit: Limit number of returned results
+            skip: Number of results to skip
 
         Returns:
-            MemCell 列表
+            List of MemCell
         """
         try:
             if match_all:
@@ -471,40 +477,42 @@ class MemCellRawRepository(BaseRepository[MemCell]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据关键词查询 MemCell 成功: %s, 匹配模式: %s, 找到 %d 条记录",
+                "✅ Successfully queried MemCell by keywords: %s, match mode: %s, found %d records",
                 keywords,
-                '全部' if match_all else '任一',
+                'all' if match_all else 'any',
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据关键词查询 MemCell 失败: %s", e)
+            logger.error("❌ Failed to query MemCell by keywords: %s", e)
             return []
 
-    # ==================== 批量操作 ====================
+    # ==================== Batch Operations ====================
 
     async def delete_by_user_id(
         self, user_id: str, session: Optional[AsyncClientSession] = None
     ) -> int:
         """
-        删除用户的所有 MemCell
+        Delete all MemCell of a user
 
         Args:
-            user_id: 用户 ID
-            session: 可选的 MongoDB 会话，用于事务支持
+            user_id: User ID
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            删除的记录数量
+            Number of deleted records
         """
         try:
             result = await self.model.find({"user_id": user_id}).delete(session=session)
             count = result.deleted_count if result else 0
             logger.info(
-                "✅ 删除用户所有 MemCell 成功: %s, 删除 %d 条记录", user_id, count
+                "✅ Successfully deleted all MemCell of user: %s, deleted %d records",
+                user_id,
+                count,
             )
             return count
         except Exception as e:
-            logger.error("❌ 删除用户所有 MemCell 失败: %s", e)
+            logger.error("❌ Failed to delete all MemCell of user: %s", e)
             return 0
 
     async def delete_by_time_range(
@@ -515,16 +523,16 @@ class MemCellRawRepository(BaseRepository[MemCell]):
         session: Optional[AsyncClientSession] = None,
     ) -> int:
         """
-        删除时间范围内的 MemCell
+        Delete MemCell within time range
 
         Args:
-            start_time: 开始时间
-            end_time: 结束时间
-            user_id: 可选的用户 ID 筛选
-            session: 可选的 MongoDB 会话，用于事务支持
+            start_time: Start time
+            end_time: End time
+            user_id: Optional user ID filter
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            删除的记录数量
+            Number of deleted records
         """
         try:
             conditions = [
@@ -538,52 +546,54 @@ class MemCellRawRepository(BaseRepository[MemCell]):
             result = await self.model.find(And(*conditions)).delete(session=session)
             count = result.deleted_count if result else 0
             logger.info(
-                "✅ 删除时间范围内 MemCell 成功: %s - %s, 用户: %s, 删除 %d 条记录",
+                "✅ Successfully deleted MemCell within time range: %s - %s, user: %s, deleted %d records",
                 start_time,
                 end_time,
-                user_id or '全部',
+                user_id or 'all',
                 count,
             )
             return count
         except Exception as e:
-            logger.error("❌ 删除时间范围内 MemCell 失败: %s", e)
+            logger.error("❌ Failed to delete MemCell within time range: %s", e)
             return 0
 
-    # ==================== 统计和聚合查询 ====================
+    # ==================== Statistics and Aggregation Queries ====================
 
     async def count_by_user_id(self, user_id: str) -> int:
         """
-        统计用户的 MemCell 数量
+        Count number of MemCell for a user
 
         Args:
-            user_id: 用户 ID
+            user_id: User ID
 
         Returns:
-            记录数量
+            Number of records
         """
         try:
             count = await self.model.find({"user_id": user_id}).count()
             logger.debug(
-                "✅ 统计用户 MemCell 数量成功: %s, 共 %d 条记录", user_id, count
+                "✅ Successfully counted user MemCell: %s, total %d records",
+                user_id,
+                count,
             )
             return count
         except Exception as e:
-            logger.error("❌ 统计用户 MemCell 数量失败: %s", e)
+            logger.error("❌ Failed to count user MemCell: %s", e)
             return 0
 
     async def count_by_time_range(
         self, start_time: datetime, end_time: datetime, user_id: Optional[str] = None
     ) -> int:
         """
-        统计时间范围内的 MemCell 数量
+        Count number of MemCell within time range
 
         Args:
-            start_time: 开始时间
-            end_time: 结束时间
-            user_id: 可选的用户 ID 筛选
+            start_time: Start time
+            end_time: End time
+            user_id: Optional user ID filter
 
         Returns:
-            记录数量
+            Number of records
         """
         try:
             conditions = [
@@ -596,27 +606,27 @@ class MemCellRawRepository(BaseRepository[MemCell]):
 
             count = await self.model.find(And(*conditions)).count()
             logger.debug(
-                "✅ 统计时间范围内 MemCell 数量成功: %s - %s, 用户: %s, 共 %d 条记录",
+                "✅ Successfully counted MemCell within time range: %s - %s, user: %s, total %d records",
                 start_time,
                 end_time,
-                user_id or '全部',
+                user_id or 'all',
                 count,
             )
             return count
         except Exception as e:
-            logger.error("❌ 统计时间范围内 MemCell 数量失败: %s", e)
+            logger.error("❌ Failed to count MemCell within time range: %s", e)
             return 0
 
     async def get_latest_by_user(self, user_id: str, limit: int = 10) -> List[MemCell]:
         """
-        获取用户最新的 MemCell 记录
+        Get latest MemCell records for a user
 
         Args:
-            user_id: 用户 ID
-            limit: 返回数量限制
+            user_id: User ID
+            limit: Limit on number of returned records
 
         Returns:
-            MemCell 列表
+            List of MemCell
         """
         try:
             results = (
@@ -626,41 +636,41 @@ class MemCellRawRepository(BaseRepository[MemCell]):
                 .to_list()
             )
             logger.debug(
-                "✅ 获取用户最新 MemCell 成功: %s, 返回 %d 条记录",
+                "✅ Successfully retrieved latest user MemCell: %s, returned %d records",
                 user_id,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 获取用户最新 MemCell 失败: %s", e)
+            logger.error("❌ Failed to retrieve latest user MemCell: %s", e)
             return []
 
     async def get_user_activity_summary(
         self, user_id: str, start_time: datetime, end_time: datetime
     ) -> Dict[str, Any]:
         """
-        获取用户活动摘要统计
+        Get user activity summary statistics
 
         Args:
-            user_id: 用户 ID
-            start_time: 开始时间
-            end_time: 结束时间
+            user_id: User ID
+            start_time: Start time
+            end_time: End time
 
         Returns:
-            活动摘要字典
+            Activity summary dictionary
         """
         try:
-            # 基础查询条件
+            # Base query conditions
             base_query = And(
                 Eq(MemCell.user_id, user_id),
                 GTE(MemCell.timestamp, start_time),
                 LT(MemCell.timestamp, end_time),
             )
 
-            # 总数量
+            # Total count
             total_count = await self.model.find(base_query).count()
 
-            # 按类型统计
+            # Count by type
             type_stats = {}
             for data_type in DataTypeEnum:
                 type_query = And(base_query, Eq(MemCell.type, data_type))
@@ -668,7 +678,7 @@ class MemCellRawRepository(BaseRepository[MemCell]):
                 if count > 0:
                     type_stats[data_type.value] = count
 
-            # 获取最新和最早的记录
+            # Get latest and earliest records
             latest = (
                 await self.model.find(base_query).sort("-timestamp").limit(1).to_list()
             )
@@ -691,13 +701,15 @@ class MemCellRawRepository(BaseRepository[MemCell]):
             }
 
             logger.debug(
-                "✅ 获取用户活动摘要成功: %s, 总计 %d 条记录", user_id, total_count
+                "✅ Successfully retrieved user activity summary: %s, total %d records",
+                user_id,
+                total_count,
             )
             return summary
         except Exception as e:
-            logger.error("❌ 获取用户活动摘要失败: %s", e)
+            logger.error("❌ Failed to retrieve user activity summary: %s", e)
             return {}
 
 
-# 导出
+# Export
 __all__ = ["MemCellRawRepository"]

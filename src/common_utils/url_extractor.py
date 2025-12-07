@@ -1,6 +1,6 @@
 """
-URL内容提取工具
-用于从网页中提取标题、描述、图片等元数据信息
+URL content extraction tool
+Used to extract metadata such as title, description, and images from web pages
 """
 
 import re
@@ -13,14 +13,14 @@ from core.observation.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 请求配置
-DEFAULT_TIMEOUT = 10  # 秒
+# Request configuration
+DEFAULT_TIMEOUT = 10  # seconds
 DEFAULT_MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5MB
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; MemsysBot/1.0; +https://memsys.ai/bot)"
 
 
 class URLExtractor:
-    """URL内容提取器"""
+    """URL content extractor"""
 
     def __init__(
         self,
@@ -29,12 +29,12 @@ class URLExtractor:
         user_agent: str = DEFAULT_USER_AGENT,
     ):
         """
-        初始化URL提取器
+        Initialize URL extractor
 
         Args:
-            timeout: 请求超时时间（秒）
-            max_content_length: 最大内容长度
-            user_agent: 用户代理字符串
+            timeout: Request timeout duration (seconds)
+            max_content_length: Maximum content length
+            user_agent: User agent string
         """
         self.timeout = timeout
         self.max_content_length = max_content_length
@@ -44,27 +44,27 @@ class URLExtractor:
         self, url: str, need_redirect: bool = True
     ) -> Dict[str, Any]:
         """
-        提取URL的元数据信息
+        Extract metadata information from URL
 
         Args:
-            url: 要提取的URL
-            need_redirect: 是否需要跟随重定向获取最终URL
+            url: URL to extract
+            need_redirect: Whether to follow redirects to obtain the final URL
 
         Returns:
-            Dict[str, Any]: 提取的元数据信息
+            Dict[str, Any]: Extracted metadata information
         """
         try:
-            # 获取最终URL（如果需要重定向）
+            # Get final URL (if redirection is needed)
             final_url = url
             if need_redirect:
                 final_url = await self._get_final_url(url)
 
-            # 获取网页内容
+            # Get webpage content
             html_content = await self._fetch_html_content(final_url)
             if not html_content:
                 return self._create_empty_metadata(url, final_url)
 
-            # 解析HTML并提取元数据
+            # Parse HTML and extract metadata
             soup = BeautifulSoup(html_content, 'html.parser')
             metadata = self._extract_metadata_from_soup(soup, final_url)
             metadata['original_url'] = url
@@ -73,24 +73,24 @@ class URLExtractor:
             return metadata
 
         except Exception as e:
-            logger.error("提取URL元数据失败: %s, 错误: %s", url, str(e))
+            logger.error("Failed to extract URL metadata: %s, error: %s", url, str(e))
             return self._create_error_metadata(url, str(e))
 
     async def _get_final_url(self, url: str) -> str:
         """
-        获取重定向后的最终URL
+        Get the final URL after redirection
 
         Args:
-            url: 原始URL
+            url: Original URL
 
         Returns:
-            str: 最终URL
+            str: Final URL
         """
         try:
             timeout = aiohttp.ClientTimeout(total=self.timeout)
             headers = {'User-Agent': self.user_agent}
 
-            # 创建SSL上下文，跳过证书验证（用于内容提取，相对安全）
+            # Create SSL context, skip certificate verification (relatively safe for content extraction)
             import ssl
 
             ssl_context = ssl.create_default_context()
@@ -101,23 +101,23 @@ class URLExtractor:
             async with aiohttp.ClientSession(
                 timeout=timeout, headers=headers, connector=connector
             ) as session:
-                # 只发送HEAD请求获取最终URL，不下载内容
+                # Send only HEAD request to get final URL, without downloading content
                 async with session.head(url, allow_redirects=True) as response:
                     return str(response.url)
 
         except Exception as e:
-            logger.warning("获取最终URL失败: %s, 错误: %s", url, str(e))
+            logger.warning("Failed to get final URL: %s, error: %s", url, str(e))
             return url
 
     async def _fetch_html_content(self, url: str) -> Optional[str]:
         """
-        获取HTML内容
+        Get HTML content
 
         Args:
-            url: 要获取的URL
+            url: URL to retrieve
 
         Returns:
-            Optional[str]: HTML内容，失败时返回None
+            Optional[str]: HTML content, returns None on failure
         """
         try:
             timeout = aiohttp.ClientTimeout(total=self.timeout)
@@ -131,7 +131,7 @@ class URLExtractor:
                 'Upgrade-Insecure-Requests': '1',
             }
 
-            # 创建SSL上下文，跳过证书验证（用于内容提取，相对安全）
+            # Create SSL context, skip certificate verification (relatively safe for content extraction)
             import ssl
 
             ssl_context = ssl.create_default_context()
@@ -143,44 +143,48 @@ class URLExtractor:
                 timeout=timeout, headers=headers, connector=connector
             ) as session:
                 async with session.get(url) as response:
-                    # 检查内容类型
+                    # Check content type
                     content_type = response.headers.get('content-type', '').lower()
                     if 'text/html' not in content_type:
                         logger.warning(
-                            "非HTML内容: %s, content-type: %s", url, content_type
+                            "Non-HTML content: %s, content-type: %s", url, content_type
                         )
                         return None
 
-                    # 检查内容长度
+                    # Check content length
                     content_length = response.headers.get('content-length')
                     if content_length and int(content_length) > self.max_content_length:
-                        logger.warning("内容过大: %s, size: %s", url, content_length)
+                        logger.warning(
+                            "Content too large: %s, size: %s", url, content_length
+                        )
                         return None
 
-                    # 读取内容
+                    # Read content
                     content = await response.text()
                     if len(content) > self.max_content_length:
-                        logger.warning("内容过大: %s, size: %d", url, len(content))
+                        logger.warning(
+                            "Content too large: %s, size: %d", url, len(content)
+                        )
                         return None
 
                     return content
 
         except Exception as e:
-            logger.error("获取HTML内容失败: %s, 错误: %s", url, str(e))
+            logger.error("Failed to get HTML content: %s, error: %s", url, str(e))
             return None
 
     def _extract_metadata_from_soup(
         self, soup: BeautifulSoup, url: str
     ) -> Dict[str, Any]:
         """
-        从BeautifulSoup对象中提取元数据
+        Extract metadata from BeautifulSoup object
 
         Args:
-            soup: BeautifulSoup对象
-            url: 页面URL
+            soup: BeautifulSoup object
+            url: Page URL
 
         Returns:
-            Dict[str, Any]: 提取的元数据
+            Dict[str, Any]: Extracted metadata
         """
         metadata = {
             'title': None,
@@ -196,19 +200,19 @@ class URLExtractor:
         }
 
         try:
-            # 提取Open Graph标签
+            # Extract Open Graph tags
             og_tags = self._extract_og_tags(soup)
             metadata['og_tags'] = og_tags
 
-            # 提取Twitter Card标签
+            # Extract Twitter Card tags
             twitter_tags = self._extract_twitter_tags(soup)
             metadata['twitter_tags'] = twitter_tags
 
-            # 提取基本meta标签
+            # Extract basic meta tags
             meta_tags = self._extract_meta_tags(soup)
             metadata['meta_tags'] = meta_tags
 
-            # 优先使用Open Graph信息，但跳过包含模板变量的值
+            # Prioritize Open Graph information, but skip values containing template variables
             metadata['title'] = (
                 self._get_safe_value(og_tags.get('title'))
                 or self._get_safe_value(twitter_tags.get('title'))
@@ -230,58 +234,58 @@ class URLExtractor:
             metadata['type'] = self._get_safe_value(og_tags.get('type'))
             metadata['favicon'] = self._extract_favicon(soup, url)
 
-            # 清理和验证数据
+            # Clean and validate data
             metadata = self._clean_metadata(metadata)
 
         except Exception as e:
-            logger.error("解析元数据失败: %s, 错误: %s", url, str(e))
+            logger.error("Failed to parse metadata: %s, error: %s", url, str(e))
 
         return metadata
 
     def _extract_og_tags(self, soup: BeautifulSoup) -> Dict[str, str]:
-        """提取Open Graph标签"""
+        """Extract Open Graph tags"""
         og_tags = {}
 
         for tag in soup.find_all('meta', property=lambda x: x and x.startswith('og:')):
             if tag.get('content'):
-                property_name = tag['property'][3:]  # 去掉'og:'前缀
+                property_name = tag['property'][3:]  # Remove 'og:' prefix
                 og_tags[property_name] = tag['content'].strip()
 
         return og_tags
 
     def _extract_twitter_tags(self, soup: BeautifulSoup) -> Dict[str, str]:
-        """提取Twitter Card标签"""
+        """Extract Twitter Card tags"""
         twitter_tags = {}
 
         for tag in soup.find_all(
             'meta', attrs={'name': lambda x: x and x.startswith('twitter:')}
         ):
             if tag.get('content'):
-                name = tag['name'][8:]  # 去掉'twitter:'前缀
+                name = tag['name'][8:]  # Remove 'twitter:' prefix
                 twitter_tags[name] = tag['content'].strip()
 
         return twitter_tags
 
     def _extract_meta_tags(self, soup: BeautifulSoup) -> Dict[str, str]:
-        """提取基本meta标签"""
+        """Extract basic meta tags"""
         meta_tags = {}
 
-        # 提取title
+        # Extract title
         title_tag = soup.find('meta', attrs={'name': 'title'})
         if title_tag and title_tag.get('content'):
             meta_tags['title'] = title_tag['content'].strip()
 
-        # 提取description
+        # Extract description
         description_tag = soup.find('meta', attrs={'name': 'description'})
         if description_tag and description_tag.get('content'):
             meta_tags['description'] = description_tag['content'].strip()
 
-        # 提取keywords
+        # Extract keywords
         keywords_tag = soup.find('meta', attrs={'name': 'keywords'})
         if keywords_tag and keywords_tag.get('content'):
             meta_tags['keywords'] = keywords_tag['content'].strip()
 
-        # 提取author
+        # Extract author
         author_tag = soup.find('meta', attrs={'name': 'author'})
         if author_tag and author_tag.get('content'):
             meta_tags['author'] = author_tag['content'].strip()
@@ -289,15 +293,15 @@ class URLExtractor:
         return meta_tags
 
     def _extract_title(self, soup: BeautifulSoup) -> Optional[str]:
-        """提取页面标题"""
+        """Extract page title"""
         title_tag = soup.find('title')
         if title_tag and title_tag.string:
             return title_tag.string.strip()
         return None
 
     def _extract_first_image(self, soup: BeautifulSoup, base_url: str) -> Optional[str]:
-        """提取第一个有意义的图片"""
-        # 查找img标签
+        """Extract the first meaningful image"""
+        # Find img tags
         img_tags = soup.find_all('img', src=True)
 
         for img in img_tags:
@@ -305,18 +309,18 @@ class URLExtractor:
             if not src:
                 continue
 
-            # 转换为绝对URL
+            # Convert to absolute URL
             absolute_url = urljoin(base_url, src)
 
-            # 简单过滤：跳过明显的装饰性图片
+            # Simple filter: skip obvious decorative images
             if self._is_meaningful_image(img, src):
                 return absolute_url
 
         return None
 
     def _is_meaningful_image(self, img_tag: Tag, src: str) -> bool:
-        """判断图片是否有意义（非装饰性）"""
-        # 跳过明显的装饰性图片
+        """Determine if the image is meaningful (non-decorative)"""
+        # Skip obvious decorative images
         skip_patterns = [
             'icon',
             'logo',
@@ -334,17 +338,17 @@ class URLExtractor:
         if any(pattern in src_lower for pattern in skip_patterns):
             return False
 
-        # 检查图片尺寸属性
+        # Check image size attributes
         width = img_tag.get('width')
         height = img_tag.get('height')
 
         if width and height:
             try:
                 w, h = int(width), int(height)
-                # 跳过太小的图片
+                # Skip very small images
                 if w < 100 or h < 100:
                     return False
-                # 跳过明显的装饰性尺寸
+                # Skip obvious decorative sizes
                 if w == 1 or h == 1:
                     return False
             except (ValueError, TypeError):
@@ -353,8 +357,8 @@ class URLExtractor:
         return True
 
     def _extract_favicon(self, soup: BeautifulSoup, base_url: str) -> Optional[str]:
-        """提取网站图标"""
-        # 查找link标签中的icon
+        """Extract website icon"""
+        # Find icon in link tags
         icon_links = soup.find_all('link', rel=lambda x: x and 'icon' in x.lower())
 
         for link in icon_links:
@@ -362,14 +366,14 @@ class URLExtractor:
             if href:
                 return urljoin(base_url, href.strip())
 
-        # 默认favicon路径
+        # Default favicon path
         parsed_url = urlparse(base_url)
         default_favicon = f"{parsed_url.scheme}://{parsed_url.netloc}/favicon.ico"
         return default_favicon
 
     def _clean_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """清理和验证元数据"""
-        # 清理字符串字段
+        """Clean and validate metadata"""
+        # Clean string fields
         string_fields = [
             'title',
             'description',
@@ -381,17 +385,17 @@ class URLExtractor:
         ]
         for field in string_fields:
             if metadata.get(field):
-                # 清理多余的空白字符
+                # Clean extra whitespace
                 cleaned_value = re.sub(r'\s+', ' ', str(metadata[field])).strip()
                 metadata[field] = cleaned_value
 
-                # 限制长度
+                # Limit length
                 if field == 'title' and len(metadata[field]) > 200:
                     metadata[field] = metadata[field][:200] + '...'
                 elif field == 'description' and len(metadata[field]) > 500:
                     metadata[field] = metadata[field][:500] + '...'
 
-        # 验证URL格式
+        # Validate URL format
         url_fields = ['image', 'favicon', 'url']
         for field in url_fields:
             if metadata.get(field) and not self._is_valid_url(metadata[field]):
@@ -401,9 +405,9 @@ class URLExtractor:
 
     def _contains_template_variables(self, text: str) -> bool:
         """
-        检查文本是否包含模板变量
+        Check if text contains template variables
 
-        检查以下模板变量格式：
+        Check the following template variable formats:
         - ${variable}
         - {{variable}}
         - {variable}
@@ -411,25 +415,25 @@ class URLExtractor:
         - @{variable}
 
         Args:
-            text: 要检查的文本
+            text: Text to check
 
         Returns:
-            bool: 如果包含模板变量返回True，否则返回False
+            bool: Returns True if contains template variables, otherwise False
         """
         if not text or not isinstance(text, str):
             return False
 
-        # 定义模板变量的正则表达式模式
+        # Define regular expression patterns for template variables
         template_patterns = [
             r'\$\{[^}]+\}',  # ${variable}
             r'\{\{[^}]+\}\}',  # {{variable}}
             r'#\{[^}]+\}',  # #{variable}
             r'@\{[^}]+\}',  # @{variable}
-            # {variable} - 只匹配包含字母、数字、点、下划线的变量名
+            # {variable} - Only match variable names containing letters, digits, dots, underscores
             r'\{[a-zA-Z_][a-zA-Z0-9_.]*\}',
         ]
 
-        # 检查每个模式
+        # Check each pattern
         for pattern in template_patterns:
             if re.search(pattern, text):
                 return True
@@ -438,30 +442,30 @@ class URLExtractor:
 
     def _get_safe_value(self, value: str) -> Optional[str]:
         """
-        获取安全的值，如果包含模板变量则返回None
+        Get a safe value, return None if it contains template variables
 
         Args:
-            value: 要检查的值
+            value: Value to check
 
         Returns:
-            Optional[str]: 如果值有效且不包含模板变量则返回原值，否则返回None
+            Optional[str]: Returns original value if valid and does not contain template variables, otherwise returns None
         """
         if not value or not isinstance(value, str):
             return None
 
-        # 清理空白字符
+        # Clean whitespace
         cleaned_value = value.strip()
         if not cleaned_value:
             return None
 
-        # 检查是否包含模板变量
+        # Check if contains template variables
         if self._contains_template_variables(cleaned_value):
             return None
 
         return cleaned_value
 
     def _is_valid_url(self, url: str) -> bool:
-        """验证URL格式"""
+        """Validate URL format"""
         try:
             result = urlparse(url)
             return all([result.scheme, result.netloc])
@@ -471,7 +475,7 @@ class URLExtractor:
     def _create_empty_metadata(
         self, original_url: str, final_url: str
     ) -> Dict[str, Any]:
-        """创建空的元数据"""
+        """Create empty metadata"""
         return {
             'title': None,
             'description': None,
@@ -489,7 +493,7 @@ class URLExtractor:
         }
 
     def _create_error_metadata(self, url: str, error: str) -> Dict[str, Any]:
-        """创建错误元数据"""
+        """Create error metadata"""
         return {
             'title': None,
             'description': None,
@@ -507,19 +511,19 @@ class URLExtractor:
         }
 
 
-# 全局实例
+# Global instance
 _url_extractor = URLExtractor()
 
 
 async def extract_url_metadata(url: str, need_redirect: bool = True) -> Dict[str, Any]:
     """
-    提取URL元数据的便捷函数
+    Convenience function to extract URL metadata
 
     Args:
-        url: 要提取的URL
-        need_redirect: 是否需要跟随重定向
+        url: URL to extract
+        need_redirect: Whether to follow redirects
 
     Returns:
-        Dict[str, Any]: 元数据信息
+        Dict[str, Any]: Metadata information
     """
     return await _url_extractor.extract_metadata(url, need_redirect)

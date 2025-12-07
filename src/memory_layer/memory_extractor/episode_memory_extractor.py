@@ -11,14 +11,14 @@ from datetime import datetime
 import re, json, asyncio, uuid
 
 
-# 使用动态语言提示词导入（根据 MEMORY_LANGUAGE 环境变量自动选择）
+# Import dynamic language prompts (automatically select based on MEMORY_LANGUAGE environment variable)
 from ..prompts import (
     EPISODE_GENERATION_PROMPT,
     GROUP_EPISODE_GENERATION_PROMPT,
     DEFAULT_CUSTOM_INSTRUCTIONS,
 )
 
-# 评估专用提示词
+# Evaluation-specific prompts
 from ..prompts.eval.episode_mem_prompts import (
     EPISODE_GENERATION_PROMPT as EVAL_EPISODE_GENERATION_PROMPT,
     GROUP_EPISODE_GENERATION_PROMPT as EVAL_GROUP_EPISODE_GENERATION_PROMPT,
@@ -41,29 +41,31 @@ logger = get_logger(__name__)
 
 @dataclass
 class EpisodeMemoryExtractRequest(MemoryExtractRequest):
-    """Episode 提取请求（继承自基类）"""
+    """Episode extraction request (inherited from base class)"""
+
     pass
 
 
 class EpisodeMemoryExtractor(MemoryExtractor):
     """
-    Episode 记忆提取器 - 只负责从 MemCell 中提取 Episode
-    
-    职责：
-    1. 从 MemCell 的 original_data 中提取群组 Episode
-    2. 从 MemCell 的 original_data 中提取个人 Episode
-    
-    不包含：
-    - Foresight 提取（由 ForesightExtractor 负责）
-    - EventLog 提取（由 EventLogExtractor 负责）
+    Episode memory extractor - responsible only for extracting Episodes from MemCell
+
+    Responsibilities:
+    1. Extract group Episodes from MemCell's original_data
+    2. Extract personal Episodes from MemCell's original_data
+
+    Not included:
+    - Foresight extraction (handled by ForesightExtractor)
+    - EventLog extraction (handled by EventLogExtractor)
     """
+
     def __init__(
         self, llm_provider: LLMProvider | None = None, use_eval_prompts: bool = False
     ):
         super().__init__(MemoryType.EPISODIC_MEMORY)
         self.llm_provider = llm_provider
         self.use_eval_prompts = use_eval_prompts
-        
+
         if self.use_eval_prompts:
             self.episode_generation_prompt = EVAL_EPISODE_GENERATION_PROMPT
             self.group_episode_generation_prompt = EVAL_GROUP_EPISODE_GENERATION_PROMPT
@@ -75,8 +77,8 @@ class EpisodeMemoryExtractor(MemoryExtractor):
 
     def _parse_timestamp(self, timestamp) -> datetime:
         """
-        解析时间戳为 datetime 对象
-        支持多种格式：数字时间戳、ISO格式字符串、数字字符串等
+        Parse timestamp into datetime object
+        Supports multiple formats: numeric timestamp, ISO format string, numeric string, etc.
         """
         if isinstance(timestamp, datetime):
             return timestamp
@@ -92,16 +94,16 @@ class EpisodeMemoryExtractor(MemoryExtractor):
                     return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
             except (ValueError, AttributeError):
                 # Fallback to current time if parsing fails
-                logger.error(f"解析时间戳失败: {timestamp}")
+                logger.error(f"Failed to parse timestamp: {timestamp}")
                 return get_now_with_timezone()
         else:
             # Unknown format, fallback to current time
-            logger.error(f"解析时间戳失败: {timestamp}")
+            logger.error(f"Failed to parse timestamp: {timestamp}")
             return get_now_with_timezone()
 
     def _format_timestamp(self, dt: datetime) -> str:
         """
-        格式化 datetime 为易读的字符串格式
+        Format datetime into a human-readable string
         """
         weekday = dt.strftime("%A")  # Monday, Tuesday, etc.
         month_day = dt.strftime("%B %d, %Y")  # March 14, 2024
@@ -192,38 +194,34 @@ class EpisodeMemoryExtractor(MemoryExtractor):
                             participant_name_map[refer_item['_id']] = refer_item['name']
         return participant_name_map
 
-    
-    
-    
-
     async def _extract_episode(
-        self,
-        request: EpisodeMemoryExtractRequest,
-        use_group_prompt: bool = False,
+        self, request: EpisodeMemoryExtractRequest, use_group_prompt: bool = False
     ) -> Optional[Memory]:
         """
-        提取 Episode 记忆（内部方法，单次提取）
-        
+        Extract Episode memory (internal method, single extraction)
+
         Args:
-            request: Episode 提取请求（包含单个 memcell 和可选的 user_id）
-            use_group_prompt: 是否使用群组提示词
-                - True: 提取群组 Episode（user_id=None）
-                - False: 提取个人 Episode（user_id 从 request.user_id 获取）
-        
+            request: Episode extraction request (contains single memcell and optional user_id)
+            use_group_prompt: Whether to use group prompt
+                - True: Extract group Episode (user_id=None)
+                - False: Extract personal Episode (user_id from request.user_id)
+
         Returns:
-            Memory（包含 episode 字段）
+            Memory (contains episode field)
         """
-        logger.debug(f"📚 开始提取 Episode，use_group_prompt={use_group_prompt}")
+        logger.debug(
+            f"📚 Starting Episode extraction, use_group_prompt={use_group_prompt}"
+        )
 
         memcell = request.memcell
         if not memcell:
             return None
 
-        # 准备对话文本
+        # Prepare conversation text
         if memcell.type == RawDataType.CONVERSATION:
             conversation_text = self.get_conversation_json_text(memcell.original_data)
 
-            # 选择提示词和参数
+            # Select prompt and parameters
             if use_group_prompt:
                 prompt_template = self.group_episode_generation_prompt
                 content_key = "conversation"
@@ -236,45 +234,45 @@ class EpisodeMemoryExtractor(MemoryExtractor):
         else:
             return None
 
-        # 时间戳格式化
+        # Format timestamp
         start_time = self._parse_timestamp(memcell.timestamp)
         start_time_str = self._format_timestamp(start_time)
 
-        # 构建 prompt 参数
+        # Build prompt parameters
         format_params = {
             time_key: start_time_str,
             content_key: conversation_text,
             "custom_instructions": self.default_custom_instructions,
         }
-        
-        # 获取参与者信息
+
+        # Get participant information
         participants_name_map = self.get_speaker_name_map(memcell.original_data)
         participants_name_map.update(
             self._extract_participant_name_map(memcell.original_data)
         )
-        
-        # 确定 user_id 和 user_name
+
+        # Determine user_id and user_name
         user_id = None
         user_name = None
         if use_group_prompt:
-            # 群组模式：user_id 为 None，user_name 为 None
+            # Group mode: user_id is None, user_name is None
             user_id = None
             user_name = None
         else:
-            # 个人模式：从 request.user_id 获取
+            # Personal mode: get from request.user_id
             if request.user_id:
                 user_id = request.user_id
                 user_name = participants_name_map.get(user_id, user_id)
                 format_params["user_name"] = user_name
 
-        # 调用 LLM（带重试）
+        # Call LLM (with retry)
         data = None
         for i in range(5):
             try:
                 prompt = prompt_template.format(**format_params)
                 response = await self.llm_provider.generate(prompt)
-                
-                # 解析 JSON
+
+                # Parse JSON
                 if '```json' in response:
                     start = response.find('```json') + 7
                     end = response.find('```', start)
@@ -285,44 +283,42 @@ class EpisodeMemoryExtractor(MemoryExtractor):
                         data = json.loads(response)
                 else:
                     json_match = re.search(
-                        r'\{[^{}]*"title"[^{}]*"content"[^{}]*\}',
-                        response,
-                        re.DOTALL,
+                        r'\{[^{}]*"title"[^{}]*"content"[^{}]*\}', response, re.DOTALL
                     )
                     if json_match:
                         data = json.loads(json_match.group())
                     else:
                         data = json.loads(response)
-                
-                # 验证必需字段：title 和 content 必须存在
+
+                # Validate required fields: title and content must exist
                 if "title" not in data or not data["title"]:
-                    raise ValueError("LLM 返回缺少 title 字段")
+                    raise ValueError("LLM response missing title field")
                 if "content" not in data or not data["content"]:
-                    raise ValueError("LLM 返回缺少 content 字段")
-                
-                # 验证通过，跳出重试循环
+                    raise ValueError("LLM response missing content field")
+
+                # Validation passed, exit retry loop
                 break
             except Exception as e:
-                logger.warning(f"Episode 提取重试 {i+1}/5: {e}")
+                logger.warning(f"Episode extraction retry {i+1}/5: {e}")
                 if i == 4:
                     raise Exception("Episode memory extraction failed after 5 retries")
                 continue
 
-        # summary 没有的话使用 content 前200字符作为默认值
+        # Use first 200 characters of content as default summary if summary is missing
         if "summary" not in data or not data["summary"]:
             data["summary"] = data["content"][:200]
 
         title = data["title"]
         content = data["content"]
         summary = data["summary"]
-        
-        # 收集参与者
+
+        # Collect participants
         participants = memcell.participants if memcell.participants else []
 
-        # 计算 Embedding
+        # Compute Embedding
         embedding_data = await self._compute_embedding(content)
 
-        # 创建 Memory 对象（统一返回类型）
+        # Create Memory object (unified return type)
         episode_memory = Memory(
             memory_type=MemoryType.EPISODIC_MEMORY,
             user_id=user_id,
@@ -336,41 +332,41 @@ class EpisodeMemoryExtractor(MemoryExtractor):
             participants=participants,
             type=memcell.type,
             memcell_event_id_list=[memcell.event_id],
-            extend=embedding_data,  # 添加 embedding 到 extend 字段
+            extend=embedding_data,  # Add embedding to extend field
         )
 
-        logger.debug(f"✅ Episode 提取完成: subject='{title}'")
+        logger.debug(f"✅ Episode extraction completed: subject='{title}'")
         return episode_memory
-    
+
     async def extract_memory(self, request: MemoryExtractRequest) -> Optional[Memory]:
         """
-        从 MemCell 提取 Episode 记忆（实现基类的抽象方法）
-        
-        自动根据 request.user_id 判断提取群组还是个人 Episode:
-        - user_id=None: 提取群组 Episode（使用群组提示词）
-        - user_id!=None: 提取个人 Episode（使用个人提示词，聚焦该用户视角）
-        
+        Extract Episode memory from MemCell (implement abstract method from base class)
+
+        Automatically determine whether to extract group or personal Episode based on request.user_id:
+        - user_id=None: extract group Episode (using group prompt)
+        - user_id!=None: extract personal Episode (using personal prompt, focusing on user's perspective)
+
         Args:
-            request: 记忆提取请求，包含：
-                - memcell: 要提取的 MemCell
-                - user_id: 用户ID（None表示群组）
-                - group_id: 群组ID
-                - 其他可选字段
-        
+            request: Memory extraction request, containing:
+                - memcell: MemCell to extract
+                - user_id: User ID (None means group)
+                - group_id: Group ID
+                - Other optional fields
+
         Returns:
-            Memory: Episode 记忆对象
-                - 群组 Episode: user_id=None, episode 包含整个对话的全局视角
-                - 个人 Episode: user_id=<user_id>, episode 包含该用户的个人视角
+            Memory: Episode memory object
+                - Group Episode: user_id=None, episode contains global view of entire conversation
+                - Personal Episode: user_id=<user_id>, episode contains personal view of the user
         """
-        # 判断是群组还是个人 Episode
-        is_group_episode = (request.user_id is None)
-        
+        # Determine if it's a group or personal Episode
+        is_group_episode = request.user_id is None
+
         logger.debug(
-            f"[extract_memory] 提取 {'群组' if is_group_episode else '个人'} Episode, "
+            f"[extract_memory] Extracting {'group' if is_group_episode else 'personal'} Episode, "
             f"user_id={request.user_id}, group_id={request.group_id}"
         )
-        
-        # 构建 EpisodeMemoryExtractRequest
+
+        # Build EpisodeMemoryExtractRequest
         episode_request = EpisodeMemoryExtractRequest(
             memcell=request.memcell,
             user_id=request.user_id,
@@ -380,26 +376,26 @@ class EpisodeMemoryExtractor(MemoryExtractor):
             old_memory_list=request.old_memory_list,
             user_organization=request.user_organization,
         )
-        
-        # 调用内部提取方法
+
+        # Call internal extraction method
         return await self._extract_episode(
             request=episode_request,
-            use_group_prompt=is_group_episode,  # 群组用群组提示词，个人用个人提示词
+            use_group_prompt=is_group_episode,  # Group uses group prompt, personal uses personal prompt
         )
-    
+
     async def _compute_embedding(self, text: str) -> Optional[dict]:
-        """计算 Episode 文本的 Embedding"""
+        """Compute embedding for Episode text"""
         try:
             if not text:
                 return None
-            
+
             vs = get_vectorize_service()
             vec = await vs.get_embedding(text)
-            
+
             return {
                 "embedding": vec.tolist() if hasattr(vec, "tolist") else list(vec),
-                "vector_model": vs.get_model_name()  # 使用统一的 get_model_name() 方法
+                "vector_model": vs.get_model_name(),  # Use unified get_model_name() method
             }
         except Exception as e:
-            logger.error(f"Episode Embedding 计算失败: {e}")
+            logger.error(f"Episode Embedding computation failed: {e}")
             return None

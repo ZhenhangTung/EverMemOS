@@ -1,4 +1,4 @@
-# 导入保留用于类型注解和字段定义
+# Import retained for type annotations and field definitions
 from elasticsearch.dsl import field as e_field
 from core.tenants.tenantize.oxm.es.tenant_aware_async_document import (
     TenantAwareAliasDoc,
@@ -13,36 +13,36 @@ from core.oxm.es.analyzer import (
 
 class EventLogDoc(TenantAwareAliasDoc("event-log", number_of_shards=3)):
     """
-    事件日志 Elasticsearch 文档
+    Event log Elasticsearch document
 
-    使用独立的 event-log 索引。
+    Uses a separate event-log index.
     """
 
     class CustomMeta:
-        # 指定用于自动填充 meta.id 的字段名
+        # Specify the field name used to automatically populate meta.id
         id_source_field = "id"
 
-    # 基础标识字段
-    # id 字段通过 CustomMeta.id_source_field 自动从 kwargs 提取并设置为 meta.id
+    # Basic identification fields
+    # id field is automatically extracted from kwargs via CustomMeta.id_source_field and set as meta.id
     user_id = e_field.Keyword()
     user_name = e_field.Keyword()
 
-    # 时间字段
+    # Timestamp field
     timestamp = e_field.Date(required=True)
 
-    # 核心内容字段 - BM25检索的主要目标
+    # Core content fields - primary target for BM25 retrieval
     title = e_field.Text(
         required=False,
         analyzer=whitespace_lowercase_trim_stop_analyzer,
         search_analyzer=whitespace_lowercase_trim_stop_analyzer,
-        fields={"keyword": e_field.Keyword()},  # 精确匹配
+        fields={"keyword": e_field.Keyword()},  # Exact match
     )
 
     episode = e_field.Text(
         required=True,
         analyzer=whitespace_lowercase_trim_stop_analyzer,
         search_analyzer=whitespace_lowercase_trim_stop_analyzer,
-        fields={"keyword": e_field.Keyword()},  # 精确匹配
+        fields={"keyword": e_field.Keyword()},  # Exact match
     )
 
     atomic_fact = e_field.Text(
@@ -52,42 +52,42 @@ class EventLogDoc(TenantAwareAliasDoc("event-log", number_of_shards=3)):
         fields={"keyword": e_field.Keyword()},
     )
 
-    # BM25检索核心字段 - 支持多值存储的搜索内容
-    # 应用层可以存储多个相关的搜索词或短语
+    # BM25 retrieval core field - supports multi-value storage for search content
+    # Application layer can store multiple related search terms or phrases
     search_content = e_field.Text(
         multi=True,
         required=True,
         # star
         analyzer="standard",
         fields={
-            # 原始内容字段 - 用于精确匹配，小写处理
+            # Original content field - for exact matching, lowercase processing
             "original": e_field.Text(
                 analyzer=lower_keyword_analyzer, search_analyzer=lower_keyword_analyzer
             )
         },
     )
 
-    # 摘要字段
+    # Summary field
     summary = e_field.Text(
         analyzer=whitespace_lowercase_trim_stop_analyzer,
         search_analyzer=whitespace_lowercase_trim_stop_analyzer,
     )
 
-    # 分类和标签字段
-    group_id = e_field.Keyword()  # 群组ID
-    group_name = e_field.Keyword()  # 群组名称
+    # Categorization and tagging fields
+    group_id = e_field.Keyword()  # Group ID
+    group_name = e_field.Keyword()  # Group name
     participants = e_field.Keyword(multi=True)
 
-    type = e_field.Keyword()  # Conversation/Email/Notion等
-    keywords = e_field.Keyword(multi=True)  # 关键词列表
-    linked_entities = e_field.Keyword(multi=True)  # 关联实体ID列表
+    type = e_field.Keyword()  # Conversation/Email/Notion, etc.
+    keywords = e_field.Keyword(multi=True)  # List of keywords
+    linked_entities = e_field.Keyword(multi=True)  # List of linked entity IDs
 
-    subject = e_field.Text()  # 事件标题
-    memcell_event_id_list = e_field.Keyword(multi=True)  # 记忆单元事件ID列表
+    subject = e_field.Text()  # Event title
+    memcell_event_id_list = e_field.Keyword(multi=True)  # List of memory cell event IDs
 
-    # 扩展字段
-    extend = e_field.Object(dynamic=True)  # 灵活的扩展字段
+    # Extension field
+    extend = e_field.Object(dynamic=True)  # Flexible extension field
 
-    # 审计字段
+    # Audit fields
     created_at = e_field.Date()
     updated_at = e_field.Date()

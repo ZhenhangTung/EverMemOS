@@ -1,7 +1,7 @@
 """
-Elasticsearch 客户端工厂
+Elasticsearch Client Factory
 
-基于环境变量提供 Elasticsearch 客户端缓存和管理功能。
+Provides Elasticsearch client caching and management functionality based on environment variables.
 """
 
 import os
@@ -19,37 +19,37 @@ logger = get_logger(__name__)
 
 def get_default_es_config() -> Dict[str, Any]:
     """
-    基于环境变量获取默认的 Elasticsearch 配置
+    Get default Elasticsearch configuration based on environment variables
 
-    环境变量：
-    - ES_HOST: Elasticsearch 主机，默认 localhost
-    - ES_PORT: Elasticsearch 端口，默认 9200
-    - ES_HOSTS: Elasticsearch 主机列表，逗号分隔，优先级高于 ES_HOST
-    - ES_USERNAME: 用户名
-    - ES_PASSWORD: 密码
-    - ES_API_KEY: API密钥
-    - ES_TIMEOUT: 超时时间（秒），默认 120
+    Environment variables:
+    - ES_HOST: Elasticsearch host, default localhost
+    - ES_PORT: Elasticsearch port, default 9200
+    - ES_HOSTS: Elasticsearch host list, comma-separated, takes precedence over ES_HOST
+    - ES_USERNAME: Username
+    - ES_PASSWORD: Password
+    - ES_API_KEY: API key
+    - ES_TIMEOUT: Timeout (seconds), default 120
 
     Returns:
-        Dict[str, Any]: 配置字典
+        Dict[str, Any]: Configuration dictionary
     """
-    # 获取主机信息
+    # Get host information
     es_hosts_str = os.getenv("ES_HOSTS")
     if es_hosts_str:
-        # ES_HOSTS 已经包含完整的 URL（https://host:port），直接使用
+        # ES_HOSTS already contains full URL (https://host:port), use directly
         es_hosts = [host.strip() for host in es_hosts_str.split(",")]
     else:
-        # 回退到单个主机配置
+        # Fallback to single host configuration
         es_host = os.getenv("ES_HOST", "localhost")
         es_port = int(os.getenv("ES_PORT", "9200"))
         es_hosts = [f"http://{es_host}:{es_port}"]
 
-    # 认证信息
+    # Authentication information
     es_username = os.getenv("ES_USERNAME")
     es_password = os.getenv("ES_PASSWORD")
     es_api_key = os.getenv("ES_API_KEY")
 
-    # 连接参数
+    # Connection parameters
     es_timeout = int(os.getenv("ES_TIMEOUT", "120"))
     es_verify_certs = os.getenv("ES_VERIFY_CERTS", "false").lower() == "true"
 
@@ -62,11 +62,11 @@ def get_default_es_config() -> Dict[str, Any]:
         "verify_certs": es_verify_certs,
     }
 
-    logger.info("获取默认 Elasticsearch 配置:")
-    logger.info("  主机: %s", es_hosts)
-    logger.info("  超时: %s 秒", es_timeout)
+    logger.info("Getting default Elasticsearch config:")
+    logger.info("  Hosts: %s", es_hosts)
+    logger.info("  Timeout: %s seconds", es_timeout)
     logger.info(
-        "  认证: %s", "API Key" if es_api_key else ("Basic" if es_username else "无")
+        "  Auth: %s", "API Key" if es_api_key else ("Basic" if es_username else "None")
     )
 
     return config
@@ -79,28 +79,28 @@ def get_cache_key(
     api_key: Optional[str] = None,
 ) -> str:
     """
-    生成缓存键（同时作为 elasticsearch-dsl connections 的 alias）
-    基于 hosts、认证信息生成唯一标识
+    Generate cache key (also used as alias for elasticsearch-dsl connections)
+    Generate unique identifier based on hosts and authentication info
 
     Args:
-        hosts: Elasticsearch主机列表
-        username: 用户名
-        password: 密码
-        api_key: API密钥
+        hosts: Elasticsearch host list
+        username: Username
+        password: Password
+        api_key: API key
 
     Returns:
-        str: 缓存键
+        str: Cache key
     """
     hosts_str = ",".join(sorted(hosts))
     auth_str = ""
     if api_key:
-        # 使用 api_key 的前8位作为标识
+        # Use first 8 characters of api_key as identifier
         auth_str = f"api_key:{api_key[:8]}..."
     elif username and password:
-        # 使用 username 和 password 的 md5 作为标识
+        # Use md5 of username and password as identifier
         auth_str = f"basic:{username}:{md5(password.encode()).hexdigest()[:8]}"
     elif username:
-        # 只有 username 时，仅使用 username
+        # When only username is provided, use username only
         auth_str = f"basic:{username}"
 
     key_content = f"{hosts_str}:{auth_str}"
@@ -108,43 +108,45 @@ def get_cache_key(
 
 
 class ElasticsearchClientWrapper:
-    """Elasticsearch 客户端包装器"""
+    """Elasticsearch client wrapper"""
 
     def __init__(self, async_client: AsyncElasticsearch, hosts: List[str]):
         self.async_client = async_client
         self.hosts = hosts
 
     async def test_connection(self) -> bool:
-        """测试连接"""
+        """Test connection"""
         try:
             await self.async_client.ping()
-            logger.info("✅ Elasticsearch 连接测试成功: %s", self.hosts)
+            logger.info("✅ Elasticsearch connection test successful: %s", self.hosts)
             return True
         except Exception as e:
-            logger.error("❌ Elasticsearch 连接测试失败: %s, 错误: %s", self.hosts, e)
+            logger.error(
+                "❌ Elasticsearch connection test failed: %s, error: %s", self.hosts, e
+            )
             return False
 
     async def close(self):
-        """关闭连接"""
+        """Close connection"""
         try:
             if self.async_client:
                 await self.async_client.close()
-            logger.info("🔌 Elasticsearch 连接已关闭: %s", self.hosts)
+            logger.info("🔌 Elasticsearch connection closed: %s", self.hosts)
         except Exception as e:
-            logger.error("关闭 Elasticsearch 连接时出错: %s", e)
+            logger.error("Error closing Elasticsearch connection: %s", e)
 
 
 @component(name="elasticsearch_client_factory")
 class ElasticsearchClientFactory:
     """
-    Elasticsearch 客户端工厂
-    ### AsyncElasticsearch 是有状态的，因此可以在多个地方使用同一个实例 ###
+    Elasticsearch client factory
+    ### AsyncElasticsearch is stateful, so the same instance can be used in multiple places ###
 
-    提供基于配置的 Elasticsearch 客户端缓存和管理功能
+    Provides Elasticsearch client caching and management functionality based on configuration
     """
 
     def __init__(self):
-        """初始化 Elasticsearch 客户端工厂"""
+        """Initialize Elasticsearch client factory"""
         self._clients: Dict[str, ElasticsearchClientWrapper] = {}
         self._lock = asyncio.Lock()
         self._default_config: Optional[Dict[str, Any]] = None
@@ -161,40 +163,40 @@ class ElasticsearchClientFactory:
         **kwargs,
     ) -> ElasticsearchClientWrapper:
         """
-        创建 Elasticsearch 客户端实例
+        Create Elasticsearch client instance
 
         Args:
-            hosts: Elasticsearch主机列表
-            username: 用户名
-            password: 密码
-            api_key: API密钥
-            timeout: 超时时间（秒）
-            **kwargs: 其他连接参数
+            hosts: Elasticsearch host list
+            username: Username
+            password: Password
+            api_key: API key
+            timeout: Timeout (seconds)
+            **kwargs: Other connection parameters
 
         Returns:
-            ElasticsearchClientWrapper 实例
+            ElasticsearchClientWrapper instance
         """
-        # 构建连接参数
+        # Build connection parameters
         conn_params = {
             "hosts": hosts,
             "timeout": timeout,
             "max_retries": 3,
             "retry_on_timeout": True,
-            "verify_certs": False,  # 禁用 SSL 证书验证
-            "ssl_show_warn": False,  # 禁用 SSL 警告
+            "verify_certs": False,  # Disable SSL certificate verification
+            "ssl_show_warn": False,  # Disable SSL warnings
             **kwargs,
         }
 
-        # 添加认证信息
+        # Add authentication information
         if api_key:
             conn_params["api_key"] = api_key
         elif username and password:
             conn_params["basic_auth"] = (username, password)
 
-        # 生成连接别名（用于 elasticsearch-dsl connections 管理）
+        # Generate connection alias (used for elasticsearch-dsl connections management)
         alias = get_cache_key(hosts, username, password, api_key)
 
-        # 通过 async_connections.create_connection 创建异步客户端
+        # Create async client via async_connections.create_connection
         async_client = async_connections.create_connection(alias=alias, **conn_params)
 
         client_wrapper = ElasticsearchClientWrapper(async_client, hosts)
@@ -211,27 +213,27 @@ class ElasticsearchClientFactory:
         **kwargs,
     ) -> ElasticsearchClientWrapper:
         """
-        获取 Elasticsearch 客户端实例
+        Get Elasticsearch client instance
 
         Args:
-            hosts: Elasticsearch主机列表
-            username: 用户名
-            password: 密码
-            api_key: API密钥
-            **kwargs: 其他配置参数
+            hosts: Elasticsearch host list
+            username: Username
+            password: Password
+            api_key: API key
+            **kwargs: Other configuration parameters
 
         Returns:
-            ElasticsearchClientWrapper 实例
+            ElasticsearchClientWrapper instance
         """
         cache_key = get_cache_key(hosts, username, password, api_key)
 
         async with self._lock:
-            # 检查缓存
+            # Check cache
             if cache_key in self._clients:
                 logger.debug("Using cached Elasticsearch client for %s", hosts)
                 return self._clients[cache_key]
 
-            # 创建新的客户端实例
+            # Create new client instance
             logger.info("Creating new Elasticsearch client for %s", hosts)
 
             client_wrapper = await self._create_client(
@@ -253,11 +255,11 @@ class ElasticsearchClientFactory:
 
     async def get_default_client(self) -> ElasticsearchClientWrapper:
         """
-        获取基于环境变量配置的默认 Elasticsearch 客户端实例
-        不支持获取默认客户端，禁止直接调用factory
+        Get default Elasticsearch client instance based on environment variable configuration
+        Getting default client is not supported, direct calls to factory are prohibited
 
         Returns:
-            ElasticsearchClientWrapper 实例
+            ElasticsearchClientWrapper instance
         """
         raise NotImplementedError(
             "ElasticsearchClientFactory does not support get_default_client, use register_default_client instead"
@@ -265,12 +267,12 @@ class ElasticsearchClientFactory:
 
     async def register_default_client(self) -> ElasticsearchClientWrapper:
         """
-        注册一个默认的客户端
+        Register a default client
 
         Returns:
-            ElasticsearchClientWrapper 实例
+            ElasticsearchClientWrapper instance
         """
-        # 获取或创建默认配置
+        # Get or create default configuration
 
         if self._default_client is not None:
             return self._default_client
@@ -287,7 +289,7 @@ class ElasticsearchClientFactory:
             timeout=config.get("timeout", 120),
         )
 
-        # 注册一个默认的客户端
+        # Register a default client
         async_connections.add_connection(
             alias="default", conn=default_client.async_client
         )
@@ -302,16 +304,16 @@ class ElasticsearchClientFactory:
         api_key: Optional[str] = None,
     ) -> bool:
         """
-        移除指定的客户端
+        Remove specified client
 
         Args:
-            hosts: Elasticsearch主机列表
-            username: 用户名
-            password: 密码
-            api_key: API密钥
+            hosts: Elasticsearch host list
+            username: Username
+            password: Password
+            api_key: API key
 
         Returns:
-            bool: 是否成功移除
+            bool: Whether removal was successful
         """
         cache_key = get_cache_key(hosts, username, password, api_key)
 
@@ -333,7 +335,7 @@ class ElasticsearchClientFactory:
                 return False
 
     async def close_all_clients(self) -> None:
-        """关闭所有缓存的客户端"""
+        """Close all cached clients"""
         async with self._lock:
             for cache_key, client_wrapper in self._clients.items():
                 try:

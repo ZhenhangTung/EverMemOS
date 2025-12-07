@@ -1,8 +1,8 @@
 """
-情景记忆 Elasticsearch 仓库
+Episodic Memory Elasticsearch Repository
 
-基于 BaseRepository 的情景记忆专用仓库类，提供高效的BM25文本检索和复杂查询功能。
-主要功能包括多词搜索、过滤查询和文档管理。
+A specialized repository class for episodic memory based on BaseRepository, providing efficient BM25 text retrieval and complex query capabilities.
+Main features include multi-word search, filtered queries, and document management.
 """
 
 from datetime import datetime
@@ -24,32 +24,32 @@ logger = get_logger(__name__)
 @repository("episodic_memory_es_repository", primary=True)
 class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
     """
-    情景记忆 Elasticsearch 仓库
+    Episodic Memory Elasticsearch Repository
 
-    基于 BaseRepository 的专用仓库类，提供：
-    - 高效的BM25文本检索
-    - 多词查询和过滤功能
-    - 文档创建和管理
-    - 手动索引刷新控制
+    A specialized repository class based on BaseRepository, providing:
+    - Efficient BM25 text retrieval
+    - Multi-word queries and filtering capabilities
+    - Document creation and management
+    - Manual index refresh control
     """
 
     def __init__(self):
-        """初始化情景记忆仓库"""
+        """Initialize episodic memory repository"""
         super().__init__(EpisodicMemoryDoc)
-        # 初始化智能文本解析器，用于计算查询词的智能长度
+        # Initialize smart text parser for calculating intelligent length of query terms
         self._text_parser = SmartTextParser()
 
     def _calculate_text_score(self, text: str) -> float:
         """
-        计算文本的智能分数
+        Calculate intelligent score of text
 
-        使用SmartTextParser计算文本的总分数，考虑中日韩字符、英文单词等不同类型的权重。
+        Use SmartTextParser to compute the total score of the text, considering weights for different types such as CJK characters, English words, etc.
 
         Args:
-            text: 要计算分数的文本
+            text: Text to calculate score for
 
         Returns:
-            float: 文本的智能分数
+            float: Intelligent score of the text
         """
         if not text:
             return 0.0
@@ -58,22 +58,25 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
             tokens = self._text_parser.parse_tokens(text)
             return self._text_parser.calculate_total_score(tokens)
         except (ValueError, TypeError, AttributeError) as e:
-            logger.warning("计算文本分数失败，使用字符长度作为fallback: %s", e)
+            logger.warning(
+                "Failed to calculate text score, using character length as fallback: %s",
+                e,
+            )
             return float(len(text))
 
     def _log_explanation_details(
         self, explanation: Dict[str, Any], indent: int = 0
     ) -> None:
         """
-        递归输出explanation的详细信息
+        Recursively output detailed explanation information
 
         Args:
-            explanation: 解释字典
-            indent: 缩进级别
+            explanation: Explanation dictionary
+            indent: Indentation level
         """
         pprint.pprint(explanation, indent=indent)
 
-    # ==================== 文档创建和管理 ====================
+    # ==================== Document creation and management ====================
 
     async def create_and_save_episodic_memory(
         self,
@@ -97,41 +100,41 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
         updated_at: Optional[datetime] = None,
     ) -> EpisodicMemoryDoc:
         """
-        创建并保存情景记忆文档
+        Create and save episodic memory document
 
         Args:
-            event_id: 事件唯一标识
-            user_id: 用户ID（必需）
-            timestamp: 事件发生时间（必需）
-            episode: 情景描述（必需）
-            search_content: 搜索内容列表（支持多个搜索词，必需）
-            type: 事件类型
-            user_name: 用户名称
-            title: 事件标题
-            summary: 事件摘要
-            group_id: 群组ID
-            participants: 参与者列表
-            event_type: 事件类型
-            keywords: 关键词列表
-            linked_entities: 关联实体ID列表
-            subject: 事件标题（新增字段）
-            memcell_event_id_list: 记忆单元事件ID列表（新增字段）
-            extend: 扩展字段
-            created_at: 创建时间
-            updated_at: 更新时间
+            event_id: Unique event identifier
+            user_id: User ID (required)
+            timestamp: Event occurrence time (required)
+            episode: Episode description (required)
+            search_content: List of search content (supports multiple search terms, required)
+            type: Event type
+            user_name: User name
+            title: Event title
+            summary: Event summary
+            group_id: Group ID
+            participants: List of participants
+            event_type: Event type
+            keywords: List of keywords
+            linked_entities: List of linked entity IDs
+            subject: Event title (new field)
+            memcell_event_id_list: List of memory cell event IDs (new field)
+            extend: Extension fields
+            created_at: Creation time
+            updated_at: Update time
 
         Returns:
-            已保存的EpisodicMemoryDoc实例
+            Saved EpisodicMemoryDoc instance
         """
         try:
-            # 设置默认时间戳
+            # Set default timestamps
             now = get_now_with_timezone()
             if created_at is None:
                 created_at = now
             if updated_at is None:
                 updated_at = now
 
-            # 创建文档实例
+            # Create document instance
             normalized_user_id = user_id or ""
             doc = EpisodicMemoryDoc(
                 event_id=event_id,
@@ -154,20 +157,26 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
                 updated_at=updated_at,
             )
 
-            # 保存文档（不使用refresh参数）
+            # Save document (without refresh parameter)
             client = await self.get_client()
             await doc.save(using=client)
 
             logger.debug(
-                "✅ 创建情景记忆文档成功: event_id=%s, user_id=%s", event_id, user_id
+                "✅ Created episodic memory document successfully: event_id=%s, user_id=%s",
+                event_id,
+                user_id,
             )
             return doc
 
         except Exception as e:
-            logger.error("❌ 创建情景记忆文档失败: event_id=%s, error=%s", event_id, e)
+            logger.error(
+                "❌ Failed to create episodic memory document: event_id=%s, error=%s",
+                event_id,
+                e,
+            )
             raise
 
-    # ==================== 搜索功能 ====================
+    # ==================== Search functionality ====================
 
     async def multi_search(
         self,
@@ -183,67 +192,67 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
         participant_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        使用 elasticsearch-dsl 的统一搜索接口，支持多词查询和全面过滤
+        Unified search interface using elasticsearch-dsl, supporting multi-word queries and comprehensive filtering
 
-        这个方法使用 elasticsearch-dsl 的 AsyncSearch 类构建查询，提供与 multi_search 相同的功能，
-        但使用更加 Pythonic 的 DSL 语法而不是直接使用原始的 client。
+        This method uses elasticsearch-dsl's AsyncSearch class to build queries, providing the same functionality as multi_search,
+        but using a more Pythonic DSL syntax instead of directly using the raw client.
 
-        使用function_score查询实现基于匹配词数的累积评分：
-        - 每匹配一个查询词，文档得分增加1.0
-        - 匹配越多词的文档排序越靠前
-        - 至少匹配一个词才会返回结果(min_score=1.0)
+        Uses function_score query to implement cumulative scoring based on number of matched terms:
+        - Each matched query term increases the document score by 1.0
+        - Documents matching more terms are ranked higher
+        - Results require at least one term match (min_score=1.0)
 
         Args:
-            query: 搜索词列表，支持多个搜索词
-            user_id: 用户ID过滤
-            group_id: 群组ID过滤
-            event_type: 事件类型过滤
-            keywords: 关键词过滤
-            date_range: 时间范围过滤，格式：{"gte": "2024-01-01", "lte": "2024-12-31"}
-            size: 结果数量
-            from_: 分页起始位置
-            explain: 是否启用得分解释模式，通过debug日志输出Elasticsearch的详细得分计算过程
+            query: List of search terms, supports multiple search terms
+            user_id: User ID filter
+            group_id: Group ID filter
+            event_type: Event type filter
+            keywords: Keywords filter
+            date_range: Time range filter, format: {"gte": "2024-01-01", "lte": "2024-12-31"}
+            size: Number of results
+            from_: Pagination starting position
+            explain: Whether to enable score explanation mode, outputs detailed Elasticsearch scoring process through debug logs
 
         Returns:
-            搜索结果的hits部分，包含匹配的文档数据
+            Hits portion of search results, containing matched document data
 
         Examples:
-            # 1. 多词搜索
+            # 1. Multi-word search
             await repo.multi_search(
-                query=["公司", "北京", "科技"],
+                query=["company", "Beijing", "technology"],
                 user_id="user123",
                 size=10
             )
 
-            # 2. 按时间范围获取用户记忆
+            # 2. Retrieve user memories by time range
             await repo.multi_search(
-                query=[],  # 空查询词
+                query=[],  # Empty query terms
                 user_id="user123",
                 date_range={"gte": "2024-01-01", "lte": "2024-12-31"},
                 size=100
             )
 
-            # 3. 组合查询
+            # 3. Combined query
             await repo.multi_search(
-                query=["会议", "讨论"],
+                query=["meeting", "discussion"],
                 user_id="user123",
                 group_id="group456",
                 event_type="Conversation",
-                keywords=["工作", "项目"],
+                keywords=["work", "project"],
                 date_range={"gte": "2024-01-01"}
             )
         """
         try:
-            # 创建 AsyncSearch 对象
+            # Create AsyncSearch object
             search = EpisodicMemoryDoc.search()
 
-            # 构建过滤条件
+            # Build filter conditions
             filter_queries = []
-            
+
             if user_id and user_id != "":
                 filter_queries.append(Q("term", user_id=user_id))
             elif user_id is None or user_id == "":
-                # 只保留 user_id 不存在的文档(群组记忆)
+                # Only keep documents where user_id does not exist (group memories)
                 filter_queries.append(Q("bool", must_not=Q("exists", field="user_id")))
             if group_id and group_id != "":
                 filter_queries.append(Q("term", group_id=group_id))
@@ -258,24 +267,24 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
             if date_range:
                 filter_queries.append(Q("range", timestamp=date_range))
 
-            # 根据是否有查询词使用不同的查询模板
+            # Use different query templates based on whether there are query terms
             if query:
-                # ========== 有查询词的情况：使用bool查询的should子句 ==========
+                # ========== Case with query terms: use should clauses in bool query ==========
                 #
-                # 查询结构：
+                # Query structure:
                 # bool {
-                #   must: [硬性过滤条件 (user_id, group_id, type, keywords, date_range)]
-                #   should: [top10查询词匹配条件]
+                #   must: [Hard filtering conditions (user_id, group_id, type, keywords, date_range)]
+                #   should: [Top 10 query term matching conditions]
                 #   minimum_should_match: 1
                 # }
                 #
-                # 评分规则：
-                # 1. 按智能分数倒序排列查询词，保留分数最高的10个词
-                # 2. should子句中每个查询词使用boost设置权重（智能文本分数）
-                # 3. minimum_should_match=1 确保至少匹配1个词才返回结果
-                # 4. 最终得分 = 匹配词的BM25得分 * boost权重总和
+                # Scoring rules:
+                # 1. Sort query terms by intelligent score, keep top 10 highest scoring terms
+                # 2. Each query term in should clause uses boost to set weight (intelligent text score)
+                # 3. minimum_should_match=1 ensures at least one term must match to return result
+                # 4. Final score = sum of (BM25 score * boost weight) for matched terms
 
-                # 按智能分数过滤查询词，保留分数最高的10个词
+                # Filter query terms by intelligent score, keep top 10 highest scoring terms
                 query_with_scores = [
                     (word, self._calculate_text_score(word)) for word in query
                 ]
@@ -283,91 +292,93 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
                     query_with_scores, key=lambda x: x[1], reverse=True
                 )[:10]
 
-                # 构建should子句，每个查询词使用智能文本分数作为boost权重
+                # Build should clauses, each query term uses intelligent text score as boost weight
                 should_queries = []
                 for word, word_score in sorted_query_with_scores:
                     should_queries.append(
                         Q(
                             "match",
-                            search_content={  # 使用主字段（standard analyzer，会分词）
+                            search_content={  # Use main field (standard analyzer, will tokenize)
                                 "query": word,
                                 "boost": word_score,
                             },
                         )
                     )
 
-                # 构建bool查询
+                # Build bool query
                 bool_query_params = {
                     "should": should_queries,
-                    "minimum_should_match": 1,  # 至少匹配1个词
+                    "minimum_should_match": 1,  # At least one term must match
                 }
 
-                # 如果有过滤条件，添加到must子句
+                # If there are filter conditions, add to must clause
                 if filter_queries:
                     bool_query_params["must"] = filter_queries
 
-                # 使用 bool 查询
+                # Use bool query
                 search = search.query(Q("bool", **bool_query_params))
             else:
-                # ========== 没有查询词的情况：纯过滤查询 ==========
+                # ========== Case without query terms: pure filtering query ==========
                 #
-                # 查询结构：
-                # bool { filter: [过滤条件] } 或 match_all {}
+                # Query structure:
+                # bool { filter: [Filter conditions] } or match_all {}
                 #
-                # 特点：
-                # 1. 不计算相关性得分，性能更好
-                # 2. 按timestamp倒序排列
-                # 3. 适用于：根据时间范围获取用户记忆等场景
+                # Characteristics:
+                # 1. No relevance scoring calculated, better performance
+                # 2. Sorted by timestamp in descending order
+                # 3. Suitable for scenarios like retrieving user memories by time range
 
                 if filter_queries:
                     search = search.query(Q("bool", filter=filter_queries))
                 else:
                     search = search.query(Q("match_all"))
 
-                # 没有查询词时按时间倒序排列
+                # Sort by timestamp descending when no query terms
                 search = search.sort({"timestamp": {"order": "desc"}})
 
-            # 设置分页参数
+            # Set pagination parameters
             search = search[from_ : from_ + size]
 
-            # 限制返回字段，排除keywords、linked_entities、extend字段
+            # Limit returned fields, exclude keywords, linked_entities, extend fields
             # search = search.source(excludes=['keywords', 'linked_entities', 'extend', 'timestamp'])
-            # 打印search query
+            # Print search query
             logger.debug("search query: %s", search.to_dict())
 
-            # 执行搜索
+            # Execute search
             if explain and query:
-                # explain模式：使用原生客户端执行带explain参数的搜索
+                # explain mode: use native client to execute search with explain parameter
                 client = await self.get_client()
                 index_name = self.get_index_name()
 
                 search_body = search.to_dict()
                 search_response = await client.search(
-                    index=index_name, body=search_body, explain=True  # 添加explain参数
+                    index=index_name,
+                    body=search_body,
+                    explain=True,  # Add explain parameter
                 )
 
-                # 转换为标准格式并输出explanation
+                # Convert to standard format and output explanation
                 hits = []
                 for hit_data in search_response["hits"]["hits"]:
                     # dict_keys(['_shard', '_node', '_index', '_id', '_score', '_source', '_explanation'])
                     hits.append(hit_data)
 
-                    # 输出explanation信息
+                    # Output explanation information
                     if "_explanation" in hit_data:
                         explanation = hit_data["_explanation"]
                         self._log_explanation_details(explanation, indent=2)
 
                 logger.debug(
-                    "✅ 情景记忆DSL多词搜索成功(explain模式): query=%s, user_id=%s, 找到 %d 条结果",
+                    "✅ Episodic memory DSL multi-word search succeeded (explain mode): query=%s, user_id=%s, found %d results",
                     search.to_dict(),
                     user_id,
                     len(hits),
                 )
             else:
-                # 正常模式：使用elasticsearch-dsl
+                # Normal mode: use elasticsearch-dsl
                 response = await search.execute()
 
-                # 转换为标准格式
+                # Convert to standard format
                 hits = []
                 for hit in response.hits:
                     hit_data = {
@@ -379,18 +390,18 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
                     hits.append(hit_data)
 
                 logger.debug(
-                    "✅ 情景记忆DSL多词搜索成功: query=%s, user_id=%s, 找到 %d 条结果",
+                    "✅ Episodic memory DSL multi-word search succeeded: query=%s, user_id=%s, found %d results",
                     search.to_dict(),
                     user_id,
                     len(hits),
                 )
 
-            # 只返回hits部分，保持与multi_search方法一致的返回格式
+            # Return only hits portion, maintain consistent return format with multi_search method
             return hits
 
         except (ConnectionError, TimeoutError, ValueError) as e:
             logger.error(
-                "❌ 情景记忆DSL多词搜索失败: query=%s, user_id=%s, error=%s",
+                "❌ Episodic memory DSL multi-word search failed: query=%s, user_id=%s, error=%s",
                 query,
                 user_id,
                 e,
@@ -398,7 +409,7 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
             raise
         except Exception as e:
             logger.error(
-                "❌ 情景记忆DSL多词搜索失败（未知错误）: query=%s, user_id=%s, error=%s",
+                "❌ Episodic memory DSL multi-word search failed (unknown error): query=%s, user_id=%s, error=%s",
                 query,
                 user_id,
                 e,
@@ -427,18 +438,18 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
         updated_at: Optional[datetime] = None,
     ) -> EpisodicMemoryDoc:
         """
-        追加情景记忆文档
+        Append episodic memory document
 
-        这是一个便捷方法，结合了文档创建和索引刷新。
-        适用于需要立即搜索新创建文档的场景。
+        This is a convenience method that combines document creation and index refresh.
+        Suitable for scenarios where newly created documents need to be searchable immediately.
 
         Args:
-            同 append_episodic_memory 方法
+            Same as append_episodic_memory method
 
         Returns:
-            已保存的EpisodicMemoryDoc实例
+            Saved EpisodicMemoryDoc instance
         """
-        # 创建并保存文档
+        # Create and save document
         doc = await self.create_and_save_episodic_memory(
             event_id=event_id,
             user_id=user_id,
@@ -461,35 +472,41 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
         )
         return doc
 
-    # ==================== 删除功能 ====================
+    # ==================== Deletion functionality ====================
 
     async def delete_by_event_id(self, event_id: str, refresh: bool = False) -> bool:
         """
-        根据event_id删除情景记忆文档
+        Delete episodic memory document by event_id
 
         Args:
-            event_id: 事件唯一标识
-            refresh: 是否立即刷新索引
+            event_id: Unique event identifier
+            refresh: Whether to refresh index immediately
 
         Returns:
-            删除成功返回 True，否则返回 False
+            Returns True if deletion succeeds, otherwise False
         """
         try:
-            # 使用基类的delete_by_id方法，因为我们设置文档ID为event_id
+            # Use base class delete_by_id method, since we set document ID as event_id
             result = await self.delete_by_id(event_id, refresh=refresh)
 
             if result:
-                logger.debug("✅ 根据event_id删除情景记忆成功: event_id=%s", event_id)
+                logger.debug(
+                    "✅ Deleted episodic memory by event_id successfully: event_id=%s",
+                    event_id,
+                )
             else:
                 logger.warning(
-                    "⚠️ 根据event_id删除情景记忆失败，文档不存在: event_id=%s", event_id
+                    "⚠️ Failed to delete episodic memory by event_id, document does not exist: event_id=%s",
+                    event_id,
                 )
 
             return result
 
         except Exception as e:
             logger.error(
-                "❌ 根据event_id删除情景记忆失败: event_id=%s, error=%s", event_id, e
+                "❌ Failed to delete episodic memory by event_id: event_id=%s, error=%s",
+                event_id,
+                e,
             )
             raise
 
@@ -501,31 +518,31 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
         refresh: bool = False,
     ) -> int:
         """
-        根据过滤条件批量删除情景记忆文档
+        Batch delete episodic memory documents by filter conditions
 
         Args:
-            user_id: 用户ID过滤
-            group_id: 群组ID过滤
-            date_range: 时间范围过滤，格式：{"gte": "2024-01-01", "lte": "2024-12-31"}
-            refresh: 是否立即刷新索引
+            user_id: User ID filter
+            group_id: Group ID filter
+            date_range: Time range filter, format: {"gte": "2024-01-01", "lte": "2024-12-31"}
+            refresh: Whether to refresh index immediately
 
         Returns:
-            删除的文档数量
+            Number of deleted documents
 
         Examples:
-            # 1. 删除特定用户的所有记忆
+            # 1. Delete all memories for a specific user
             await repo.delete_by_filters(user_id="user123")
 
-            # 2. 删除特定用户在特定时间范围内的记忆
+            # 2. Delete memories for a specific user within a specific time range
             await repo.delete_by_filters(
                 user_id="user123",
                 date_range={"gte": "2024-01-01", "lte": "2024-12-31"}
             )
 
-            # 3. 删除特定群组的所有记忆
+            # 3. Delete all memories for a specific group
             await repo.delete_by_filters(group_id="group456")
 
-            # 4. 组合条件删除
+            # 4. Delete with combined conditions
             await repo.delete_by_filters(
                 user_id="user123",
                 group_id="group456",
@@ -533,28 +550,30 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
             )
         """
         try:
-            # 构建过滤条件
+            # Build filter conditions
             filter_queries = []
-            if user_id is not None:  # 使用 is not None 而不是 truthy 检查，支持空字符串
-                if user_id:  # 非空字符串：个人记忆
+            if (
+                user_id is not None
+            ):  # Use is not None instead of truthy check, supports empty string
+                if user_id:  # Non-empty string: personal memories
                     filter_queries.append({"term": {"user_id": user_id}})
-                else:  # 空字符串：群组记忆
+                else:  # Empty string: group memories
                     filter_queries.append({"term": {"user_id": ""}})
             if group_id:
                 filter_queries.append({"term": {"group_id": group_id}})
             if date_range:
                 filter_queries.append({"range": {"timestamp": date_range}})
 
-            # 至少需要一个过滤条件，防止误删除所有数据
+            # At least one filter condition is required to prevent accidental deletion of all data
             if not filter_queries:
                 raise ValueError(
-                    "至少需要提供一个过滤条件（user_id、group_id或date_range）"
+                    "At least one filter condition (user_id, group_id or date_range) must be provided"
                 )
 
-            # 构建删除查询
+            # Build delete query
             delete_query = {"bool": {"must": filter_queries}}
 
-            # 执行批量删除
+            # Execute batch deletion
             client = await self.get_client()
             index_name = self.get_index_name()
 
@@ -565,7 +584,7 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
             deleted_count = response.get('deleted', 0)
 
             logger.debug(
-                "✅ 根据过滤条件批量删除情景记忆成功: user_id=%s, group_id=%s, 删除了 %d 条记录",
+                "✅ Batch deleted episodic memory by filter conditions successfully: user_id=%s, group_id=%s, deleted %d records",
                 user_id,
                 group_id,
                 deleted_count,
@@ -574,18 +593,18 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
             return deleted_count
 
         except ValueError as e:
-            logger.error("❌ 删除参数错误: %s", e)
+            logger.error("❌ Deletion parameter error: %s", e)
             raise
         except Exception as e:
             logger.error(
-                "❌ 根据过滤条件批量删除情景记忆失败: user_id=%s, group_id=%s, error=%s",
+                "❌ Failed to batch delete episodic memory by filter conditions: user_id=%s, group_id=%s, error=%s",
                 user_id,
                 group_id,
                 e,
             )
             raise
 
-    # ==================== 专用查询方法 ====================
+    # ==================== Specialized query methods ====================
 
     async def get_by_user_and_timerange(
         self,
@@ -597,17 +616,17 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
         explain: bool = False,
     ) -> Dict[str, Any]:
         """
-        根据用户ID和时间范围获取记忆
+        Retrieve memories by user ID and time range
 
         Args:
-            user_id: 用户ID
-            start_time: 开始时间
-            end_time: 结束时间
-            size: 结果数量
-            from_: 分页起始位置
+            user_id: User ID
+            start_time: Start time
+            end_time: End time
+            size: Number of results
+            from_: Pagination starting position
 
         Returns:
-            搜索结果
+            Search results
         """
         date_range = {}
         if start_time:
@@ -616,7 +635,7 @@ class EpisodicMemoryEsRepository(BaseRepository[EpisodicMemoryDoc]):
             date_range["lte"] = end_time.isoformat()
 
         return await self.multi_search(
-            query=[],  # 空查询词，纯过滤
+            query=[],  # Empty query terms, pure filtering
             user_id=user_id,
             date_range=date_range if date_range else None,
             size=size,

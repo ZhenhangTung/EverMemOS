@@ -1,5 +1,5 @@
 """
-Tracing 模块
+Tracing module
 
-提供请求追踪和日志记录功能
+Provides request tracing and logging functionality
 """

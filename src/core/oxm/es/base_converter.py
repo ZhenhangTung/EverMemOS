@@ -1,8 +1,8 @@
 """
-Elasticsearch 文档转换器基类
+Elasticsearch document converter base class
 
-提供任意数据源到Elasticsearch文档的转换基础功能。
-所有ES文档转换器都应该继承这个基类以获得统一的转换接口。
+Provides basic functionality for converting data from arbitrary sources to Elasticsearch documents.
+All ES document converters should inherit from this base class to obtain a unified conversion interface.
 """
 
 from abc import ABC, abstractmethod
@@ -12,33 +12,33 @@ from core.observation.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 泛型类型变量 - 只限制ES文档类型
+# Generic type variable - only constrains ES document type
 EsDocType = TypeVar('EsDocType', bound=DocBase)
 
 
 class BaseEsConverter(ABC, Generic[EsDocType]):
     """
-    Elasticsearch 文档转换器基类
+    Elasticsearch document converter base class
 
-    提供任意数据源到Elasticsearch文档的转换基础功能。
-    所有ES文档转换器都应该继承这个类。
+    Provides basic functionality for converting data from arbitrary sources to Elasticsearch documents.
+    All ES document converters should inherit from this class.
 
-    特性：
-    - 统一的转换接口（类方法）
-    - 类型安全的ES文档泛型支持
-    - 自动从泛型获取ES文档类型
-    - 灵活的数据源支持
+    Features:
+    - Unified conversion interface (class methods)
+    - Type-safe generic support for ES documents
+    - Automatically retrieves ES document type from generics
+    - Flexible data source support
     """
 
     @classmethod
     def get_es_model(cls) -> Type[EsDocType]:
         """
-        从泛型信息中获取ES文档模型类型
+        Get the ES document model type from generic information
 
         Returns:
-            Type[EsDocType]: ES文档模型类
+            Type[EsDocType]: ES document model class
         """
-        # 获取类的泛型基类
+        # Get the generic base class of the current class
         if hasattr(cls, '__orig_bases__'):
             for base in cls.__orig_bases__:
                 if get_origin(base) is BaseEsConverter:
@@ -46,23 +46,25 @@ class BaseEsConverter(ABC, Generic[EsDocType]):
                     if args:
                         return args[0]
 
-        raise ValueError(f"无法从 {cls.__name__} 的泛型信息中获取ES文档类型")
+        raise ValueError(
+            f"Cannot obtain ES document type from generic information of {cls.__name__}"
+        )
 
     @classmethod
     @abstractmethod
     def from_mongo(cls, source_doc: Any) -> EsDocType:
         """
-        从数据源转换为Elasticsearch文档
+        Convert from source data to Elasticsearch document
 
-        这是核心转换方法，子类必须实现具体的转换逻辑。
+        This is the core conversion method; subclasses must implement specific conversion logic.
 
         Args:
-            source_doc: 源数据（可以是任意类型）
+            source_doc: Source data (can be of any type)
 
         Returns:
-            EsDocType: Elasticsearch文档实例
+            EsDocType: Elasticsearch document instance
 
         Raises:
-            Exception: 当转换过程中发生错误时抛出异常
+            Exception: When an error occurs during conversion
         """
-        raise NotImplementedError("子类必须实现from_mongo方法")
+        raise NotImplementedError("Subclasses must implement the from_mongo method")

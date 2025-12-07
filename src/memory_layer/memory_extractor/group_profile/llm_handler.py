@@ -11,15 +11,15 @@ logger = get_logger(__name__)
 
 
 class GroupProfileLLMHandler:
-    """LLM交互处理器 - 负责prompt构建、调用、解析"""
+    """LLM interaction processor - responsible for prompt construction, invocation, and response parsing"""
 
     def __init__(self, llm_provider, max_topics: int):
         """
-        初始化LLM处理器
+        Initialize LLM processor
 
         Args:
-            llm_provider: LLM提供者实例
-            max_topics: 最大话题数量
+            llm_provider: LLM provider instance
+            max_topics: Maximum number of topics
         """
         self.llm_provider = llm_provider
         self.max_topics = max_topics
@@ -35,27 +35,27 @@ class GroupProfileLLMHandler:
         timespan: str,
     ) -> Optional[Dict]:
         """
-        执行并行LLM分析，返回解析后的结果
+        Execute parallel LLM analysis and return parsed results
 
-        封装了：
-        - 构建prompts
-        - 并行调用LLM
-        - 解析响应
-        - 合并结果
+        Encapsulates:
+        - Building prompts
+        - Parallel LLM invocation
+        - Response parsing
+        - Result merging
 
         Args:
-            conversation_text: 对话文本
-            group_id: 群组ID
-            group_name: 群组名称
-            memcell_list: memcell列表
-            existing_profile: 历史画像数据
-            user_organization: 用户组织信息
-            timespan: 时间跨度
+            conversation_text: Conversation text
+            group_id: Group ID
+            group_name: Group name
+            memcell_list: List of memcells
+            existing_profile: Historical profile data
+            user_organization: User organization information
+            timespan: Time span
 
         Returns:
-            解析后的结果字典，包含 topics, roles, summary, subject
+            Parsed result dictionary containing topics, roles, summary, subject
         """
-        # 提取历史数据
+        # Extract historical data
         existing_topics = existing_profile.get("topics", []) if existing_profile else []
         existing_summary = (
             existing_profile.get("summary", "") if existing_profile else ""
@@ -65,7 +65,7 @@ class GroupProfileLLMHandler:
         )
         existing_roles = existing_profile.get("roles", {}) if existing_profile else {}
 
-        # 构建prompts
+        # Build prompts
         content_prompt = self.build_content_analysis_prompt(
             conversation_text,
             group_id,
@@ -84,7 +84,7 @@ class GroupProfileLLMHandler:
             user_organization,
         )
 
-        # 并行执行
+        # Parallel execution
         logger.info(f"[LLMHandler] Executing parallel analysis for group: {group_name}")
         content_task = self._execute_with_retry(
             "Content Analysis",
@@ -132,10 +132,10 @@ class GroupProfileLLMHandler:
 
         Only passes topics-related info to LLM, excluding evidences (but keeping confidence).
         """
-        # 使用动态语言提示词导入（根据 MEMORY_LANGUAGE 环境变量自动选择）
+        # Use dynamic language prompt import (automatically selected based on MEMORY_LANGUAGE environment variable)
         from ...prompts import CONTENT_ANALYSIS_PROMPT
 
-        # 构建给 LLM 的 existing_profile，只包含需要的字段，不包含 evidences
+        # Build existing_profile for LLM, including only required fields, excluding evidences
         existing_profile_for_llm = {
             "topics": (
                 [
@@ -151,7 +151,7 @@ class GroupProfileLLMHandler:
                             if hasattr(t, 'confidence')
                             else t.get("confidence", "strong")
                         ),
-                        # 不包含 evidences 字段
+                        # Exclude evidences field
                     }
                     for t in existing_topics
                 ]
@@ -187,10 +187,10 @@ class GroupProfileLLMHandler:
 
         Only passes roles info to LLM, excluding evidences (but keeping confidence).
         """
-        # 使用动态语言提示词导入（根据 MEMORY_LANGUAGE 环境变量自动选择）
+        # Use dynamic language prompt import (automatically selected based on MEMORY_LANGUAGE environment variable)
         from ...prompts import BEHAVIOR_ANALYSIS_PROMPT
 
-        # 构建给 LLM 的 existing_profile，只包含 roles，不包含 evidences
+        # Build existing_profile for LLM, including only roles, excluding evidences
         existing_profile_for_llm = {
             "roles": (
                 {
@@ -199,7 +199,7 @@ class GroupProfileLLMHandler:
                             "user_id": a.get("user_id"),
                             "user_name": a.get("user_name"),
                             "confidence": a.get("confidence", "strong"),
-                            # 不包含 evidences 字段
+                            # Exclude evidences field
                         }
                         for a in assignments
                     ]
@@ -212,8 +212,8 @@ class GroupProfileLLMHandler:
 
         existing_profile_json = json.dumps(existing_profile_for_llm, ensure_ascii=False)
 
-        # Build speaker info (需要 data_processor 的帮助，这里从 conversation_text 提取)
-        # 提取当前对话中的 speakers
+        # Build speaker info (requires help from data_processor, extract from conversation_text here)
+        # Extract current speakers from conversation
         current_speakers = set()
         for line in conversation_text.split('\n'):
             match = re.search(r'\(user_id:([^)]+)\):', line)
@@ -221,7 +221,7 @@ class GroupProfileLLMHandler:
                 speaker_id = match.group(1).strip()
                 current_speakers.add(speaker_id)
 
-        # 从历史 roles 中提取所有已知 speakers
+        # Extract all known speakers from historical roles
         all_available_speakers = current_speakers.copy()
         for role_assignments in existing_roles.values():
             for assignment in role_assignments:
@@ -251,7 +251,7 @@ class GroupProfileLLMHandler:
         )
         speaker_info = f"\n{speaker_info_title}\n"
 
-        # 尝试从 memcell 中提取 speaker 名称
+        # Try to extract speaker names from memcells
         speaker_names = {}
         for memcell in memcell_list:
             if hasattr(memcell, 'original_data') and memcell.original_data:

@@ -1,8 +1,8 @@
 """
-租户配置模块
+Tenant configuration module
 
-本模块提供租户相关的配置管理，包括非租户模式开关等配置项。
-配置项从环境变量加载，并支持缓存以提升性能。
+This module provides tenant-related configuration management, including configuration options such as the non-tenant mode switch.
+Configuration items are loaded from environment variables and support caching to improve performance.
 """
 
 import os
@@ -16,143 +16,154 @@ logger = get_logger(__name__)
 
 class TenantConfig:
     """
-    租户配置类
+    Tenant configuration class
 
-    此类负责管理租户相关的配置项，包括：
-    - 非租户模式开关：用于控制是否启用租户化功能
-    - 单租户ID：用于激活单租户模式的租户标识
-    - 其他租户相关的配置项
+    This class manages tenant-related configuration options, including:
+    - Non-tenant mode switch: controls whether tenant functionality is enabled
+    - Single tenant ID: tenant identifier used to activate single-tenant mode
+    - Other tenant-related configuration options
 
-    配置项从环境变量中加载，并提供缓存机制以提升性能。
+    Configuration items are loaded from environment variables and provide a caching mechanism to improve performance.
     """
 
     def __init__(self):
-        """初始化租户配置"""
+        """Initialize tenant configuration"""
         self._non_tenant_mode: Optional[bool] = None
         self._single_tenant_id: Optional[str] = None
-        self._app_ready: bool = False  # 应用启动完成状态，用于严格租户检查
+        self._app_ready: bool = (
+            False  # Application startup completion status, used for strict tenant checks
+        )
 
     @property
     def non_tenant_mode(self) -> bool:
         """
-        获取非租户模式开关
+        Get the non-tenant mode switch
 
-        从环境变量 TENANT_NON_TENANT_MODE 读取配置：
-        - "true", "1", "yes", "on" (不区分大小写) -> True
-        - 其他值或未设置 -> False (默认启用租户模式)
+        Read configuration from environment variable TENANT_NON_TENANT_MODE:
+        - "true", "1", "yes", "on" (case-insensitive) -> True
+        - Other values or unset -> False (tenant mode enabled by default)
 
         Returns:
-            bool: True 表示禁用租户模式，False 表示启用租户模式
+            bool: True means tenant mode is disabled, False means tenant mode is enabled
         """
         if self._non_tenant_mode is None:
             env_value = os.getenv("TENANT_NON_TENANT_MODE", "false").lower()
             self._non_tenant_mode = env_value in ("true", "1", "yes", "on")
 
             if self._non_tenant_mode:
-                logger.info("🔧 租户模式已禁用（NON_TENANT_MODE=true），将使用传统模式")
+                logger.info(
+                    "🔧 Tenant mode disabled (NON_TENANT_MODE=true), traditional mode will be used"
+                )
             else:
-                logger.info("✅ 租户模式已启用（NON_TENANT_MODE=false）")
+                logger.info("✅ Tenant mode enabled (NON_TENANT_MODE=false)")
 
         return self._non_tenant_mode
 
     @property
     def single_tenant_id(self) -> Optional[str]:
         """
-        获取单租户ID配置
+        Get single tenant ID configuration
 
-        从环境变量 TENANT_SINGLE_TENANT_ID 读取配置。
-        当设置了此环境变量时，系统将自动激活该租户ID的租户逻辑。
-        适用于单租户部署场景。
+        Read configuration from environment variable TENANT_SINGLE_TENANT_ID.
+        When this environment variable is set, the system will automatically activate tenant logic for this tenant ID.
+        Suitable for single-tenant deployment scenarios.
 
         Returns:
-            单租户ID，如果未设置则返回 None
+            Single tenant ID, returns None if not set
 
         Examples:
             >>> config = get_tenant_config()
             >>> tenant_id = config.single_tenant_id
             >>> if tenant_id:
-            ...     print(f"单租户模式，租户ID: {tenant_id}")
+            ...     print(f"Single tenant mode, tenant ID: {tenant_id}")
         """
         if self._single_tenant_id is None:
             self._single_tenant_id = os.getenv("TENANT_SINGLE_TENANT_ID", "").strip()
-            # 如果为空字符串，设置为 None
+            # If empty string, set to None
             if not self._single_tenant_id:
                 self._single_tenant_id = None
             else:
-                logger.info("🏢 单租户模式已激活，租户ID: %s", self._single_tenant_id)
+                logger.info(
+                    "🏢 Single tenant mode activated, tenant ID: %s",
+                    self._single_tenant_id,
+                )
 
         return self._single_tenant_id
 
     @property
     def app_ready(self) -> bool:
         """
-        获取应用启动完成状态
+        Get application startup completion status
 
-        此状态用于严格租户检查模式：
-        - False: 应用启动中，允许无租户上下文的操作（使用 fallback）
-        - True: 应用已就绪，租户模式下必须有租户上下文，否则直接报错
+        This status is used for strict tenant checking mode:
+        - False: Application is starting, operations without tenant context are allowed (using fallback)
+        - True: Application is ready, tenant context is required in tenant mode, otherwise raise error directly
 
-        这是一个兜底机制，用于在生产环境中捕获遗漏租户上下文的代码错误。
+        This is a fallback mechanism used in production environments to catch code errors that miss tenant context.
 
         Returns:
-            bool: True 表示应用已就绪，False 表示应用启动中
+            bool: True means application is ready, False means application is starting
         """
         return self._app_ready
 
     def mark_app_ready(self) -> None:
         """
-        标记应用启动完成
+        Mark application startup as complete
 
-        此方法应在所有 lifespan providers 启动完成后调用。
-        调用后，租户模式下如果缺少租户上下文将直接报错，而不是走 fallback 逻辑。
+        This method should be called after all lifespan providers have started.
+        After calling, missing tenant context in tenant mode will raise error directly instead of using fallback logic.
 
-        注意：此方法只能设置一次，重复调用会记录警告日志。
+        Note: This method can only be set once; repeated calls will log a warning.
         """
         if self._app_ready:
-            logger.warning("⚠️ 应用已处于就绪状态，重复调用 mark_app_ready()")
+            logger.warning(
+                "⚠️ Application is already ready, mark_app_ready() called repeatedly"
+            )
             return
 
         self._app_ready = True
-        logger.info("✅ 应用启动完成，租户严格检查模式已开启")
+        logger.info(
+            "✅ Application startup completed, tenant strict check mode enabled"
+        )
 
     def reload(self):
         """
-        重新加载配置
+        Reload configuration
 
-        清除缓存的配置项，强制从环境变量重新读取。
-        通常在测试或配置变更后使用。
+        Clear cached configuration items and force re-read from environment variables.
+        Typically used after testing or configuration changes.
 
-        注意：reload 不会重置 app_ready 状态，因为它反映的是运行时状态而非配置。
+        Note: reload does not reset the app_ready state, as it reflects runtime status rather than configuration.
         """
         self._non_tenant_mode = None
         self._single_tenant_id = None
-        logger.info("🔄 租户配置已重新加载")
+        logger.info("🔄 Tenant configuration reloaded")
 
     def reset_app_ready(self) -> None:
         """
-        重置应用就绪状态（仅用于测试）
+        Reset application ready state (for testing only)
 
-        警告：此方法仅应在测试场景中使用，生产环境中不应调用。
+        Warning: This method should only be used in testing scenarios and should not be called in production.
         """
         self._app_ready = False
-        logger.warning("⚠️ 应用就绪状态已重置（仅用于测试）")
+        logger.warning("⚠️ Application ready state has been reset (for testing only)")
 
 
 @lru_cache(maxsize=1)
 def get_tenant_config() -> TenantConfig:
     """
-    获取租户配置单例
+    Get tenant configuration singleton
 
-    使用 lru_cache 确保在整个应用生命周期中只创建一个配置实例。
+    Uses lru_cache to ensure only one configuration instance is created during the application lifecycle.
 
     Returns:
-        TenantConfig: 租户配置对象
+        TenantConfig: Tenant configuration object
 
     Examples:
         >>> config = get_tenant_config()
         >>> if config.non_tenant_mode:
-        ...     print("非租户模式")
+        ...     print("Non-tenant mode")
         ... else:
-        ...     print("租户模式")
+        ...     print("Tenant mode")
     """
     return TenantConfig()

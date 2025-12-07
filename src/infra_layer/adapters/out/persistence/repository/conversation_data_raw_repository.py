@@ -1,7 +1,7 @@
 """
-ConversationDataRepository 接口与实现
+ConversationDataRepository interface and implementation
 
-基于Redis缓存的对话数据访问实现，使用Redis长度限制缓存管理器存储RawData对象
+Redis-based cached conversation data access implementation using Redis length-limited cache manager to store RawData objects
 """
 
 from abc import ABC, abstractmethod
@@ -17,17 +17,17 @@ from core.tenants.tenantize.kv.redis.tenant_key_utils import patch_redis_tenant_
 logger = get_logger(__name__)
 
 
-# ==================== 接口定义 ====================
+# ==================== Interface Definition ====================
 
 
 class ConversationDataRepository(ABC):
-    """对话数据访问接口"""
+    """Conversation data access interface"""
 
     @abstractmethod
     async def save_conversation_data(
         self, raw_data_list: List[RawData], group_id: str
     ) -> bool:
-        """保存对话数据"""
+        """Save conversation data"""
         pass
 
     @abstractmethod
@@ -38,51 +38,51 @@ class ConversationDataRepository(ABC):
         end_time: Optional[str] = None,
         limit: int = 100,
     ) -> List[RawData]:
-        """获取对话数据"""
+        """Get conversation data"""
         pass
 
     @abstractmethod
     async def delete_conversation_data(self, group_id: str) -> bool:
         """
-        删除指定群组的所有对话数据
+        Delete all conversation data for the specified group
 
         Args:
-            group_id: 群组ID
+            group_id: Group ID
 
         Returns:
-            bool: 删除成功返回True，失败返回False
+            bool: Return True if deletion succeeds, False otherwise
         """
         pass
 
 
-# ==================== 实现 ====================
+# ==================== Implementation ====================
 
 
 @repository("conversation_data_repo", primary=True)
 class ConversationDataRepositoryImpl(ConversationDataRepository):
     """
-    ConversationDataRepository 真实数据库实现
+    Real database implementation of ConversationDataRepository
 
-    基于Redis长度限制缓存管理器的对话数据访问实现，将RawData对象直接存储到Redis中
+    Conversation data access implementation based on Redis length-limited cache manager, directly storing RawData objects into Redis
     """
 
     def __init__(self):
-        """初始化Repository"""
-        # 获取Redis长度限制缓存管理器工厂
+        """Initialize Repository"""
+        # Get Redis length-limited cache manager factory
         self._cache_factory = get_bean("redis_length_cache_factory")
         self._cache_manager = None
 
     async def _get_cache_manager(self):
-        """获取缓存管理器实例"""
+        """Get cache manager instance"""
         if self._cache_manager is None:
-            # 创建缓存管理器：最大长度1000，过期时间60分钟，清理概率0.1
+            # Create cache manager: max length 1000, expiration 60 minutes, cleanup probability 0.1
             self._cache_manager = await self._cache_factory.create_cache_manager(
                 max_length=1000, expire_minutes=60, cleanup_probability=0.1
             )
         return self._cache_manager
 
     def _get_redis_key(self, group_id: str) -> str:
-        """生成带租户前缀的Redis键名"""
+        """Generate Redis key name with tenant prefix"""
         raw_key = f"conversation_data:{group_id}"
         return patch_redis_tenant_key(raw_key)
 
@@ -90,23 +90,23 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
         self, raw_data_list: List[RawData], group_id: str
     ) -> bool:
         """
-        保存对话数据到Redis缓存
+        Save conversation data to Redis cache
 
-        将RawData对象直接序列化并存储到Redis长度限制队列中
+        Directly serialize and store RawData objects into Redis length-limited queue
 
         Args:
-            raw_data_list: RawData列表
-            group_id: 群组ID
+            raw_data_list: List of RawData
+            group_id: Group ID
 
         Returns:
-            bool: 保存成功返回True，失败返回False
+            bool: Return True if save succeeds, False otherwise
         """
         if not raw_data_list:
-            logger.info("没有对话数据需要保存: group_id=%s", group_id)
+            logger.info("No conversation data to save: group_id=%s", group_id)
             return True
 
         logger.info(
-            "开始保存对话数据到Redis: group_id=%s, 数量=%d",
+            "Starting to save conversation data to Redis: group_id=%s, count=%d",
             group_id,
             len(raw_data_list),
         )
@@ -118,44 +118,46 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
 
             for raw_data in raw_data_list:
                 try:
-                    # 从RawData中提取时间戳
+                    # Extract timestamp from RawData
                     timestamp = None
                     if raw_data.content:
                         timestamp = raw_data.content.get(
                             'timestamp'
                         ) or raw_data.content.get('createTime')
 
-                    # 确保时间戳是datetime对象
+                    # Ensure timestamp is a datetime object
                     if timestamp:
                         timestamp = _normalize_datetime_for_storage(timestamp)
                     else:
                         timestamp = get_now_with_timezone()
 
-                    # 使用Redis长度限制缓存管理器追加数据
-                    # 直接将RawData对象传入，缓存管理器会处理序列化
+                    # Use Redis length-limited cache manager to append data
+                    # Directly pass RawData object; cache manager handles serialization
                     success = await cache_manager.append(
                         redis_key,
-                        raw_data.to_json(),  # 存储序列化的JSON字符串
+                        raw_data.to_json(),  # Store serialized JSON string
                         timestamp=timestamp,
                     )
 
                     if success:
                         saved_count += 1
                         logger.debug(
-                            "保存RawData到Redis成功: data_id=%s", raw_data.data_id
+                            "Successfully saved RawData to Redis: data_id=%s",
+                            raw_data.data_id,
                         )
                     else:
                         logger.error(
-                            "保存RawData到Redis失败: data_id=%s", raw_data.data_id
+                            "Failed to save RawData to Redis: data_id=%s",
+                            raw_data.data_id,
                         )
 
                 except (ValueError, TypeError, AttributeError) as e:
-                    logger.error("处理单条RawData失败: %s", e)
-                    # 继续处理下一条数据，不中断整个流程
+                    logger.error("Failed to process single RawData: %s", e)
+                    # Continue to next data item, do not interrupt entire process
                     continue
 
             logger.info(
-                "对话数据保存到Redis完成: group_id=%s, 成功保存=%d/%d",
+                "Completed saving conversation data to Redis: group_id=%s, successfully saved=%d/%d",
                 group_id,
                 saved_count,
                 len(raw_data_list),
@@ -169,7 +171,11 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
             ValueError,
             TypeError,
         ) as e:
-            logger.error("保存对话数据到Redis失败: group_id=%s, 错误=%s", group_id, e)
+            logger.error(
+                "Failed to save conversation data to Redis: group_id=%s, error=%s",
+                group_id,
+                e,
+            )
             return False
 
     async def get_conversation_data(
@@ -180,21 +186,21 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
         limit: int = 100,
     ) -> List[RawData]:
         """
-        从Redis缓存获取对话数据
+        Retrieve conversation data from Redis cache
 
-        从Redis长度限制队列中读取JSON数据并反序列化为RawData对象
+        Read JSON data from Redis length-limited queue and deserialize into RawData objects
 
         Args:
-            group_id: 群组ID
-            start_time: 开始时间（ISO格式字符串）
-            end_time: 结束时间（ISO格式字符串）
-            limit: 限制返回数量
+            group_id: Group ID
+            start_time: Start time (ISO format string)
+            end_time: End time (ISO format string)
+            limit: Limit number of returned items
 
         Returns:
-            List[RawData]: 对话数据列表
+            List[RawData]: List of conversation data
         """
         logger.info(
-            "开始从Redis获取对话数据: group_id=%s, start_time=%s, end_time=%s, limit=%d",
+            "Starting to retrieve conversation data from Redis: group_id=%s, start_time=%s, end_time=%s, limit=%d",
             group_id,
             start_time,
             end_time,
@@ -207,15 +213,15 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
             cache_manager = await self._get_cache_manager()
             redis_key = self._get_redis_key(group_id)
 
-            # 转换时间格式为datetime对象
+            # Convert time format to datetime object
             start_dt = (
                 _normalize_datetime_for_storage(start_time) if start_time else None
             )
             end_dt = _normalize_datetime_for_storage(end_time) if end_time else None
 
-            # 使用缓存管理器的按时间戳范围获取方法
+            # Use cache manager's method to get data by timestamp range
             try:
-                # 使用缓存管理器的新方法获取指定时间范围内的数据
+                # Use new method of cache manager to get data within specified time range
                 cache_data_list = await cache_manager.get_by_timestamp_range(
                     redis_key,
                     start_timestamp=start_dt,
@@ -223,39 +229,46 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
                     limit=limit,
                 )
 
-                logger.debug("从Redis按时间范围获取到 %d 条消息", len(cache_data_list))
+                logger.debug(
+                    "Retrieved %d messages from Redis by time range",
+                    len(cache_data_list),
+                )
 
-                # 按时间戳升序排序，越早的越靠前
+                # Sort by timestamp in ascending order, earlier ones come first
                 cache_data_list = sorted(
                     cache_data_list, key=lambda x: x.get("timestamp", 0)
                 )
-                # 反序列化消息为RawData对象
+                # Deserialize messages into RawData objects
                 for cache_data in cache_data_list:
                     try:
-                        # 从缓存数据中提取JSON字符串
+                        # Extract JSON string from cache data
                         json_data = cache_data.get("data")
                         if json_data is None:
-                            logger.warning("缓存数据中缺少data字段: %s", cache_data)
+                            logger.warning(
+                                "Missing 'data' field in cache data: %s", cache_data
+                            )
                             continue
 
-                        # 如果数据已经是字符串，直接使用；否则转换为字符串
+                        # Use directly if data is already string; otherwise convert to string
                         if isinstance(json_data, dict):
-                            # 如果是字典，说明缓存管理器已经解析了JSON，需要重新序列化
+                            # If it's a dictionary, cache manager has already parsed JSON, need to re-serialize
                             import json
 
                             json_str = json.dumps(json_data, ensure_ascii=False)
                         else:
                             json_str = str(json_data)
 
-                        # 反序列化RawData对象
+                        # Deserialize RawData object
                         raw_data = RawData.from_json_str(json_str)
                         raw_data_list.append(raw_data)
 
                     except (ValueError, TypeError, AttributeError) as e:
-                        logger.error("反序列化RawData失败: %s", e)
+                        logger.error("Failed to deserialize RawData: %s", e)
                         continue
 
-                logger.debug("成功反序列化 %d 条RawData对象", len(raw_data_list))
+                logger.debug(
+                    "Successfully deserialized %d RawData objects", len(raw_data_list)
+                )
 
             except (
                 RuntimeError,
@@ -264,11 +277,11 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
                 ValueError,
                 TypeError,
             ) as e:
-                logger.error("从Redis获取数据时出错: %s", e)
+                logger.error("Error occurred while retrieving data from Redis: %s", e)
                 return []
 
             logger.info(
-                "从Redis获取对话数据完成: group_id=%s, 返回%d条数据",
+                "Completed retrieving conversation data from Redis: group_id=%s, returned %d items",
                 group_id,
                 len(raw_data_list),
             )
@@ -281,34 +294,43 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
             ValueError,
             TypeError,
         ) as e:
-            logger.error("从Redis获取对话数据失败: group_id=%s, 错误=%s", group_id, e)
+            logger.error(
+                "Failed to retrieve conversation data from Redis: group_id=%s, error=%s",
+                group_id,
+                e,
+            )
             return []
 
     async def delete_conversation_data(self, group_id: str) -> bool:
         """
-        删除指定群组的所有对话数据
+        Delete all conversation data for the specified group
 
-        清空Redis中该群组的所有缓存消息，通常用于边界判断后重置对话历史
+        Clear all cached messages for this group in Redis, typically used to reset conversation history after boundary checks
 
         Args:
-            group_id: 群组ID
+            group_id: Group ID
 
         Returns:
-            bool: 删除成功返回True，失败返回False
+            bool: Return True if deletion succeeds, False otherwise
         """
-        logger.info("开始删除对话数据: group_id=%s", group_id)
+        logger.info("Starting to delete conversation data: group_id=%s", group_id)
 
         try:
             cache_manager = await self._get_cache_manager()
             redis_key = self._get_redis_key(group_id)
 
-            # 使用缓存管理器删除整个键
+            # Use cache manager to delete entire key
             success = await cache_manager.clear_queue(redis_key)
 
             if success:
-                logger.info("成功删除对话数据: group_id=%s", group_id)
+                logger.info(
+                    "Successfully deleted conversation data: group_id=%s", group_id
+                )
             else:
-                logger.warning("删除对话数据失败或键不存在: group_id=%s", group_id)
+                logger.warning(
+                    "Failed to delete conversation data or key does not exist: group_id=%s",
+                    group_id,
+                )
 
             return success
 
@@ -319,5 +341,7 @@ class ConversationDataRepositoryImpl(ConversationDataRepository):
             ValueError,
             TypeError,
         ) as e:
-            logger.error("删除对话数据失败: group_id=%s, 错误=%s", group_id, e)
+            logger.error(
+                "Failed to delete conversation data: group_id=%s, error=%s", group_id, e
+            )
             return False

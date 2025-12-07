@@ -15,15 +15,15 @@ logger = get_logger(__name__)
 @repository("behavior_history_raw_repository", primary=True)
 class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
     """
-    行为历史原始数据仓库
+    Behavior history raw data repository
 
-    提供用户行为历史数据的CRUD操作和查询功能。
+    Provides CRUD operations and query capabilities for user behavior history data.
     """
 
     def __init__(self):
         super().__init__(BehaviorHistory)
 
-    # ==================== 基础CRUD操作 ====================
+    # ==================== Basic CRUD Operations ====================
 
     async def get_by_user_id(
         self,
@@ -31,7 +31,7 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
         limit: int = 100,
         session: Optional[AsyncClientSession] = None,
     ) -> List[BehaviorHistory]:
-        """根据用户ID获取行为历史列表"""
+        """Get behavior history list by user ID"""
         try:
             results = (
                 await self.model.find({"user_id": user_id}, session=session)
@@ -40,11 +40,13 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
                 .to_list()
             )
             logger.debug(
-                "✅ 根据用户ID获取行为历史成功: %s, count=%d", user_id, len(results)
+                "✅ Successfully retrieved behavior history by user ID: %s, count=%d",
+                user_id,
+                len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据用户ID获取行为历史失败: %s", e)
+            logger.error("❌ Failed to retrieve behavior history by user ID: %s", e)
             return []
 
     async def get_by_time_range(
@@ -55,7 +57,7 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
         limit: int = 100,
         session: Optional[AsyncClientSession] = None,
     ) -> List[BehaviorHistory]:
-        """根据时间范围获取行为历史列表"""
+        """Get behavior history list by time range"""
         try:
             query = {"timestamp": {"$gte": start_timestamp, "$lte": end_timestamp}}
             if user_id:
@@ -68,14 +70,14 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
                 .to_list()
             )
             logger.debug(
-                "✅ 根据时间范围获取行为历史成功: start=%d, end=%d, count=%d",
+                "✅ Successfully retrieved behavior history by time range: start=%d, end=%d, count=%d",
                 start_timestamp,
                 end_timestamp,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据时间范围获取行为历史失败: %s", e)
+            logger.error("❌ Failed to retrieve behavior history by time range: %s", e)
             return []
 
     async def append_behavior(
@@ -83,30 +85,30 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
         behavior_history: BehaviorHistory,
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[BehaviorHistory]:
-        """追加新的行为历史"""
+        """Append new behavior history"""
         try:
             await behavior_history.insert(session=session)
             logger.debug(
-                "✅ 追加行为历史成功: user_id=%s, timestamp=%s",
+                "✅ Successfully appended behavior history: user_id=%s, timestamp=%s",
                 behavior_history.user_id,
                 behavior_history.timestamp,
             )
             return behavior_history
         except Exception as e:
-            logger.error("❌ 追加行为历史失败: %s", e)
+            logger.error("❌ Failed to append behavior history: %s", e)
             return None
 
     async def delete_by_user_and_timestamp(
         self, user_id: str, timestamp: int, session: Optional[AsyncClientSession] = None
     ) -> bool:
-        """根据用户ID和时间戳删除行为历史"""
+        """Delete behavior history by user ID and timestamp"""
         try:
             result = await self.model.find_one(
                 {"user_id": user_id, "timestamp": timestamp}, session=session
             )
             if not result:
                 logger.warning(
-                    "⚠️  未找到要删除的行为历史: user_id=%s, timestamp=%d",
+                    "⚠️  Behavior history not found for deletion: user_id=%s, timestamp=%d",
                     user_id,
                     timestamp,
                 )
@@ -114,14 +116,18 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
 
             await result.delete(session=session)
             logger.info(
-                "✅ 根据用户ID和时间戳删除行为历史成功: %s, %d", user_id, timestamp
+                "✅ Successfully deleted behavior history by user ID and timestamp: %s, %d",
+                user_id,
+                timestamp,
             )
             return True
         except Exception as e:
-            logger.error("❌ 根据用户ID和时间戳删除行为历史失败: %s", e)
+            logger.error(
+                "❌ Failed to delete behavior history by user ID and timestamp: %s", e
+            )
             return False
 
-    # ==================== 批量操作 ====================
+    # ==================== Batch Operations ====================
 
     async def get_recent_behaviors(
         self,
@@ -130,7 +136,7 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
         limit: int = 100,
         session: Optional[AsyncClientSession] = None,
     ) -> List[BehaviorHistory]:
-        """获取用户最近N小时的行为历史"""
+        """Get user's behavior history from the recent N hours"""
         try:
             current_timestamp = int(datetime.now().timestamp())
             start_timestamp = current_timestamp - (hours * 3600)
@@ -145,30 +151,32 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
                 .to_list()
             )
             logger.debug(
-                "✅ 获取用户最近行为历史成功: user_id=%s, hours=%d, count=%d",
+                "✅ Successfully retrieved recent behavior history: user_id=%s, hours=%d, count=%d",
                 user_id,
                 hours,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 获取用户最近行为历史失败: %s", e)
+            logger.error("❌ Failed to retrieve recent behavior history: %s", e)
             return []
 
-    # ==================== 统计方法 ====================
+    # ==================== Statistics Methods ====================
 
     async def count_by_user(
         self, user_id: str, session: Optional[AsyncClientSession] = None
     ) -> int:
-        """统计用户的行为历史数量"""
+        """Count the number of behavior history records for a user"""
         try:
             count = await self.model.find({"user_id": user_id}, session=session).count()
             logger.debug(
-                "✅ 统计用户行为历史数量成功: user_id=%s, count=%d", user_id, count
+                "✅ Successfully counted behavior history for user: user_id=%s, count=%d",
+                user_id,
+                count,
             )
             return count
         except Exception as e:
-            logger.error("❌ 统计用户行为历史数量失败: %s", e)
+            logger.error("❌ Failed to count behavior history for user: %s", e)
             return 0
 
     async def count_by_time_range(
@@ -178,7 +186,7 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
         user_id: Optional[str] = None,
         session: Optional[AsyncClientSession] = None,
     ) -> int:
-        """统计时间范围内的行为历史数量"""
+        """Count the number of behavior history records within a time range"""
         try:
             query = {"timestamp": {"$gte": start_timestamp, "$lte": end_timestamp}}
             if user_id:
@@ -186,12 +194,12 @@ class BehaviorHistoryRawRepository(BaseRepository[BehaviorHistory]):
 
             count = await self.model.find(query, session=session).count()
             logger.debug(
-                "✅ 统计时间范围内行为历史数量成功: start=%d, end=%d, count=%d",
+                "✅ Successfully counted behavior history within time range: start=%d, end=%d, count=%d",
                 start_timestamp,
                 end_timestamp,
                 count,
             )
             return count
         except Exception as e:
-            logger.error("❌ 统计时间范围内行为历史数量失败: %s", e)
+            logger.error("❌ Failed to count behavior history within time range: %s", e)
             return 0

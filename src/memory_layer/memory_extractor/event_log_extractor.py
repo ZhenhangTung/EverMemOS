@@ -11,10 +11,10 @@ from datetime import datetime
 import json
 import re
 
-# 使用动态语言提示词导入（根据 MEMORY_LANGUAGE 环境变量自动选择）
+# Import dynamic language prompts (automatically selected based on MEMORY_LANGUAGE environment variable)
 from ..prompts import EVENT_LOG_PROMPT
 
-# 评估专用提示词
+# Evaluation-specific prompts
 from ..prompts.eval.event_log_prompts import EVENT_LOG_PROMPT as EVAL_EVENT_LOG_PROMPT
 
 from ..llm.llm_provider import LLMProvider
@@ -30,9 +30,12 @@ class EventLog:
     """
     Event log data structure containing time and atomic facts.
     """
-    time: str  # 事件发生时间，格式如 "March 10, 2024(Sunday) at 2:00 PM"
-    atomic_fact: List[str]  # 原子事实列表，每个事实是一个完整的句子
-    fact_embeddings: List[List[float]] = None  # 每个 atomic_fact 对应的 embedding
+
+    time: str  # Event occurrence time, format like "March 10, 2024(Sunday) at 2:00 PM"
+    atomic_fact: List[str]  # List of atomic facts, each fact is a complete sentence
+    fact_embeddings: List[List[float]] = (
+        None  # Embedding corresponding to each atomic_fact
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert EventLog to dictionary format."""
@@ -45,9 +48,9 @@ class EventLog:
     def from_dict(cls, data: Dict[str, Any]) -> "EventLog":
         """Create EventLog from dictionary."""
         return cls(
-            time=data.get("time", ""), 
+            time=data.get("time", ""),
             atomic_fact=data.get("atomic_fact", []),
-            fact_embeddings=data.get("fact_embeddings")
+            fact_embeddings=data.get("fact_embeddings"),
         )
 
 
@@ -70,8 +73,8 @@ class EventLogExtractor:
         """
         self.llm_provider = llm_provider
         self.use_eval_prompts = use_eval_prompts
-        
-        # 根据 use_eval_prompts 选择对应的提示词
+
+        # Select corresponding prompt based on use_eval_prompts
         if self.use_eval_prompts:
             self.event_log_prompt = EVAL_EVENT_LOG_PROMPT
         else:
@@ -79,14 +82,14 @@ class EventLogExtractor:
 
     def _parse_timestamp(self, timestamp) -> datetime:
         """
-        解析时间戳为 datetime 对象
-        支持多种格式：数字时间戳、ISO格式字符串、datetime对象等
+        Parse timestamp into datetime object
+        Supports multiple formats: numeric timestamp, ISO string, datetime object, etc.
 
         Args:
-            timestamp: 时间戳，可以是多种格式
+            timestamp: Timestamp, can be in multiple formats
 
         Returns:
-            datetime: 解析后的datetime对象
+            datetime: Parsed datetime object
         """
         if isinstance(timestamp, datetime):
             return timestamp
@@ -97,25 +100,25 @@ class EventLogExtractor:
                 if timestamp.isdigit():
                     return datetime.fromtimestamp(int(timestamp))
                 else:
-                    # 尝试解析ISO格式
+                    # Try parsing ISO format
                     return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
             except (ValueError, AttributeError):
-                logger.error(f"解析时间戳失败: {timestamp}")
+                logger.error(f"Failed to parse timestamp: {timestamp}")
                 return get_now_with_timezone()
         else:
-            logger.error(f"未知时间戳格式: {timestamp}")
+            logger.error(f"Unknown timestamp format: {timestamp}")
             return get_now_with_timezone()
 
     def _format_timestamp(self, dt: datetime) -> str:
         """
-        格式化 datetime 为事件日志所需的字符串格式
-        格式: "March 10, 2024(Sunday) at 2:00 PM"
+        Format datetime into required string format for event logs
+        Format: "March 10, 2024(Sunday) at 2:00 PM"
 
         Args:
-            dt: datetime对象
+            dt: datetime object
 
         Returns:
-            str: 格式化后的时间字符串
+            str: Formatted time string
         """
         weekday = dt.strftime("%A")  # Monday, Tuesday, etc.
         month_day_year = dt.strftime("%B %d, %Y")  # March 10, 2024
@@ -124,19 +127,19 @@ class EventLogExtractor:
 
     def _parse_llm_response(self, response: str) -> Dict[str, Any]:
         """
-        解析LLM返回的JSON响应
-        支持多种格式：纯JSON、JSON代码块等
+        Parse JSON response returned by LLM
+        Supports multiple formats: plain JSON, JSON code block, etc.
 
         Args:
-            response: LLM的原始响应
+            response: Raw response from LLM
 
         Returns:
-            Dict: 解析后的JSON对象
+            Dict: Parsed JSON object
 
         Raises:
-            ValueError: 如果无法解析响应
+            ValueError: If response cannot be parsed
         """
-        # 1. 尝试提取代码块中的JSON
+        # 1. Try extracting JSON from code block
         if '```json' in response:
             start = response.find('```json') + 7
             end = response.find('```', start)
@@ -147,10 +150,10 @@ class EventLogExtractor:
                 except json.JSONDecodeError:
                     pass
 
-        # 2. 尝试提取任何代码块
+        # 2. Try extracting from any code block
         if '```' in response:
             start = response.find('```') + 3
-            # 跳过语言标识符（如果有）
+            # Skip language identifier (if any)
             if response[start : start + 10].strip().split()[0].isalpha():
                 start = response.find('\n', start) + 1
             end = response.find('```', start)
@@ -161,7 +164,7 @@ class EventLogExtractor:
                 except json.JSONDecodeError:
                     pass
 
-        # 3. 尝试提取包含event_log的JSON对象
+        # 3. Try extracting JSON object containing event_log
         json_match = re.search(
             r'\{[^{}]*"event_log"[^{}]*\{[^{}]*"time"[^{}]*"atomic_fact"[^{}]*\}[^{}]*\}',
             response,
@@ -173,122 +176,125 @@ class EventLogExtractor:
             except json.JSONDecodeError:
                 pass
 
-        # 4. 尝试直接解析整个响应
+        # 4. Try parsing entire response directly
         try:
             return json.loads(response.strip())
         except json.JSONDecodeError:
             pass
 
-        # 5. 如果都失败了，抛出异常
-        logger.error(f"无法解析LLM响应: {response[:200]}...")
-        raise ValueError(f"无法解析LLM响应为有效的JSON格式")
+        # 5. If all fail, raise exception
+        logger.error(f"Unable to parse LLM response: {response[:200]}...")
+        raise ValueError(f"Unable to parse LLM response into valid JSON format")
 
     async def _extract_event_log(
         self, episode_text: str, timestamp: Any
     ) -> Optional[EventLog]:
         """
-        从episode memory提取event log
-        
+        Extract event log from episode memory
+
         Args:
-            episode_text: episode memory的文本内容
-            timestamp: episode的时间戳（可以是多种格式）
-        
+            episode_text: Text content of episode memory
+            timestamp: Timestamp of episode (can be in multiple formats)
+
         Returns:
-            EventLog: 提取的事件日志，如果提取失败则返回None
+            EventLog: Extracted event log, return None if extraction fails
         """
 
-        # 1. 解析并格式化时间戳
+        # 1. Parse and format timestamp
         dt = self._parse_timestamp(timestamp)
         time_str = self._format_timestamp(dt)
 
-        # 2. 构建prompt（使用实例变量 self.event_log_prompt）
+        # 2. Build prompt (using instance variable self.event_log_prompt)
         prompt = self.event_log_prompt.replace("{{EPISODE_TEXT}}", episode_text)
         prompt = prompt.replace("{{TIME}}", time_str)
 
-        # 3. 调用LLM生成event log
+        # 3. Call LLM to generate event log
         response = await self.llm_provider.generate(prompt)
 
-        # 4. 解析LLM响应
+        # 4. Parse LLM response
         data = self._parse_llm_response(response)
 
-        # 5. 验证响应格式
+        # 5. Validate response format
         if "event_log" not in data:
-            raise ValueError(f"LLM响应中缺少'event_log'字段")
+            raise ValueError(f"Missing 'event_log' field in LLM response")
 
         event_log_data = data["event_log"]
 
-        # 验证必需字段：time 和 atomic_fact 必须存在
+        # Validate required fields: time and atomic_fact must exist
         if "time" not in event_log_data or not event_log_data["time"]:
-            raise ValueError("event_log中缺少time字段")
+            raise ValueError("Missing time field in event_log")
         if "atomic_fact" not in event_log_data:
-            raise ValueError("event_log中缺少atomic_fact字段")
+            raise ValueError("Missing atomic_fact field in event_log")
 
-        # 验证atomic_fact是列表
+        # Validate atomic_fact is a list
         if not isinstance(event_log_data["atomic_fact"], list):
-            raise ValueError(f"atomic_fact不是列表: {type(event_log_data['atomic_fact'])}")
-        
-        # 验证atomic_fact不为空
-        if len(event_log_data["atomic_fact"]) == 0:
-            raise ValueError("atomic_fact列表为空")
+            raise ValueError(
+                f"atomic_fact is not a list: {type(event_log_data['atomic_fact'])}"
+            )
 
-        # 6. 创建EventLog对象
+        # Validate atomic_fact is not empty
+        if len(event_log_data["atomic_fact"]) == 0:
+            raise ValueError("atomic_fact list is empty")
+
+        # 6. Create EventLog object
         event_log = EventLog(
-            time=event_log_data["time"], 
-            atomic_fact=event_log_data["atomic_fact"]
+            time=event_log_data["time"], atomic_fact=event_log_data["atomic_fact"]
         )
-        
-        # 7. 批量为所有 atomic_fact 生成 embedding（性能优化）
+
+        # 7. Batch generate embedding for all atomic_fact (performance optimization)
         from agentic_layer.vectorize_service import get_vectorize_service
+
         vectorize_service = get_vectorize_service()
-        
-        # 批量计算 embeddings（使用 get_embeddings，接受 List[str]）
+
+        # Batch compute embeddings (using get_embeddings, accepts List[str])
         fact_embeddings_batch = await vectorize_service.get_embeddings(
             event_log.atomic_fact
         )
-        
-        # 转换为列表格式
+
+        # Convert to list format
         fact_embeddings = [
-            emb.tolist() if hasattr(emb, 'tolist') else emb 
+            emb.tolist() if hasattr(emb, 'tolist') else emb
             for emb in fact_embeddings_batch
         ]
-        
+
         event_log.fact_embeddings = fact_embeddings
 
         logger.debug(
-            f"✅ 成功提取event log，包含 {len(event_log.atomic_fact)} 个原子事实（已生成 embedding）"
+            f"✅ Successfully extracted event log, containing {len(event_log.atomic_fact)} atomic facts (embeddings generated)"
         )
         return event_log
 
-
-    async def extract_event_log(self, episode_text: str, timestamp: Any) -> Optional[EventLog]:
+    async def extract_event_log(
+        self, episode_text: str, timestamp: Any
+    ) -> Optional[EventLog]:
         """
-        提取event log
+        Extract event log
         """
         for retry in range(5):
             try:
                 return await self._extract_event_log(episode_text, timestamp)
             except Exception as e:
-                logger.warning(f"提取event log重试 {retry+1}/5: {e}")
+                logger.warning(f"Retrying to extract event log {retry+1}/5: {e}")
                 if retry == 4:
-                    logger.error(f"提取event log失败，已重试5次")
-                    raise Exception(f"提取event log失败: {e}")
+                    logger.error(f"Failed to extract event log after 5 retries")
+                    raise Exception(f"Failed to extract event log: {e}")
                 continue
 
     async def extract_event_logs_batch(
         self, episodes: List[Dict[str, Any]]
     ) -> List[Optional[EventLog]]:
         """
-        批量提取event logs
+        Batch extract event logs
 
         Args:
-            episodes: episode列表，每个episode包含'episode'和'timestamp'字段
+            episodes: List of episodes, each episode contains 'episode' and 'timestamp' fields
 
         Returns:
-            List[Optional[EventLog]]: 提取的event log列表
+            List[Optional[EventLog]]: List of extracted event logs
         """
         import asyncio
 
-        # 并发提取所有event logs
+        # Concurrently extract all event logs
         tasks = [
             self.extract_event_log(
                 episode_text=ep.get("episode", ""), timestamp=ep.get("timestamp")
@@ -298,11 +304,11 @@ class EventLogExtractor:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # 处理异常
+        # Handle exceptions
         event_logs = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                logger.error(f"批量提取第{i}个event log时失败: {result}")
+                logger.error(f"Failed to extract {i}th event log in batch: {result}")
                 event_logs.append(None)
             else:
                 event_logs.append(result)
@@ -312,37 +318,37 @@ class EventLogExtractor:
 
 def format_event_log_for_bm25(event_log: EventLog) -> str:
     """
-    格式化event log用于BM25检索
-    只使用atomic_fact字段，将所有原子事实拼接成一个字符串
+    Format event log for BM25 retrieval
+    Use only atomic_fact field, concatenate all atomic facts into a single string
 
     Args:
-        event_log: EventLog对象
+        event_log: EventLog object
 
     Returns:
-        str: 用于BM25检索的文本
+        str: Text for BM25 retrieval
     """
     if not event_log or not event_log.atomic_fact:
         return ""
 
-    # 直接拼接所有原子事实，用空格分隔
+    # Directly concatenate all atomic facts, separated by spaces
     return " ".join(event_log.atomic_fact)
 
 
 def format_event_log_for_rerank(event_log: EventLog) -> str:
     """
-    格式化event log用于rerank
-    使用 "time" + "：" + "atomic_fact"拼接
+    Format event log for rerank
+    Use "time" + "：" + "atomic_fact" concatenation
 
     Args:
-        event_log: EventLog对象
+        event_log: EventLog object
 
     Returns:
-        str: 用于rerank的文本
+        str: Text for rerank
     """
     if not event_log:
         return ""
 
-    # 拼接时间和原子事实
+    # Concatenate time and atomic facts
     time_part = event_log.time or ""
     facts_part = " ".join(event_log.atomic_fact) if event_log.atomic_fact else ""
 

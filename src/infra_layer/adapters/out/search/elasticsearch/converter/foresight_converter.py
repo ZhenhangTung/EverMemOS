@@ -1,8 +1,8 @@
 """
-前瞻 ES 转换器
+Foresight ES Converter
 
-负责将 MongoDB 的前瞻文档转换为 Elasticsearch 的 ForesightDoc 文档。
-支持个人和群组前瞻。
+Responsible for converting MongoDB foresight documents into Elasticsearch ForesightDoc documents.
+Supports both individual and group foresights.
 """
 
 from typing import List
@@ -11,9 +11,7 @@ import jieba
 from core.oxm.es.base_converter import BaseEsConverter
 from core.observation.logger import get_logger
 from core.nlp.stopwords_utils import filter_stopwords
-from infra_layer.adapters.out.search.elasticsearch.memory.foresight import (
-    ForesightDoc,
-)
+from infra_layer.adapters.out.search.elasticsearch.memory.foresight import ForesightDoc
 from infra_layer.adapters.out.persistence.document.memory.foresight_record import (
     ForesightRecord as MongoForesightRecord,
 )
@@ -24,64 +22,70 @@ logger = get_logger(__name__)
 
 class ForesightConverter(BaseEsConverter[ForesightDoc]):
     """
-    前瞻 ES 转换器
-    
-    将 MongoDB 的前瞻文档转换为 Elasticsearch 的 ForesightDoc 文档。
-    支持个人和群组前瞻。
+    Foresight ES Converter
+
+    Converts MongoDB foresight documents into Elasticsearch ForesightDoc documents.
+    Supports both individual and group foresights.
     """
 
     @classmethod
     def from_mongo(cls, source_doc: MongoForesightRecord) -> ForesightDoc:
         """
-        从 MongoDB 前瞻文档转换为 ES ForesightDoc 文档
+        Convert from MongoDB foresight document to ES ForesightDoc document
 
         Args:
-            source_doc: MongoDB 前瞻文档实例
+            source_doc: MongoDB foresight document instance
 
         Returns:
-            ForesightDoc: ES 文档实例
+            ForesightDoc: ES document instance
         """
         if source_doc is None:
-            raise ValueError("MongoDB 文档不能为空")
+            raise ValueError("MongoDB document cannot be empty")
 
         try:
-            # 构建搜索内容列表，用于 BM25 检索
+            # Build search content list for BM25 retrieval
             search_content = cls._build_search_content(source_doc)
-            
-            # 解析时间
+
+            # Parse timestamp
             timestamp = None
             if source_doc.start_time:
                 if isinstance(source_doc.start_time, str):
-                    timestamp = datetime.fromisoformat(source_doc.start_time.replace('Z', '+00:00'))
+                    timestamp = datetime.fromisoformat(
+                        source_doc.start_time.replace('Z', '+00:00')
+                    )
                 elif isinstance(source_doc.start_time, datetime):
                     timestamp = source_doc.start_time
-            
+
             if not timestamp:
                 timestamp = source_doc.created_at or datetime.now()
-            
-            # 创建 ES 文档实例
-            # 通过 meta 参数传递 id,确保幂等性(MongoDB _id -> ES _id)
+
+            # Create ES document instance
+            # Pass id via meta parameter to ensure idempotency (MongoDB _id -> ES _id)
             es_doc = ForesightDoc(
                 meta={'id': str(source_doc.id)},
                 user_id=source_doc.user_id,
                 user_name=source_doc.user_name or "",
-                # 时间字段
+                # Timestamp field
                 timestamp=timestamp,
-                # 核心内容字段
+                # Core content fields
                 foresight=source_doc.content,
                 evidence=source_doc.evidence or "",
-                search_content=search_content,  # BM25 搜索的核心字段
-                # 分类和标签字段
+                search_content=search_content,  # Core field for BM25 search
+                # Categorization and tagging fields
                 group_id=source_doc.group_id,
                 group_name=source_doc.group_name or "",
                 participants=source_doc.participants,
-                type="Conversation",  # 事件类型
+                type="Conversation",  # Event type
                 keywords=None,
                 linked_entities=None,
-                # MongoDB 特有字段
+                # MongoDB specific fields
                 subject=source_doc.content[:100] if source_doc.content else "",
-                memcell_event_id_list=[source_doc.parent_episode_id] if source_doc.parent_episode_id else None,
-                # 扩展字段
+                memcell_event_id_list=(
+                    [source_doc.parent_episode_id]
+                    if source_doc.parent_episode_id
+                    else None
+                ),
+                # Extension fields
                 extend={
                     "parent_episode_id": source_doc.parent_episode_id,
                     "start_time": source_doc.start_time,
@@ -90,7 +94,7 @@ class ForesightConverter(BaseEsConverter[ForesightDoc]):
                     "vector_model": source_doc.vector_model,
                     **(source_doc.extend or {}),
                 },
-                # 审计字段
+                # Audit fields
                 created_at=source_doc.created_at,
                 updated_at=source_doc.updated_at,
             )
@@ -98,37 +102,38 @@ class ForesightConverter(BaseEsConverter[ForesightDoc]):
             return es_doc
 
         except Exception as e:
-            logger.error("从 MongoDB 前瞻文档转换为 ES 文档失败: %s", e)
+            logger.error(
+                "Failed to convert MongoDB foresight document to ES document: %s", e
+            )
             raise
 
     @classmethod
     def _build_search_content(cls, source_doc: MongoForesightRecord) -> List[str]:
         """
-        构建搜索内容列表
-        
-        对中文文本进行分词，并过滤停用词，生成用于 BM25 检索的关键词列表。
+        Build search content list
+
+        Perform Chinese text tokenization and filter out stop words to generate keyword list for BM25 retrieval.
         """
         search_content = []
-        
-        # 分词 content
+
+        # Tokenize content
         if source_doc.content:
             words = jieba.lcut(source_doc.content)
             words = filter_stopwords(words)
             search_content.extend(words)
-        
-        # # 分词 evidence
+
+        # # Tokenize evidence
         # if source_doc.evidence:
         #     words = jieba.lcut(source_doc.evidence)
         #     words = filter_stopwords(words)
         #     search_content.extend(words)
-        
-        # 去重并保持顺序
+
+        # Deduplicate while preserving order
         seen = set()
         unique_content = []
         for word in search_content:
             if word not in seen and word.strip():
                 seen.add(word)
                 unique_content.append(word)
-        
-        return unique_content if unique_content else [""]
 
+        return unique_content if unique_content else [""]

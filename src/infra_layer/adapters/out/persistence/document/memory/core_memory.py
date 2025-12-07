@@ -9,98 +9,105 @@ from core.oxm.mongo.audit_base import AuditBase
 
 class CoreMemory(DocumentBase, AuditBase):
     """
-    核心记忆文档模型
+    Core memory document model
 
-    统一存储用户的基础信息、个人档案和偏好设置。
-    单个文档包含所有三种记忆类型的数据。
+    Unified storage for user's basic information, personal profile, and preference settings.
+    A single document contains data of all three memory types.
     """
 
-    user_id: Indexed(str) = Field(..., description="用户ID")
+    user_id: Indexed(str) = Field(..., description="User ID")
 
-    # ==================== 版本控制字段 ====================
-    version: Optional[str] = Field(default=None, description="版本号，用于支持版本管理")
+    # ==================== Version control fields ====================
+    version: Optional[str] = Field(
+        default=None, description="Version number, used for version management"
+    )
     is_latest: Optional[bool] = Field(
-        default=True, description="是否为最新版本，默认为True"
+        default=True, description="Whether it is the latest version, default is True"
     )
 
-    # ==================== BaseMemory 字段 ====================
-    # 基础信息字段
-    user_name: Optional[str] = Field(default=None, description="用户姓名")
-    gender: Optional[str] = Field(default=None, description="性别")
-    position: Optional[str] = Field(default=None, description="职位")
-    supervisor_user_id: Optional[str] = Field(default=None, description="上级UserID")
+    # ==================== BaseMemory fields ====================
+    # Basic information fields
+    user_name: Optional[str] = Field(default=None, description="User name")
+    gender: Optional[str] = Field(default=None, description="Gender")
+    position: Optional[str] = Field(default=None, description="Position")
+    supervisor_user_id: Optional[str] = Field(
+        default=None, description="Supervisor User ID"
+    )
     team_members: Optional[List[str]] = Field(
-        default=None, description="团队成员UserID"
+        default=None, description="Team members' User IDs"
     )
-    okr: Optional[List[Dict[str, str]]] = Field(default=None, description="OKR指标")
-    base_location: Optional[str] = Field(default=None, description="base地点")
-    hiredate: Optional[str] = Field(default=None, description="入职时间")
-    age: Optional[int] = Field(default=None, description="年纪")
-    department: Optional[str] = Field(default=None, description="部门")
+    okr: Optional[List[Dict[str, str]]] = Field(default=None, description="OKR metrics")
+    base_location: Optional[str] = Field(default=None, description="Base location")
+    hiredate: Optional[str] = Field(default=None, description="Hire date")
+    age: Optional[int] = Field(default=None, description="Age")
+    department: Optional[str] = Field(default=None, description="Department")
 
-    # ==================== Profile 字段 ====================
-    # 个人档案字段 - 所有字段现在使用嵌入 evidences 的格式
-    # 技能格式: [{"value": "Python", "level": "高级", "evidences": ["2024-01-01|conv_123"]}]
-    # Legacy格式: [{"skill": "Python", "level": "高级", "evidences": ["..."]}] (自动转换)
+    # ==================== Profile fields ====================
+    # Personal profile fields - all fields now use the embedded evidences format
+    # Skill format: [{"value": "Python", "level": "Advanced", "evidences": ["2024-01-01|conv_123"]}]
+    # Legacy format: [{"skill": "Python", "level": "Advanced", "evidences": ["..."]}] (automatically converted)
     hard_skills: Optional[List[Dict[str, Any]]] = Field(
         default=None,
-        description="硬技能，SQL、Python、产品设计等，及其熟练程度，包含 evidences",
+        description="Hard skills, such as SQL, Python, product design, etc., along with proficiency levels, including evidences",
     )
     soft_skills: Optional[List[Dict[str, Any]]] = Field(
         default=None,
-        description="软技能，沟通能力、团队合作、情绪智力等，包含 evidences",
+        description="Soft skills, such as communication, teamwork, emotional intelligence, etc., including evidences",
     )
     output_reasoning: Optional[str] = Field(
-        default=None, description="当前输出结果的推理说明"
+        default=None, description="Reasoning explanation for the current output result"
     )
     motivation_system: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="激励系统，包含 value/level/evidences"
+        default=None, description="Motivation system, containing value/level/evidences"
     )
     fear_system: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="恐惧系统，包含 value/level/evidences"
+        default=None, description="Fear system, containing value/level/evidences"
     )
     value_system: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="价值体系，包含 value/level/evidences"
+        default=None, description="Value system, containing value/level/evidences"
     )
     humor_use: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="幽默使用方式，包含 value/level/evidences"
+        default=None, description="Humor usage style, containing value/level/evidences"
     )
     colloquialism: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="俗语或口头禅偏好，包含 value/level/evidences"
+        default=None,
+        description="Preferred slang or catchphrases, containing value/level/evidences",
     )
 
-    # 其他属性格式: [{"value": "xxx", "evidences": ["2024-01-01|conv_123"]}]
+    # Other attributes format: [{"value": "xxx", "evidences": ["2024-01-01|conv_123"]}]
     personality: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="用户性格，包含 evidences"
+        default=None, description="User personality, including evidences"
     )
     projects_participated: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="参与项目信息"
+        default=None, description="Information about participated projects"
     )
     user_goal: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="用户目标，包含 evidences"
+        default=None, description="User goals, including evidences"
     )
     work_responsibility: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="工作职责，包含 evidences"
+        default=None, description="Work responsibilities, including evidences"
     )
     working_habit_preference: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="工作习惯偏好，包含 evidences"
+        default=None, description="Work habit preferences, including evidences"
     )
     interests: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="兴趣爱好，包含 evidences"
+        default=None, description="Hobbies and interests, including evidences"
     )
     tendency: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="用户选择偏好，包含 evidences"
+        default=None, description="User choice preferences, including evidences"
     )
     way_of_decision_making: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="决策方式，包含 evidences"
+        default=None, description="Decision-making style, including evidences"
     )
 
     group_importance_evidence: Optional[Dict[str, Any]] = Field(
-        default=None, description="群组重要性证据"
+        default=None, description="Group importance evidence"
     )
 
-    # ==================== 通用字段 ====================
-    extend: Optional[Dict[str, Any]] = Field(default=None, description="备用拓展字段")
+    # ==================== General fields ====================
+    extend: Optional[Dict[str, Any]] = Field(
+        default=None, description="Reserved extension field"
+    )
 
     model_config = ConfigDict(
         collection="core_memories",
@@ -109,37 +116,37 @@ class CoreMemory(DocumentBase, AuditBase):
         json_schema_extra={
             "example": {
                 "user_id": "user_12345",
-                "user_name": "张三",
-                "gender": "男",
-                "position": "高级工程师",
-                "department": "技术部",
+                "user_name": "Zhang San",
+                "gender": "Male",
+                "position": "Senior Engineer",
+                "department": "Technology Department",
                 "age": 30,
-                "personality": "内向但善于沟通，喜欢深度思考",
-                "hard_skills": [{"Python": "高级"}],
-                "working_habit_preference": ["远程工作", "弹性时间"],
-                "user_goal": ["成为技术专家", "提升领导力"],
+                "personality": "Introverted but good at communication, enjoys deep thinking",
+                "hard_skills": [{"Python": "Advanced"}],
+                "working_habit_preference": ["Remote work", "Flexible hours"],
+                "user_goal": ["Become a technical expert", "Improve leadership"],
                 "extend": {"priority": "high"},
             }
         },
     )
 
     class Settings:
-        """Beanie 设置"""
+        """Beanie settings"""
 
         name = "core_memories"
         indexes = [
-            # 用户ID和版本联合唯一索引
+            # Unique compound index on user_id and version
             IndexModel(
                 [("user_id", ASCENDING), ("version", ASCENDING)],
                 unique=True,
                 name="idx_user_id_version_unique",
             ),
-            # is_latest字段索引（用于快速查询最新版本）
+            # Index on is_latest field (for fast querying of latest version)
             IndexModel(
                 [("user_id", ASCENDING), ("is_latest", ASCENDING)],
                 name="idx_user_id_is_latest",
             ),
-            # 审计字段索引
+            # Audit field indexes
             IndexModel([("created_at", DESCENDING)], name="idx_created_at"),
             IndexModel([("updated_at", DESCENDING)], name="idx_updated_at"),
         ]

@@ -1,5 +1,5 @@
 """
-Milvus 生命周期提供者实现
+Milvus lifespan provider implementation
 """
 
 from collections import defaultdict
@@ -17,15 +17,15 @@ logger = get_logger(__name__)
 
 @component(name="milvus_lifespan_provider")
 class MilvusLifespanProvider(LifespanProvider):
-    """Milvus 生命周期提供者"""
+    """Milvus lifespan provider"""
 
     def __init__(self, name: str = "milvus", order: int = 20):
         """
-        初始化 Milvus 生命周期提供者
+        Initialize Milvus lifespan provider
 
         Args:
-            name (str): 提供者名称
-            order (int): 执行顺序，Milvus 在数据库连接之后启动
+            name (str): Provider name
+            order (int): Execution order, Milvus starts after database connections
         """
         super().__init__(name, order)
         self._milvus_factory = None
@@ -33,85 +33,86 @@ class MilvusLifespanProvider(LifespanProvider):
 
     async def startup(self, app: FastAPI) -> Any:
         """
-        启动 Milvus 连接和初始化
+        Start Milvus connection and initialization
 
         Args:
-            app (FastAPI): FastAPI应用实例
+            app (FastAPI): FastAPI application instance
 
         Returns:
-            Any: Milvus 客户端信息
+            Any: Milvus client information
         """
-        logger.info("正在初始化 Milvus 连接...")
+        logger.info("Initializing Milvus connection...")
 
         try:
-            # 获取 Milvus 客户端工厂
+            # Get Milvus client factory
             self._milvus_factory = get_bean("milvus_client_factory")
 
-            # 获取所有具体的 Collection 类（通过检查 _COLLECTION_NAME 是否存在）
+            # Get all concrete Collection classes (by checking if _COLLECTION_NAME exists)
             all_collection_classes = [
                 cls
                 for cls in get_all_subclasses(MilvusCollectionBase)
-                if cls._COLLECTION_NAME is not None  # 有 _COLLECTION_NAME 的是具体类
+                if cls._COLLECTION_NAME
+                is not None  # Classes with _COLLECTION_NAME are concrete
             ]
 
-            # 按 using 分组
+            # Group by using
             using_collections = defaultdict(list)
             for collection_class in all_collection_classes:
                 using = collection_class._DB_USING
                 using_collections[using].append(collection_class)
                 logger.info(
-                    "发现 Collection 类: %s [using=%s]",
+                    "Discovered Collection class: %s [using=%s]",
                     collection_class.__name__,
                     using,
                 )
 
-            # 获取所有需要的客户端
+            # Get all required clients
             for using, collection_classes in using_collections.items():
-                # 获取客户端
+                # Get client
                 client = self._milvus_factory.get_named_client(using)
                 self._milvus_clients[using] = client
 
-                # 初始化每个 Collection
+                # Initialize each Collection
                 for collection_class in collection_classes:
                     try:
                         collection = collection_class()
                         collection.ensure_all()
                         logger.info(
-                            "✅ Collection '%s' 初始化成功 [using=%s]",
+                            "✅ Collection '%s' initialized successfully [using=%s]",
                             collection.name,
                             using,
                         )
                     except Exception as e:
                         logger.error(
-                            "❌ Collection '%s' 初始化失败 [using=%s]: %s",
+                            "❌ Failed to initialize Collection '%s' [using=%s]: %s",
                             collection_class._COLLECTION_NAME,
                             using,
                             e,
                         )
                         raise
-            logger.info("✅ Milvus 连接初始化完成")
+            logger.info("✅ Milvus connection initialization completed")
 
         except Exception as e:
-            logger.error("❌ Milvus 初始化过程中出错: %s", str(e))
+            logger.error("❌ Error during Milvus initialization: %s", str(e))
             raise
 
     async def shutdown(self, app: FastAPI) -> None:
         """
-        关闭 Milvus 连接
+        Close Milvus connections
 
         Args:
-            app (FastAPI): FastAPI应用实例
+            app (FastAPI): FastAPI application instance
         """
-        logger.info("正在关闭 Milvus 连接...")
+        logger.info("Closing Milvus connections...")
 
         if self._milvus_factory:
             try:
                 self._milvus_factory.close_all_clients()
-                logger.info("✅ Milvus 连接关闭完成")
+                logger.info("✅ Milvus connections closed successfully")
             except Exception as e:
-                logger.error("❌ 关闭 Milvus 连接时出错: %s", str(e))
+                logger.error("❌ Error while closing Milvus connections: %s", str(e))
 
-        # 清理 app.state 中的 Milvus 相关属性
+        # Clean up Milvus-related attributes in app.state
         for attr in ['milvus_clients', 'milvus_factory']:
             if hasattr(app.state, attr):
                 delattr(app.state, attr)

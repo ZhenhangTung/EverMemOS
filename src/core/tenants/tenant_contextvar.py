@@ -1,8 +1,8 @@
 """
-租户上下文管理模块
+Tenant context management module
 
-本模块提供了基于 contextvars 的租户上下文管理功能，
-用于在异步环境中安全地存储和访问当前租户信息。
+This module provides tenant context management functionality based on contextvars,
+used to safely store and access current tenant information in asynchronous environments.
 """
 
 from contextvars import ContextVar
@@ -15,8 +15,8 @@ from core.di.container import get_container
 from core.di.exceptions import BeanNotFoundError
 
 
-# 全局的租户上下文变量
-# 使用 ContextVar 确保在异步环境中每个任务都有独立的租户上下文
+# Global tenant context variable
+# Using ContextVar ensures each task has an independent tenant context in asynchronous environments
 current_tenant_contextvar: ContextVar[Optional[TenantInfo]] = ContextVar(
     'current_tenant', default=None
 )
@@ -24,13 +24,13 @@ current_tenant_contextvar: ContextVar[Optional[TenantInfo]] = ContextVar(
 
 def set_current_tenant(tenant_info: Optional[TenantInfo]) -> None:
     """
-    设置当前请求的租户信息
+    Set the tenant information for the current request
 
-    此方法将租户信息设置到当前上下文中。在异步环境下，
-    每个请求/任务都有独立的上下文，互不干扰。
+    This method sets the tenant information into the current context. In asynchronous environments,
+    each request/task has an independent context, without interference.
 
     Args:
-        tenant_info: 租户信息对象，如果为 None 则清除当前租户信息
+        tenant_info: Tenant information object, if None, clears the current tenant information
 
     Examples:
         >>> from core.tenants.tenant_models import TenantInfo, TenantDetail
@@ -46,58 +46,58 @@ def set_current_tenant(tenant_info: Optional[TenantInfo]) -> None:
 
 def get_current_tenant() -> Optional[TenantInfo]:
     """
-    获取当前请求的租户信息
+    Get the tenant information for the current request
 
-    此方法从当前上下文中获取租户信息。如果当前上下文中没有设置租户信息，
-    会尝试从租户配置中获取单租户ID，并通过租户信息提供者获取租户信息。
+    This method retrieves tenant information from the current context. If no tenant information is set in the current context,
+    it attempts to get the single tenant ID from the tenant configuration and retrieve tenant information via the tenant info provider.
 
-    获取逻辑：
-    1. 首先从 contextvar 中获取租户信息
-    2. 如果 contextvar 中没有，检查配置中是否设置了 SINGLE_TENANT_ID
-    3. 如果配置了 SINGLE_TENANT_ID，通过DI容器获取 TenantInfoProvider 并获取租户信息
+    Retrieval logic:
+    1. First, try to get tenant information from contextvar
+    2. If not in contextvar, check if SINGLE_TENANT_ID is set in the configuration
+    3. If SINGLE_TENANT_ID is configured, get TenantInfoProvider from DI container and retrieve tenant information
 
     Returns:
-        当前上下文中的租户信息，如果未设置则返回 None
+        Tenant information in the current context, returns None if not set
 
     Examples:
         >>> tenant = get_current_tenant()
         >>> if tenant:
-        ...     print(f"当前租户ID: {tenant.tenant_id}")
+        ...     print(f"Current tenant ID: {tenant.tenant_id}")
         ... else:
-        ...     print("未设置租户信息")
+        ...     print("Tenant information not set")
     """
-    # 1. 首先尝试从 contextvar 中获取
+    # 1. First try to get from contextvar
     tenant_info = current_tenant_contextvar.get()
     if tenant_info is not None:
         return tenant_info
 
-    # 2. 如果 contextvar 中没有，尝试从配置中获取 single_tenant_id
+    # 2. If not in contextvar, try to get single_tenant_id from configuration
     tenant_config = get_tenant_config()
     single_tenant_id = tenant_config.single_tenant_id
 
-    # 3. 如果配置了 single_tenant_id，通过DI容器获取 TenantInfoProvider
+    # 3. If single_tenant_id is configured, get TenantInfoProvider from DI container
     if single_tenant_id:
         try:
-            # 从DI容器获取 TenantInfoProvider 实例（会自动选择 primary 实现）
+            # Get TenantInfoProvider instance from DI container (automatically selects primary implementation)
             provider = get_container().get_bean_by_type(TenantInfoProvider)
             tenant_info = provider.get_tenant_info(single_tenant_id)
             set_current_tenant(tenant_info)
             return tenant_info
         except BeanNotFoundError:
-            # 如果DI容器中没有注册 TenantInfoProvider，返回 None
-            # 这种情况通常出现在应用启动早期或测试环境
+            # If TenantInfoProvider is not registered in DI container, return None
+            # This usually occurs during early application startup or in test environments
             return None
 
-    # 4. 如果都没有，返回 None
+    # 4. If none of the above, return None
     return None
 
 
 def clear_current_tenant() -> None:
     """
-    清除当前请求的租户信息
+    Clear the tenant information for the current request
 
-    此方法将当前上下文中的租户信息设置为 None，
-    相当于 set_current_tenant(None)。
+    This method sets the tenant information in the current context to None,
+    equivalent to set_current_tenant(None).
 
     Examples:
         >>> clear_current_tenant()
@@ -107,18 +107,18 @@ def clear_current_tenant() -> None:
 
 def get_current_tenant_id() -> Optional[str]:
     """
-    获取当前租户的 ID
+    Get the ID of the current tenant
 
-    这是一个便捷方法，直接返回当前租户的 tenant_id。
-    如果当前没有设置租户信息，则返回 None。
+    This is a convenience method that directly returns the tenant_id of the current tenant.
+    If no tenant information is currently set, returns None.
 
     Returns:
-        当前租户的 ID，如果未设置租户信息则返回 None
+        The ID of the current tenant, returns None if tenant information is not set
 
     Examples:
         >>> tenant_id = get_current_tenant_id()
         >>> if tenant_id:
-        ...     print(f"当前租户ID: {tenant_id}")
+        ...     print(f"Current tenant ID: {tenant_id}")
     """
     tenant = get_current_tenant()
     return tenant.tenant_id if tenant else None

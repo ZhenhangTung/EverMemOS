@@ -11,16 +11,16 @@ T = TypeVar('T')
 
 
 def async_wrap(func: Callable[..., T]) -> Callable[..., asyncio.Future[T]]:
-    """将同步方法包装成异步方法的装饰器
+    """Decorator that wraps a synchronous method into an asynchronous one.
 
-    注意：使用 contextvars.copy_context() 确保线程池中的线程能访问到 contextvar
-    （如租户上下文等），因为 run_in_executor 默认不会传递 asyncio Context。
+    Note: Use contextvars.copy_context() to ensure that threads in the thread pool can access contextvars
+    (such as tenant context), because run_in_executor does not pass the asyncio Context by default.
     """
 
     @wraps(func)
     async def run(*args, **kwargs) -> T:
         loop = asyncio.get_running_loop()
-        # 复制当前 context，确保线程池中能访问 contextvar
+        # Copy current context to ensure contextvars are accessible in the thread pool
         ctx = contextvars.copy_context()
         return await loop.run_in_executor(None, lambda: ctx.run(func, *args, **kwargs))
 
@@ -28,25 +28,25 @@ def async_wrap(func: Callable[..., T]) -> Callable[..., asyncio.Future[T]]:
 
 
 class AsyncCollection:
-    """异步版本的Collection类
+    """Asynchronous version of the Collection class.
 
-    这个类包装了pymilvus的Collection类，提供异步接口。
-    所有的同步操作都会在事件循环的默认执行器中执行。
+    This class wraps pymilvus's Collection class to provide asynchronous interfaces.
+    All synchronous operations are executed in the event loop's default executor.
     """
 
     def __init__(self, collection: Collection):
-        """初始化AsyncCollection
+        """Initialize AsyncCollection.
 
         Args:
-            collection: pymilvus的Collection实例
+            collection: pymilvus Collection instance
         """
         self._collection = collection
 
     def __getattr__(self, name: str) -> Any:
-        """拦截所有对原始collection的属性访问
+        """Intercept all attribute access to the original collection.
 
-        如果是方法调用，包装成异步方法
-        如果是属性访问，直接返回
+        If it's a method call, wrap it into an asynchronous method.
+        If it's an attribute access, return directly.
         """
         attr = getattr(self._collection, name)
         if callable(attr):
@@ -55,11 +55,11 @@ class AsyncCollection:
 
     @property
     def collection(self) -> Collection:
-        """返回原始的Collection实例"""
+        """Return the original Collection instance."""
         return self._collection
 
-    # 以下是一些常用方法的显式异步实现
-    # 虽然__getattr__也能处理这些方法，但显式定义可以提供更好的类型提示
+    # Explicit asynchronous implementations of some commonly used methods.
+    # Although __getattr__ can handle these methods, explicit definitions provide better type hints.
 
     async def insert(
         self,
@@ -68,7 +68,7 @@ class AsyncCollection:
         timeout: Optional[float] = None,
         **kwargs,
     ) -> MutationResult:
-        """异步插入数据"""
+        """Asynchronously insert data."""
         return await async_wrap(self._collection.insert)(
             data, partition_name, timeout, **kwargs
         )
@@ -86,7 +86,7 @@ class AsyncCollection:
         round_decimal: int = -1,
         **kwargs,
     ) -> SearchResult:
-        """异步搜索"""
+        """Asynchronously search."""
         return await async_wrap(self._collection.search)(
             data,
             anns_field,
@@ -108,7 +108,7 @@ class AsyncCollection:
         timeout: Optional[float] = None,
         **kwargs,
     ) -> List:
-        """异步查询"""
+        """Asynchronously query."""
         return await async_wrap(self._collection.query)(
             expr, output_fields, partition_names, timeout, **kwargs
         )
@@ -120,13 +120,13 @@ class AsyncCollection:
         timeout: Optional[float] = None,
         **kwargs,
     ) -> MutationResult:
-        """异步删除"""
+        """Asynchronously delete."""
         return await async_wrap(self._collection.delete)(
             expr, partition_name, timeout, **kwargs
         )
 
     async def flush(self, timeout: Optional[float] = None, **kwargs) -> None:
-        """异步刷新"""
+        """Asynchronously flush."""
         return await async_wrap(self._collection.flush)(timeout, **kwargs)
 
     async def load(
@@ -136,13 +136,13 @@ class AsyncCollection:
         timeout: Optional[float] = None,
         **kwargs,
     ) -> None:
-        """异步加载"""
+        """Asynchronously load."""
         return await async_wrap(self._collection.load)(
             partition_names, replica_number, timeout, **kwargs
         )
 
     async def release(self, timeout: Optional[float] = None, **kwargs) -> None:
-        """异步释放"""
+        """Asynchronously release."""
         return await async_wrap(self._collection.release)(timeout, **kwargs)
 
     async def compact(
@@ -151,7 +151,7 @@ class AsyncCollection:
         timeout: Optional[float] = None,
         **kwargs,
     ) -> None:
-        """异步压缩"""
+        """Asynchronously compact."""
         return await async_wrap(self._collection.compact)(
             is_clustering, timeout, **kwargs
         )
@@ -162,7 +162,7 @@ class AsyncCollection:
         is_clustering: Optional[bool] = False,
         **kwargs,
     ) -> CompactionState:
-        """异步获取压缩状态"""
+        """Asynchronously get compaction state."""
         return await async_wrap(self._collection.get_compaction_state)(
             timeout, is_clustering, **kwargs
         )
@@ -173,11 +173,11 @@ class AsyncCollection:
         is_clustering: Optional[bool] = False,
         **kwargs,
     ) -> CompactionPlans:
-        """异步获取压缩计划"""
+        """Asynchronously get compaction plans."""
         return await async_wrap(self._collection.get_compaction_plans)(
             timeout, is_clustering, **kwargs
         )
 
     async def get_replicas(self, timeout: Optional[float] = None, **kwargs) -> Replica:
-        """异步获取副本信息"""
+        """Asynchronously get replica information."""
         return await async_wrap(self._collection.get_replicas)(timeout, **kwargs)

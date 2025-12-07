@@ -1,11 +1,11 @@
 """
-LongJob 运行器 - 用于启动和管理长任务
+LongJob Runner - Used to start and manage long-running tasks
 
-提供了运行单个长任务的功能，包括：
-- 通过 DI 查找指定的长任务
-- 优雅启动和关闭
-- 基于 asyncio task cancel 机制处理关闭
-- 错误处理和日志记录
+Provides functionality to run a single long-running task, including:
+- Finding the specified long job via DI
+- Graceful startup and shutdown
+- Handling shutdown based on asyncio task cancellation mechanism
+- Error handling and logging
 """
 
 import asyncio
@@ -20,66 +20,90 @@ logger = get_logger(__name__)
 
 async def run_longjob_mode(longjob_name: str):
     """
-    运行指定的长任务模式
+    Run the specified long-running job mode
 
-    该函数会作为 asyncio Task 运行，通过 task.cancel() 来触发关闭。
-    当收到 CancelledError 时，会优雅地关闭长任务。
+    This function runs as an asyncio Task and is triggered to shut down via task.cancel().
+    When CancelledError is received, the long-running job will be gracefully shut down.
 
     Args:
-        longjob_name: 长任务名称
+        longjob_name: Name of the long-running job
     """
-    logger.info("🚀 启动 LongJob 模式: %s", longjob_name)
+    logger.info("🚀 Starting LongJob mode: %s", longjob_name)
 
     longjob_instance: Optional[LongJobInterface] = None
 
     try:
-        # 尝试从 DI 容器中获取指定的长任务
+        # Try to get the specified long-running job from the DI container
         try:
             longjob_instance = get_bean(longjob_name)
             logger.info(
-                "✅ 找到长任务: %s (%s)", longjob_name, type(longjob_instance).__name__
+                "✅ Found long-running job: %s (%s)",
+                longjob_name,
+                type(longjob_instance).__name__,
             )
         except Exception as e:
-            logger.error("❌ 无法找到长任务 '%s': %s", longjob_name, str(e))
-            logger.info("💡 请确保长任务已正确注册到 DI 容器中")
+            logger.error(
+                "❌ Unable to find long-running job '%s': %s", longjob_name, str(e)
+            )
+            logger.info(
+                "💡 Please ensure the long-running job is correctly registered in the DI container"
+            )
             return
 
-        # 检查是否是 LongJobInterface 的实现
+        # Check if it is an implementation of LongJobInterface
         if not isinstance(longjob_instance, LongJobInterface):
-            logger.error("❌ '%s' 不是 LongJobInterface 的实现", longjob_name)
-            logger.info("💡 长任务必须继承 LongJobInterface 或其子类")
+            logger.error(
+                "❌ '%s' is not an implementation of LongJobInterface", longjob_name
+            )
+            logger.info(
+                "💡 Long-running jobs must inherit from LongJobInterface or its subclasses"
+            )
             return
 
-        # 启动长任务
-        logger.info("🔄 启动长任务: %s", longjob_name)
+        # Start the long-running job
+        logger.info("🔄 Starting long-running job: %s", longjob_name)
         await longjob_instance.start()
 
-        logger.info("✅ 长任务 '%s' 已启动，正在运行...", longjob_name)
+        logger.info(
+            "✅ Long-running job '%s' has started and is running...", longjob_name
+        )
 
-        # 无限等待，直到 task 被 cancel
-        # 使用一个永不完成的 Future 来保持任务运行
+        # Wait indefinitely until the task is canceled
+        # Use an uncompleted Future to keep the task running
         await asyncio.Event().wait()
 
     except asyncio.CancelledError:
-        # 收到 task cancel 信号，开始优雅关闭
-        logger.info("🛑 收到取消信号，开始优雅关闭长任务: %s", longjob_name)
+        # Received task cancel signal, begin graceful shutdown
+        logger.info(
+            "🛑 Received cancellation signal, starting graceful shutdown of long-running job: %s",
+            longjob_name,
+        )
         if longjob_instance:
             try:
                 await longjob_instance.shutdown()
-                logger.info("✅ 长任务 '%s' 已成功关闭", longjob_name)
+                logger.info(
+                    "✅ Long-running job '%s' has been successfully shut down",
+                    longjob_name,
+                )
             except Exception as e:
-                logger.error("❌ 关闭长任务时出错: %s", str(e), exc_info=True)
-        # 重新抛出 CancelledError，让调用方知道任务已被取消
+                logger.error(
+                    "❌ Error during long-running job shutdown: %s",
+                    str(e),
+                    exc_info=True,
+                )
+        # Re-raise CancelledError so the caller knows the task was cancelled
         raise
 
     except Exception as e:
-        # 运行过程中发生异常
-        logger.error("❌ 运行长任务时出错: %s", str(e), exc_info=True)
+        # Exception occurred during execution
+        logger.error("❌ Error running long-running job: %s", str(e), exc_info=True)
         if longjob_instance:
             try:
                 await longjob_instance.shutdown()
-                logger.info("✅ 长任务已在异常后关闭")
+                logger.info("✅ Long-running job has been shut down after exception")
             except Exception as shutdown_error:
                 logger.error(
-                    "❌ 关闭长任务时出错: %s", str(shutdown_error), exc_info=True
+                    "❌ Error during long-running job shutdown: %s",
+                    str(shutdown_error),
+                    exc_info=True,
                 )

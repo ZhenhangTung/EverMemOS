@@ -1,8 +1,8 @@
 """
-授权模块
+Authorization module
 
-提供基于角色的授权系统，支持匿名、用户、管理员角色，
-以及自定义授权策略。
+Provides a role-based authorization system supporting anonymous, user, and admin roles,
+as well as custom authorization strategies.
 """
 
 from .enums import Role
@@ -22,16 +22,16 @@ from .decorators import (
 )
 
 __all__ = [
-    # 枚举
+    # Enums
     'Role',
-    # 接口
+    # Interfaces
     'AuthorizationStrategy',
     'AuthorizationContext',
-    # 策略实现
+    # Strategy implementations
     'DefaultAuthorizationStrategy',
     'RoleBasedAuthorizationStrategy',
     'CustomAuthorizationStrategy',
-    # 装饰器
+    # Decorators
     'authorize',
     'require_anonymous',
     'require_user',

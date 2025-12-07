@@ -9,21 +9,21 @@ from core.oxm.mongo.audit_base import AuditBase
 
 class ConversationStatus(DocumentBase, AuditBase):
     """
-    对话状态文档模型
+    Conversation status document model
 
-    存储对话的状态信息，包括群组ID、消息读取时间等。
+    Stores conversation status information, including group ID, message read time, etc.
     """
 
-    # 基本信息
-    group_id: str = Field(..., description="群组ID，为空表示私聊")
+    # Basic information
+    group_id: str = Field(..., description="Group ID, empty means private chat")
     old_msg_start_time: Optional[datetime] = Field(
-        default=None, description="对话窗口读取起始时间"
+        default=None, description="Conversation window read start time"
     )
     new_msg_start_time: Optional[datetime] = Field(
-        default=None, description="累积新对话读取起始时间"
+        default=None, description="Accumulated new conversation read start time"
     )
     last_memcell_time: Optional[datetime] = Field(
-        default=None, description="累积memCell读取起始时间"
+        default=None, description="Accumulated memCell read start time"
     )
 
     model_config = ConfigDict(
@@ -45,14 +45,14 @@ class ConversationStatus(DocumentBase, AuditBase):
         return self.id
 
     class Settings:
-        """Beanie 设置"""
+        """Beanie settings"""
 
         name = "conversation_status"
         indexes = [
-            # 注意：conversation_id 映射到 _id 字段，MongoDB 已自动为 _id 创建主键索引
+            # Note: conversation_id maps to the _id field, MongoDB automatically creates a primary key index on _id
             IndexModel(
                 [("group_id", ASCENDING)], name="idx_group_id", unique=True
-            ),  # group_id 必须唯一
+            ),  # group_id must be unique
             IndexModel([("created_at", DESCENDING)], name="idx_created_at"),
             IndexModel([("updated_at", DESCENDING)], name="idx_updated_at"),
         ]

@@ -24,18 +24,18 @@ logger = get_logger(__name__)
 
 
 class TaskStatus(Enum):
-    """任务状态枚举"""
+    """Task status enumeration"""
 
-    PENDING = "pending"  # 等待执行
-    RUNNING = "running"  # 正在执行
-    SUCCESS = "success"  # 执行成功
-    FAILED = "failed"  # 执行失败
-    CANCELLED = "cancelled"  # 已取消
+    PENDING = "pending"  # Pending execution
+    RUNNING = "running"  # Running
+    SUCCESS = "success"  # Execution succeeded
+    FAILED = "failed"  # Execution failed
+    CANCELLED = "cancelled"  # Cancelled
 
 
 @dataclass
 class TaskResult:
-    """任务结果"""
+    """Task result"""
 
     task_id: str
     status: TaskStatus
@@ -52,26 +52,26 @@ class TaskResult:
 
 @dataclass
 class RetryConfig:
-    """重试配置"""
+    """Retry configuration"""
 
     max_retries: int = 1
-    retry_delay: float = 1.0  # 秒
+    retry_delay: float = 1.0  # seconds
     exponential_backoff: bool = True
-    max_retry_delay: float = 60.0  # 秒
+    max_retry_delay: float = 60.0  # seconds
 
 
 @dataclass
 class TaskFunction:
-    """任务函数"""
+    """Task function"""
 
     name: str
-    coroutine: Callable  # 包装处理用户上下文后的函数
-    original_func: Callable  # 原始函数
+    coroutine: Callable  # Function wrapped with user context handling
+    original_func: Callable  # Original function
     timeout: Optional[float] = None
     retry_config: Optional[RetryConfig] = None
 
     def to_arq_function(self) -> Function:
-        """转换为arq函数"""
+        """Convert to arq function"""
         return arq_func(
             self.coroutine,
             name=self.name,
@@ -80,49 +80,49 @@ class TaskFunction:
         )
 
     def __call__(self, *args, **kwargs) -> Any:
-        """调用任务函数"""
+        """Call task function"""
         return self.original_func(*args, **kwargs)
 
 
 @component(name="task_manager")
 class TaskManager:
     """
-    异步任务管理器
+    Asynchronous task manager
 
-    基于arq框架实现的异步任务管理，提供任务添加、获取结果、删除任务等功能。
-    使用ContextManager自动注入数据库会话和用户上下文。
+    Implements asynchronous task management based on the arq framework, providing functions such as task addition, result retrieval, and task deletion.
+    Uses ContextManager to automatically inject database sessions and user context.
     """
 
     def __init__(self, context_manager: ContextManager):
-        """初始化任务管理器"""
+        """Initialize task manager"""
         self._pool: Optional[ArqRedis] = None
         self._worker: Optional[Worker] = None
         self._redis_settings = self._get_redis_settings()
         self._context_manager = context_manager
 
-        # 任务函数注册表
+        # Task function registry
         self._task_registry: Dict[str, TaskFunction] = {}
 
-        # 默认重试配置
+        # Default retry configuration
         self._default_retry_config = RetryConfig()
 
-        logger.info("任务管理器初始化完成")
+        logger.info("Task manager initialization completed")
 
     def _get_current_user_info(self) -> Optional[Dict[str, Any]]:
-        """获取当前用户信息"""
+        """Get current user information"""
         return get_current_user_info()
 
     def _get_current_user_id(self) -> Optional[int]:
-        """获取当前用户ID"""
+        """Get current user ID"""
         user_info = self._get_current_user_info()
         return user_info.get("user_id") if user_info else None
 
     def _get_redis_settings(self) -> RedisSettings:
         """
-        从环境变量获取Redis配置
+        Get Redis configuration from environment variables
 
         Returns:
-            RedisSettings: Redis连接配置
+            RedisSettings: Redis connection configuration
         """
         return RedisSettings(
             host=os.getenv("REDIS_HOST", "localhost"),
@@ -135,67 +135,65 @@ class TaskManager:
 
     async def _get_pool(self) -> ArqRedis:
         """
-        获取Redis连接池
+        Get Redis connection pool
 
         Returns:
-            ArqRedis: Redis连接池
+            ArqRedis: Redis connection pool
         """
         if self._pool is None:
             self._pool = await create_pool(self._redis_settings)
         return self._pool
 
     async def close(self) -> None:
-        """关闭连接池"""
+        """Close connection pool"""
         if self._pool is not None:
             await self._pool.close()
             self._pool = None
-        logger.info("任务管理器连接已关闭")
+        logger.info("Task manager connection closed")
 
     def register_task(self, task_function: TaskFunction) -> None:
         """
-        注册任务函数
+        Register task function
 
         Args:
-            name: 任务名称
-            func: 任务函数
-            retry_config: 重试配置（可选）
+            task_function: Task function to register
         """
         self._task_registry[task_function.name] = task_function
-        logger.info(f"已注册任务: {task_function.name}")
+        logger.info(f"Task registered: {task_function.name}")
 
     def scan_and_register_tasks(self, registry: TaskScanDirectoriesRegistry) -> None:
         """
-        扫描任务目录并自动注册任务
+        Scan task directories and automatically register tasks
 
         Args:
-            registry: 任务扫描目录注册器
+            registry: Task scan directory registry
         """
         for directory in registry.get_scan_directories():
             self._scan_directory_for_tasks(directory)
 
     def _scan_directory_for_tasks(self, directory: str) -> None:
         """
-        扫描单个目录中的任务
+        Scan a single directory for tasks
 
         Args:
-            directory: 要扫描的目录路径
+            directory: Directory path to scan
         """
         try:
-            # 转换为绝对路径
+            # Convert to absolute path
             from common_utils.project_path import src_dir
 
             relative_path = Path(directory).resolve().relative_to(src_dir)
             package_name = ".".join(relative_path.parts)
 
-            logger.info(f"扫描任务包: {package_name}")
+            logger.info(f"Scanning task package: {package_name}")
 
-            # 导入包并扫描
+            # Import package and scan
             try:
                 package = importlib.import_module(package_name)
 
-                # 扫描包中的所有模块
+                # Scan all modules in the package
                 if hasattr(package, '__path__'):
-                    # 这是一个包，递归扫描所有子模块
+                    # This is a package, recursively scan all submodules
                     for _, module_name, _ in pkgutil.walk_packages(
                         package.__path__, prefix=f"{package_name}."
                     ):
@@ -203,46 +201,50 @@ class TaskManager:
                             module = importlib.import_module(module_name)
                             self._scan_module_for_tasks(module)
                         except Exception as e:
-                            logger.error(f"导入模块失败: {module_name}, 错误: {e}")
+                            logger.error(
+                                f"Failed to import module: {module_name}, error: {e}"
+                            )
                 else:
-                    # 这是一个模块，直接扫描
+                    # This is a module, scan directly
                     self._scan_module_for_tasks(package)
 
             except Exception as e:
-                logger.error(f"导入包失败: {package_name}, 错误: {e}")
+                logger.error(f"Failed to import package: {package_name}, error: {e}")
 
         except Exception as e:
-            logger.error(f"扫描目录失败: {directory}, 错误: {e}")
+            logger.error(f"Failed to scan directory: {directory}, error: {e}")
 
     def _scan_module_for_tasks(self, module: Any) -> None:
         """
-        扫描模块中的任务函数
+        Scan module for task functions
 
         Args:
-            module: 要扫描的模块对象
+            module: Module object to scan
         """
         try:
-            # 获取模块中的所有属性
+            # Get all attributes in the module
             for attr_name in dir(module):
-                # 跳过私有属性和特殊属性
+                # Skip private and special attributes
                 if attr_name.startswith('_'):
                     continue
 
                 try:
                     attr = getattr(module, attr_name)
 
-                    # 检查是否是TaskFunction实例
+                    # Check if it's a TaskFunction instance
                     if isinstance(attr, TaskFunction):
                         self.register_task(attr)
-                        logger.info(f"在模块 {module.__name__} 中发现任务: {attr.name}")
+                        logger.info(
+                            f"Task found in module {module.__name__}: {attr.name}"
+                        )
 
                 except Exception as e:
                     logger.debug(
-                        f"获取模块属性失败: {module.__name__}.{attr_name}, 错误: {e}"
+                        f"Failed to get module attribute: {module.__name__}.{attr_name}, error: {e}"
                     )
 
         except Exception as e:
-            logger.error(f"扫描模块任务失败: {module.__name__}, 错误: {e}")
+            logger.error(f"Failed to scan module tasks: {module.__name__}, error: {e}")
 
     async def enqueue_task(
         self,
@@ -257,40 +259,40 @@ class TaskManager:
         **kwargs,
     ) -> str:
         """
-        添加任务到队列
+        Add task to queue
 
         Args:
-            task_name: 任务名称
-            *args: 任务参数
-            task_id: 任务ID（可选，不提供则自动生成）
-            delay: 延迟执行时间（秒）
-            retry_config: 重试配置（可选）
-            user_id: 用户ID（可选，不提供则从当前上下文获取）
-            user_data: 用户数据（可选，不提供则从当前上下文获取）
-            metadata: 任务元数据（可选）
-            **kwargs: 任务关键字参数
+            task_name: Task name
+            *args: Task arguments
+            task_id: Task ID (optional, auto-generated if not provided)
+            delay: Delay execution time (seconds)
+            retry_config: Retry configuration (optional)
+            user_id: User ID (optional, obtained from current context if not provided)
+            user_data: User data (optional, obtained from current context if not provided)
+            metadata: Task metadata (optional)
+            **kwargs: Task keyword arguments
 
         Returns:
-            str: 任务ID
+            str: Task ID
         """
         if isinstance(task_name, TaskFunction):
             task_name = task_name.name
         elif isinstance(task_name, str):
             pass
         else:
-            raise ValueError(f"类型错误: {type(task_name)}")
+            raise ValueError(f"Type error: {type(task_name)}")
 
-        assert task_name in self._task_registry, f"未找到任务: {task_name}"
+        assert task_name in self._task_registry, f"Task not found: {task_name}"
         task_function = self._task_registry[task_name]
         current_retry_config = (
             retry_config or task_function.retry_config or self._default_retry_config
         )
 
-        # 生成任务ID
+        # Generate task ID
         if task_id is None:
             task_id = str(uuid.uuid4())
 
-        # 获取用户上下文（如果未提供）
+        # Get user context (if not provided)
         if user_data is None:
             current_user_context = self._get_current_user_info()
             if current_user_context is not None:
@@ -299,36 +301,36 @@ class TaskManager:
                 user_data = {"user_id": user_id, "role": Role.USER}
 
         if user_data is None and user_id is None:
-            # 尝试从当前上下文获取user_id
+            # Try to get user_id from current context
             current_user_id = self._get_current_user_id()
             if current_user_id is not None:
                 user_data = {"user_id": current_user_id, "role": Role.USER}
 
-        # 🔧 获取当前的 app_info_context（包含 task_id 等）
+        # 🔧 Get current app_info_context (containing task_id, etc.)
         from core.context.context import get_current_app_info
 
         current_app_info = get_current_app_info()
 
-        # 准备任务上下文
+        # Prepare task context
         task_context = {
             "user_data": user_data,
-            "app_info": current_app_info,  # 🔧 复制 app_info_context
+            "app_info": current_app_info,  # 🔧 Copy app_info_context
             "metadata": metadata or {},
             "task_id": task_id,
             "retry_config": current_retry_config,
         }
 
-        # 获取连接池
+        # Get connection pool
         pool = await self._get_pool()
 
-        # 计算延迟时间
+        # Calculate delay time
         defer_until = None
         if delay is not None:
             from common_utils.datetime_utils import get_now_with_timezone
 
             defer_until = get_now_with_timezone() + timedelta(seconds=delay)
 
-        # 入队任务
+        # Enqueue task
         job = await pool.enqueue_job(
             task_name,
             task_context,
@@ -340,7 +342,7 @@ class TaskManager:
 
         user_id_for_log = user_data.get("user_id") if user_data else "unknown"
         logger.info(
-            f"已添加任务到队列: {task_id}, 任务名称: {task_name}, 用户: {user_id_for_log}"
+            f"Task added to queue: {task_id}, task name: {task_name}, user: {user_id_for_log}"
         )
         return task_id
 
@@ -354,70 +356,72 @@ class TaskManager:
         **kwargs,
     ) -> Any:
         """
-        在上下文中执行任务
+        Execute task within context
 
         Args:
-            task_func: 任务函数
-            context: 任务执行上下文（redis、job_id、job_try、score、enqueue_time）
-            task_context: 业务上下文（用户数据、任务ID等）
-            *args: 任务参数
-            force_new_session: 是否强制创建新会话（默认False，避免不必要的会话创建）
-            **kwargs: 任务关键字参数
+            task_func: Task function
+            context: Task execution context (redis, job_id, job_try, score, enqueue_time)
+            task_context: Business context (user data, task ID, etc.)
+            *args: Task arguments
+            force_new_session: Whether to force creation of a new session (default False, to avoid unnecessary session creation)
+            **kwargs: Task keyword arguments
 
         Returns:
-            Any: 任务执行结果
+            Any: Task execution result
         """
         user_data = task_context.get("user_data")
-        app_info = task_context.get("app_info")  # 🔧 获取保存的 app_info_context
+        app_info = task_context.get("app_info")  # 🔧 Get saved app_info_context
 
-        # 🔧 恢复 app_info_context（包含 task_id 等）
+        # 🔧 Restore app_info_context (containing task_id, etc.)
         if app_info:
             from core.context.context import set_current_app_info
 
             set_current_app_info(app_info)
-            logger.debug(f"🔧 已恢复 app_info_context: {app_info}")
+            logger.debug(f"🔧 app_info_context restored: {app_info}")
 
-        # 使用ContextManager执行任务，自动注入用户上下文和数据库会话
-        # 🔧 可配置的会话隔离：只有在明确需要时才强制创建新会话
+        # Use ContextManager to execute task, automatically injecting user context and database session
+        # 🔧 Configurable session isolation: Only force new session when explicitly needed
         result = await self._context_manager.run_with_full_context(
             task_func,
             *args,
             user_data=user_data,
             auto_inherit_user=False,
             auto_commit=True,
-            force_new_session=force_new_session,  # 🔑 关键：可配置的会话隔离
+            force_new_session=force_new_session,  # 🔑 Key: Configurable session isolation
             **kwargs,
         )
 
         task_id = task_context.get("task_id")
         user_id = user_data.get("user_id") if user_data else "unknown"
-        logger.info(f"任务执行完成（独立会话）: {task_id}, 用户: {user_id}")
+        logger.info(
+            f"Task execution completed (independent session): {task_id}, user: {user_id}"
+        )
         return result
 
     async def get_task_result(self, task_id: str) -> Optional[TaskResult]:
         """
-        获取任务结果
+        Get task result
 
         Args:
-            task_id: 任务ID
+            task_id: Task ID
 
         Returns:
-            Optional[TaskResult]: 任务结果，如果任务不存在则返回None
+            Optional[TaskResult]: Task result, returns None if task does not exist
         """
         pool = await self._get_pool()
 
         try:
             job = Job(task_id, pool)
 
-            # 获取任务信息
+            # Get task information
             info = await job.info()
             if info is None:
                 return None
 
-            # 构造任务结果
+            # Construct task result
             status = self._map_arq_status_to_task_status(info.job_status)
 
-            # 尝试从任务上下文中获取用户信息（这可能不可用，因为arq不会保存我们的自定义上下文）
+            # Try to get user information from task context (this may not be available as arq does not save our custom context)
             user_id = None
             user_context_data = None
 
@@ -437,18 +441,18 @@ class TaskManager:
             return result
 
         except Exception as e:
-            logger.error(f"获取任务结果失败: {task_id}, 错误: {str(e)}")
+            logger.error(f"Failed to get task result: {task_id}, error: {str(e)}")
             return None
 
     def _map_arq_status_to_task_status(self, arq_status: str) -> TaskStatus:
         """
-        映射arq状态到任务状态
+        Map arq status to task status
 
         Args:
-            arq_status: arq任务状态
+            arq_status: arq task status
 
         Returns:
-            TaskStatus: 任务状态
+            TaskStatus: Task status
         """
         mapping = {
             "queued": TaskStatus.PENDING,
@@ -462,44 +466,44 @@ class TaskManager:
 
     async def cancel_task(self, task_id: str) -> bool:
         """
-        取消任务
+        Cancel task
 
         Args:
-            task_id: 任务ID
+            task_id: Task ID
 
         Returns:
-            bool: 是否成功取消
+            bool: Whether cancellation was successful
         """
         pool = await self._get_pool()
 
         try:
             job = Job(task_id, pool)
             await job.abort()
-            logger.info(f"已取消任务: {task_id}")
+            logger.info(f"Task cancelled: {task_id}")
             return True
         except Exception as e:
-            logger.error(f"取消任务失败: {task_id}, 错误: {str(e)}")
+            logger.error(f"Failed to cancel task: {task_id}, error: {str(e)}")
             return False
 
     async def delete_task(self, task_id: str) -> bool:
         """
-        删除任务记录
+        Delete task record
 
         Args:
-            task_id: 任务ID
+            task_id: Task ID
 
         Returns:
-            bool: 是否成功删除
+            bool: Whether deletion was successful
         """
         pool = await self._get_pool()
 
         try:
-            # 删除任务记录
+            # Delete task record
             await pool.delete(f"arq:job:{task_id}")
-            logger.info(f"已删除任务: {task_id}")
+            logger.info(f"Task deleted: {task_id}")
             return True
         except Exception as e:
-            logger.error(f"删除任务失败: {task_id}, 错误: {str(e)}")
+            logger.error(f"Failed to delete task: {task_id}, error: {str(e)}")
             return False
 
     async def list_tasks(
@@ -509,24 +513,24 @@ class TaskManager:
         limit: int = 100,
     ) -> List[TaskResult]:
         """
-        列出任务
+        List tasks
 
-        注意：由于arq的限制，无法有效地按用户ID过滤任务。
-        这个方法会返回所有任务，然后在应用层过滤。
-        在生产环境中，建议使用专门的任务状态存储系统。
+        Note: Due to arq limitations, filtering tasks by user ID is not effective.
+        This method returns all tasks and filters at the application layer.
+        In production environments, it is recommended to use a dedicated task status storage system.
 
         Args:
-            status: 任务状态过滤（可选）
-            user_id: 用户ID过滤（可选，但由于arq限制可能无效）
-            limit: 返回数量限制
+            status: Task status filter (optional)
+            user_id: User ID filter (optional, may be ineffective due to arq limitations)
+            limit: Limit on number of returned items
 
         Returns:
-            List[TaskResult]: 任务列表
+            List[TaskResult]: List of tasks
         """
         pool = await self._get_pool()
 
         try:
-            # 获取所有任务键
+            # Get all task keys
             keys = await pool.keys("arq:job:*")
             tasks = []
 
@@ -535,11 +539,11 @@ class TaskManager:
                 task_result = await self.get_task_result(task_id)
 
                 if task_result is not None:
-                    # 应用过滤条件
+                    # Apply filter conditions
                     if status is not None and task_result.status != status:
                         continue
 
-                    # 注意：由于arq的限制，user_id过滤可能不准确
+                    # Note: Due to arq limitations, user_id filtering may not be accurate
                     if user_id is not None and task_result.user_id != user_id:
                         continue
 
@@ -548,51 +552,50 @@ class TaskManager:
             return tasks
 
         except Exception as e:
-            logger.error(f"列出任务失败: {str(e)}")
+            logger.error(f"Failed to list tasks: {str(e)}")
             return []
 
     async def get_task_count(self, status: Optional[TaskStatus] = None) -> int:
         """
-        获取任务数量
+        Get task count
 
         Args:
-            status: 任务状态过滤（可选）
+            status: Task status filter (optional)
 
         Returns:
-            int: 任务数量
+            int: Number of tasks
         """
         tasks = await self.list_tasks(status=status)
         return len(tasks)
 
     def get_worker_functions(self) -> List[Function]:
         """
-        获取worker函数映射
+        Get worker function mappings
 
         Returns:
-            Dict[str, Callable]: worker函数映射
+            Dict[str, Callable]: Worker function mappings
         """
         return [v.to_arq_function() for v in self._task_registry.values()]
 
     def list_registered_task_names(self) -> List[str]:
         """
-        获取所有已注册的任务名称
+        Get all registered task names
 
         Returns:
-            List[str]: 任务名称列表
+            List[str]: List of task names
         """
         return list(self._task_registry.keys())
 
 
 def task(retry_config: Optional[RetryConfig] = None, timeout: Optional[float] = 300):
     """
-    任务装饰器
+    Task decorator
 
     Args:
-        name: 任务名称（可选，不提供则使用函数名）
-        retry_config: 重试配置（可选）
+        retry_config: Retry configuration (optional)
 
     Returns:
-        装饰后的函数
+        Decorated function
     """
 
     if not retry_config:
@@ -607,7 +610,7 @@ def task(retry_config: Optional[RetryConfig] = None, timeout: Optional[float] = 
 
         function_name = func.__name__
 
-        # 有些属性是arq worker 框架需要的
+        # Some attributes are required by the arq worker framework
         return TaskFunction(
             name=function_name,
             coroutine=_task_wrapper,
@@ -621,10 +624,10 @@ def task(retry_config: Optional[RetryConfig] = None, timeout: Optional[float] = 
 
 def get_task_manager() -> TaskManager:
     """
-    获取任务管理器实例
+    Get task manager instance
 
     Returns:
-        TaskManager: 任务管理器实例
+        TaskManager: Task manager instance
     """
     from core.di.utils import get_bean_by_type
 

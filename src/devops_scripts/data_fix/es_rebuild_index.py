@@ -17,25 +17,34 @@ async def run(index_name: str, close_old: bool, delete_old: bool) -> None:
             index_name
         )
         logger.info(
-            "找到文档类: %s.%s", document_class.__module__, document_class.__name__
+            "Found document class: %s.%s",
+            document_class.__module__,
+            document_class.__name__,
         )
-        logger.info("索引别名: %s", document_class.get_index_name())
+        logger.info("Index alias: %s", document_class.get_index_name())
 
         await rebuild_index(document_class, close_old=close_old, delete_old=delete_old)
     except Exception as exc:  # noqa: BLE001
-        logger.error("重建索引失败: %s", exc)
+        logger.error("Failed to rebuild index: %s", exc)
         traceback.print_exc()
         raise
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="重建并切换 Elasticsearch 索引别名")
-    parser.add_argument(
-        "--index-name", "-i", required=True, help="索引别名，如: episodic-memory"
+    parser = argparse.ArgumentParser(
+        description="Rebuild and switch Elasticsearch index alias"
     )
-    parser.add_argument("--close-old", "-c", action="store_true", help="是否关闭旧索引")
     parser.add_argument(
-        "--delete-old", "-x", action="store_true", help="是否删除旧索引"
+        "--index-name", "-i", required=True, help="Index alias, e.g.: episodic-memory"
+    )
+    parser.add_argument(
+        "--close-old", "-c", action="store_true", help="Whether to close the old index"
+    )
+    parser.add_argument(
+        "--delete-old",
+        "-x",
+        action="store_true",
+        help="Whether to delete the old index",
     )
     args = parser.parse_args(argv)
 

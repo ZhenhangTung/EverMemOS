@@ -13,47 +13,51 @@ logger = get_logger(__name__)
 @repository("entity_raw_repository", primary=True)
 class EntityRawRepository(BaseRepository[Entity]):
     """
-    实体库原始数据仓库
+    Entity repository for raw data
 
-    提供实体数据的CRUD操作和查询功能。
+    Provides CRUD operations and query capabilities for entity data.
     """
 
     def __init__(self):
         super().__init__(Entity)
 
-    # ==================== 基础CRUD操作 ====================
+    # ==================== Basic CRUD Operations ====================
 
     async def get_by_entity_id(
         self, entity_id: str, session: Optional[AsyncClientSession] = None
     ) -> Optional[Entity]:
-        """根据实体ID获取实体"""
+        """Get entity by entity ID"""
         try:
             result = await self.model.find_one(
                 {"entity_id": entity_id}, session=session
             )
             if result:
-                logger.debug("✅ 根据实体ID获取实体成功: %s", entity_id)
+                logger.debug(
+                    "✅ Successfully retrieved entity by entity ID: %s", entity_id
+                )
             else:
-                logger.debug("⚠️  未找到实体: entity_id=%s", entity_id)
+                logger.debug("⚠️  Entity not found: entity_id=%s", entity_id)
             return result
         except Exception as e:
-            logger.error("❌ 根据实体ID获取实体失败: %s", e)
+            logger.error("❌ Failed to retrieve entity by entity ID: %s", e)
             return None
 
     async def get_by_alias(
         self, alias: str, session: Optional[AsyncClientSession] = None
     ) -> List[Entity]:
-        """根据别名获取实体列表"""
+        """Get list of entities by alias"""
         try:
             results = await self.model.find(
                 {"aliases": {"$in": [alias]}}, session=session
             ).to_list()
             logger.debug(
-                "✅ 根据别名获取实体成功: alias=%s, count=%d", alias, len(results)
+                "✅ Successfully retrieved entities by alias: alias=%s, count=%d",
+                alias,
+                len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据别名获取实体失败: %s", e)
+            logger.error("❌ Failed to retrieve entities by alias: %s", e)
             return []
 
     async def update_by_entity_id(
@@ -62,93 +66,102 @@ class EntityRawRepository(BaseRepository[Entity]):
         update_data: Dict[str, Any],
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[Entity]:
-        """根据实体ID更新实体"""
+        """Update entity by entity ID"""
         try:
             existing_doc = await self.model.find_one(
                 {"entity_id": entity_id}, session=session
             )
             if not existing_doc:
-                logger.warning("⚠️  未找到要更新的实体: entity_id=%s", entity_id)
+                logger.warning("⚠️  Entity to update not found: entity_id=%s", entity_id)
                 return None
 
             for key, value in update_data.items():
                 setattr(existing_doc, key, value)
             await existing_doc.save(session=session)
-            logger.debug("✅ 根据实体ID更新实体成功: %s", entity_id)
+            logger.debug("✅ Successfully updated entity by entity ID: %s", entity_id)
             return existing_doc
         except Exception as e:
-            logger.error("❌ 根据实体ID更新实体失败: %s", e)
+            logger.error("❌ Failed to update entity by entity ID: %s", e)
             return None
 
     async def delete_by_entity_id(
         self, entity_id: str, session: Optional[AsyncClientSession] = None
     ) -> bool:
-        """根据实体ID删除实体"""
+        """Delete entity by entity ID"""
         try:
             result = await self.model.find_one(
                 {"entity_id": entity_id}, session=session
             )
             if not result:
-                logger.warning("⚠️  未找到要删除的实体: entity_id=%s", entity_id)
+                logger.warning("⚠️  Entity to delete not found: entity_id=%s", entity_id)
                 return False
 
             await result.delete(session=session)
-            logger.debug("✅ 根据实体ID删除实体成功: %s", entity_id)
+            logger.debug("✅ Successfully deleted entity by entity ID: %s", entity_id)
             return True
         except Exception as e:
-            logger.error("❌ 根据实体ID删除实体失败: %s", e)
+            logger.error("❌ Failed to delete entity by entity ID: %s", e)
             return False
 
-    # ==================== 批量操作 ====================
+    # ==================== Batch Operations ====================
 
     async def get_all_entities(
         self, limit: int = 100, session: Optional[AsyncClientSession] = None
     ) -> List[Entity]:
-        """获取所有实体"""
+        """Get all entities"""
         try:
             results = await self.model.find({}, session=session).limit(limit).to_list()
-            logger.debug("✅ 获取所有实体成功: count=%d", len(results))
+            logger.debug(
+                "✅ Successfully retrieved all entities: count=%d", len(results)
+            )
             return results
         except Exception as e:
-            logger.error("❌ 获取所有实体失败: %s", e)
+            logger.error("❌ Failed to retrieve all entities: %s", e)
             return []
 
     async def get_entities_by_ids(
         self, entity_ids: List[str], session: Optional[AsyncClientSession] = None
     ) -> List[Entity]:
-        """根据实体ID列表批量获取实体"""
+        """Batch get entities by list of entity IDs"""
         try:
             results = await self.model.find(
                 {"entity_id": {"$in": entity_ids}}, session=session
             ).to_list()
-            logger.debug("✅ 根据ID列表批量获取实体成功: count=%d", len(results))
+            logger.debug(
+                "✅ Successfully batch retrieved entities by ID list: count=%d",
+                len(results),
+            )
             return results
         except Exception as e:
-            logger.error("❌ 根据ID列表批量获取实体失败: %s", e)
+            logger.error("❌ Failed to batch retrieve entities by ID list: %s", e)
             return []
 
-    # ==================== 统计方法 ====================
+    # ==================== Statistics Methods ====================
 
     async def count_by_type(
         self, entity_type: str, session: Optional[AsyncClientSession] = None
     ) -> int:
-        """统计指定类型的实体数量"""
+        """Count the number of entities of specified type"""
         try:
             count = await self.model.find(
                 {"type": entity_type}, session=session
             ).count()
-            logger.debug("✅ 统计实体数量成功: type=%s, count=%d", entity_type, count)
+            logger.debug(
+                "✅ Successfully counted entities: type=%s, count=%d",
+                entity_type,
+                count,
+            )
             return count
         except Exception as e:
-            logger.error("❌ 统计实体数量失败: %s", e)
+            logger.error("❌ Failed to count entities: %s", e)
             return 0
 
     async def count_all(self, session: Optional[AsyncClientSession] = None) -> int:
-        """统计所有实体数量"""
+        """Count all entities"""
         try:
             count = await self.model.count()
-            logger.debug("✅ 统计所有实体数量成功: count=%d", count)
+            logger.debug("✅ Successfully counted all entities: count=%d", count)
             return count
         except Exception as e:
-            logger.error("❌ 统计所有实体数量失败: %s", e)
+            logger.error("❌ Failed to count all entities: %s", e)
             return 0

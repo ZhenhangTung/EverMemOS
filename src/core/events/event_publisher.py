@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-应用事件发布器模块
+Application event publisher module
 
-提供全局的事件发布机制，支持异步并发分发事件到多个监听器。
-通过 DI 容器自动发现和注册所有 EventListener 实现。
+Provides a global event publishing mechanism, supporting asynchronous concurrent dispatch of events to multiple listeners.
+Automatically discovers and registers all EventListener implementations through the DI container.
 """
 
 import asyncio
@@ -21,43 +21,43 @@ logger = get_logger(__name__)
 @service("application_event_publisher")
 class ApplicationEventPublisher:
     """
-    应用事件发布器
+    Application event publisher
 
-    全局单例服务，负责将事件分发到对应的监听器。
-    通过 DI 容器自动发现所有 EventListener 实现，并构建事件类型到监听器的映射。
+    Global singleton service responsible for dispatching events to corresponding listeners.
+    Automatically discovers all EventListener implementations through the DI container and builds a mapping from event types to listeners.
 
-    特性：
-    - 懒加载：首次发布事件时才构建监听器映射
-    - 异步并发：使用 asyncio.gather 并发调用所有匹配的监听器
-    - 错误隔离：单个监听器的异常不会影响其他监听器
-    - 可刷新：支持动态刷新监听器映射
+    Features:
+    - Lazy loading: builds the listener mapping only when the first event is published
+    - Asynchronous concurrency: uses asyncio.gather to concurrently invoke all matching listeners
+    - Error isolation: exceptions from individual listeners do not affect others
+    - Refreshable: supports dynamic refreshing of listener mappings
 
-    使用方式：
-    1. 通过 DI 获取实例：
+    Usage:
+    1. Obtain instance via DI:
         >>> from core.di import get_bean_by_type
         >>> publisher = get_bean_by_type(ApplicationEventPublisher)
 
-    2. 发布事件：
+    2. Publish event:
         >>> await publisher.publish(UserCreatedEvent(user_id="123"))
 
-    3. 同步发布（在非异步上下文中）：
+    3. Synchronous publishing (in non-async contexts):
         >>> publisher.publish_sync(UserCreatedEvent(user_id="123"))
     """
 
     def __init__(self):
-        """初始化事件发布器"""
-        # 事件类型 -> 监听器列表的映射
+        """Initialize event publisher"""
+        # Mapping from event type to list of listeners
         self._event_listeners_map: Dict[Type[BaseEvent], List[EventListener]] = {}
-        # 是否已初始化
+        # Whether initialized
         self._initialized: bool = False
-        # 所有监听器实例
+        # All listener instances
         self._listeners: List[EventListener] = []
 
     def _ensure_initialized(self) -> None:
         """
-        确保监听器映射已初始化
+        Ensure listener mapping is initialized
 
-        懒加载机制：首次调用时才从 DI 容器获取所有监听器并构建映射。
+        Lazy loading mechanism: obtains all listeners from DI container and builds mapping only on first call.
         """
         if self._initialized:
             return
@@ -67,31 +67,31 @@ class ApplicationEventPublisher:
 
     def _build_listener_mapping(self) -> None:
         """
-        构建事件类型到监听器的映射
+        Build mapping from event types to listeners
 
-        从 DI 容器获取所有 EventListener 实例，
-        然后根据每个监听器声明的事件类型构建映射表。
+        Retrieve all EventListener instances from the DI container,
+        then build a mapping table based on the event types declared by each listener.
         """
-        # 清空现有映射
+        # Clear existing mapping
         self._event_listeners_map.clear()
         self._listeners.clear()
 
-        # 从 DI 容器获取所有 EventListener 实现
+        # Get all EventListener implementations from DI container
         try:
             listeners = get_beans_by_type(EventListener)
         except Exception as e:
-            logger.warning(f"获取 EventListener 实例失败: {e}")
+            logger.warning(f"Failed to get EventListener instances: {e}")
             listeners = []
 
         self._listeners = listeners
 
-        # 构建事件类型到监听器的映射
+        # Build mapping from event type to listeners
         for listener in listeners:
             listener_name = listener.get_listener_name()
             event_types = listener.get_event_types()
 
             logger.debug(
-                f"注册监听器 [{listener_name}]，监听事件类型: {[et.__name__ for et in event_types]}"
+                f"Registering listener [{listener_name}], listening to event types: {[et.__name__ for et in event_types]}"
             )
 
             for event_type in event_types:
@@ -99,70 +99,70 @@ class ApplicationEventPublisher:
                     self._event_listeners_map[event_type] = []
                 self._event_listeners_map[event_type].append(listener)
 
-        # 记录初始化完成日志
+        # Log initialization completion
         total_listeners = len(listeners)
         total_event_types = len(self._event_listeners_map)
         logger.info(
-            f"事件发布器初始化完成: {total_listeners} 个监听器, {total_event_types} 个事件类型"
+            f"Event publisher initialization completed: {total_listeners} listeners, {total_event_types} event types"
         )
 
     def refresh(self) -> None:
         """
-        刷新监听器映射
+        Refresh listener mapping
 
-        当有新的监听器注册到 DI 容器后，可调用此方法刷新映射。
+        Call this method to refresh the mapping after new listeners are registered into the DI container.
         """
         self._initialized = False
         self._ensure_initialized()
-        logger.info("事件发布器监听器映射已刷新")
+        logger.info("Event publisher listener mapping has been refreshed")
 
     def get_listeners_for_event(
         self, event_type: Type[BaseEvent]
     ) -> List[EventListener]:
         """
-        获取指定事件类型的所有监听器
+        Get all listeners for a specified event type
 
         Args:
-            event_type: 事件类型
+            event_type: Event type
 
         Returns:
-            List[EventListener]: 监听该事件类型的所有监听器列表
+            List[EventListener]: List of all listeners for this event type
         """
         self._ensure_initialized()
         return self._event_listeners_map.get(event_type, [])
 
     def get_all_listeners(self) -> List[EventListener]:
         """
-        获取所有已注册的监听器
+        Get all registered listeners
 
         Returns:
-            List[EventListener]: 所有监听器列表
+            List[EventListener]: List of all listeners
         """
         self._ensure_initialized()
         return self._listeners.copy()
 
     def get_registered_event_types(self) -> Set[Type[BaseEvent]]:
         """
-        获取所有已注册监听的事件类型
+        Get all event types that have registered listeners
 
         Returns:
-            Set[Type[BaseEvent]]: 事件类型集合
+            Set[Type[BaseEvent]]: Set of event types
         """
         self._ensure_initialized()
         return set(self._event_listeners_map.keys())
 
     async def publish(self, event: BaseEvent) -> None:
         """
-        异步发布事件
+        Asynchronously publish event
 
-        将事件分发到所有监听该事件类型的监听器。
-        使用 asyncio.gather 并发调用所有监听器，提高 IO 密集型操作的效率。
+        Dispatch the event to all listeners that listen to this event type.
+        Uses asyncio.gather to concurrently invoke all listeners, improving efficiency for IO-intensive operations.
 
-        单个监听器的异常不会影响其他监听器的执行，
-        所有异常都会被记录到日志中。
+        Exceptions from individual listeners do not affect execution of others,
+        and all exceptions are logged.
 
         Args:
-            event: 要发布的事件对象
+            event: Event object to publish
         """
         self._ensure_initialized()
 
@@ -171,20 +171,22 @@ class ApplicationEventPublisher:
         listeners = self._event_listeners_map.get(event_type, [])
 
         if not listeners:
-            logger.debug(f"事件 [{event_type_name}] 没有监听器，跳过发布")
+            logger.debug(
+                f"No listeners for event [{event_type_name}], skipping publish"
+            )
             return
 
         logger.debug(
-            f"发布事件 [{event_type_name}] (id={event.event_id})，共 {len(listeners)} 个监听器"
+            f"Publishing event [{event_type_name}] (id={event.event_id}), {len(listeners)} listeners"
         )
 
-        # 创建所有监听器的协程任务
+        # Create coroutine tasks for all listeners
         async def safe_invoke(listener: EventListener) -> Optional[Exception]:
             """
-            安全地调用监听器，捕获异常避免影响其他监听器
+            Safely invoke listener, catch exceptions to avoid affecting others
 
             Returns:
-                如果发生异常返回异常对象，否则返回 None
+                Exception object if occurred, otherwise None
             """
             try:
                 await listener.on_event(event)
@@ -192,70 +194,70 @@ class ApplicationEventPublisher:
             except Exception as e:
                 listener_name = listener.get_listener_name()
                 logger.error(
-                    f"监听器 [{listener_name}] 处理事件 [{event_type_name}] 时发生异常: {e}",
+                    f"Listener [{listener_name}] encountered exception when processing event [{event_type_name}]: {e}",
                     exc_info=True,
                 )
                 return e
 
-        # 并发执行所有监听器
+        # Concurrently execute all listeners
         tasks = [safe_invoke(listener) for listener in listeners]
         results = await asyncio.gather(*tasks)
 
-        # 统计执行结果
+        # Count execution results
         errors = [r for r in results if r is not None]
         if errors:
             logger.warning(
-                f"事件 [{event_type_name}] 发布完成，"
-                f"成功: {len(listeners) - len(errors)}, 失败: {len(errors)}"
+                f"Event [{event_type_name}] publishing completed, "
+                f"success: {len(listeners) - len(errors)}, failure: {len(errors)}"
             )
         else:
             logger.debug(
-                f"事件 [{event_type_name}] 发布完成，所有 {len(listeners)} 个监听器执行成功"
+                f"Event [{event_type_name}] publishing completed, all {len(listeners)} listeners executed successfully"
             )
 
     def publish_sync(self, event: BaseEvent) -> None:
         """
-        同步发布事件
+        Synchronously publish event
 
-        在非异步上下文中使用此方法发布事件。
-        内部会创建或使用现有的事件循环来执行异步发布。
+        Use this method to publish events in non-async contexts.
+        Internally creates or uses an existing event loop to execute asynchronous publishing.
 
-        注意：如果当前已在异步上下文中，应优先使用 `publish()` 方法。
+        Note: If already in an async context, prefer using the `publish()` method.
 
         Args:
-            event: 要发布的事件对象
+            event: Event object to publish
         """
         try:
-            # 尝试获取当前运行的事件循环
+            # Try to get the currently running event loop
             loop = asyncio.get_running_loop()
-            # 如果在异步上下文中，创建一个任务
+            # If in async context, create a task
             loop.create_task(self.publish(event))
         except RuntimeError:
-            # 没有运行的事件循环，创建新的运行
+            # No running event loop, create and run a new one
             asyncio.run(self.publish(event))
 
     async def publish_batch(self, events: List[BaseEvent]) -> None:
         """
-        批量发布多个事件
+        Publish multiple events in batch
 
-        并发发布多个事件，提高批量操作的效率。
+        Concurrently publish multiple events to improve efficiency of batch operations.
 
         Args:
-            events: 要发布的事件列表
+            events: List of events to publish
         """
         if not events:
             return
 
-        logger.debug(f"批量发布 {len(events)} 个事件")
+        logger.debug(f"Batch publishing {len(events)} events")
 
-        # 并发发布所有事件
+        # Concurrently publish all events
         tasks = [self.publish(event) for event in events]
         await asyncio.gather(*tasks)
 
-        logger.debug(f"批量发布完成，共 {len(events)} 个事件")
+        logger.debug(f"Batch publishing completed, total {len(events)} events")
 
     def __repr__(self) -> str:
-        """返回对象的字符串表示"""
+        """Return string representation of the object"""
         self._ensure_initialized()
         return (
             f"ApplicationEventPublisher("

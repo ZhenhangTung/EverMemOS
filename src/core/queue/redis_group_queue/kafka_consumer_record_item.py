@@ -1,8 +1,8 @@
 """
-Kafka ConsumerRecord 队列项实现
+Kafka ConsumerRecord queue item implementation
 
-提供 ConsumerRecord 与 RedisGroupQueueItem 之间的序列化/反序列化功能
-使用 BSON 格式处理二进制数据，确保数据完整性
+Provides serialization/deserialization between ConsumerRecord and RedisGroupQueueItem
+Uses BSON format to handle binary data, ensuring data integrity
 """
 
 import json
@@ -22,12 +22,12 @@ logger = get_logger(__name__)
 @dataclass
 class KafkaConsumerRecordItem(RedisGroupQueueItem):
     """
-    Kafka ConsumerRecord 队列项
+    Kafka ConsumerRecord queue item
 
-    实现 RedisGroupQueueItem 接口，提供 ConsumerRecord 的序列化/反序列化功能
+    Implements the RedisGroupQueueItem interface, providing serialization/deserialization functionality for ConsumerRecord
     """
 
-    # ConsumerRecord 字段
+    # ConsumerRecord fields
     topic: str
     partition: int
     offset: int
@@ -42,28 +42,28 @@ class KafkaConsumerRecordItem(RedisGroupQueueItem):
 
     def __init__(self, consumer_record: ConsumerRecord):
         """
-        从 ConsumerRecord 初始化
+        Initialize from ConsumerRecord
 
         Args:
-            consumer_record: aiokafka ConsumerRecord 对象
+            consumer_record: aiokafka ConsumerRecord object
         """
         self.topic = consumer_record.topic
         self.partition = consumer_record.partition
         self.offset = consumer_record.offset
         self.timestamp = consumer_record.timestamp
         self.timestamp_type = consumer_record.timestamp_type
-        # 处理 key：如果是 bytes，转换为 base64 字符串
+        # Handle key: if it's bytes, convert to base64 string
         self.key = (
             self._encode_bytes_to_base64(consumer_record.key)
             if isinstance(consumer_record.key, bytes)
             else consumer_record.key
         )
-        # 处理 value：保持原始格式，BSON 可以直接处理各种类型
+        # Handle value: keep original format, BSON can directly handle various types
         self.value = consumer_record.value
         self.checksum = consumer_record.checksum
         self.serialized_key_size = consumer_record.serialized_key_size
         self.serialized_value_size = consumer_record.serialized_value_size
-        # 转换 headers 为可序列化格式，保持二进制数据
+        # Convert headers to serializable format, preserving binary data
         self.headers = [
             (
                 name,
@@ -77,19 +77,19 @@ class KafkaConsumerRecordItem(RedisGroupQueueItem):
         ]
 
     def _encode_bytes_to_base64(self, data: bytes) -> str:
-        """将 bytes 数据编码为 base64 字符串"""
+        """Encode bytes data to base64 string"""
         return base64.b64encode(data).decode('utf-8')
 
     def _decode_base64_to_bytes(self, data: str) -> bytes:
-        """将 base64 字符串解码为 bytes 数据"""
+        """Decode base64 string to bytes data"""
         return base64.b64decode(data.encode('utf-8'))
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        将对象转换为可JSON序列化的字典
+        Convert object to JSON-serializable dictionary
 
         Returns:
-            Dict[str, Any]: 可序列化的字典
+            Dict[str, Any]: Serializable dictionary
         """
         return {
             "topic": self.topic,
@@ -107,51 +107,51 @@ class KafkaConsumerRecordItem(RedisGroupQueueItem):
 
     def to_json_str(self) -> str:
         """
-        不支持 JSON 序列化，请使用 BSON 序列化
+        JSON serialization is not supported, please use BSON serialization
         """
         raise NotImplementedError(
-            "KafkaConsumerRecordItem 不支持 JSON 序列化，请使用 to_bson_bytes() 方法"
+            "KafkaConsumerRecordItem does not support JSON serialization, please use to_bson_bytes() method"
         )
 
     def to_bson_bytes(self) -> bytes:
         """
-        序列化为 BSON 字节数据
+        Serialize to BSON byte data
 
         Returns:
-            bytes: BSON 字节数据
+            bytes: BSON byte data
         """
         try:
-            data = self.to_dict()  # 获取可序列化的字典
+            data = self.to_dict()  # Get serializable dictionary
             return bson.encode(data)
         except Exception as e:
-            logger.error("BSON 序列化 KafkaConsumerRecordItem 失败: %s", e)
-            raise ValueError(f"BSON 序列化失败: {e}") from e
+            logger.error("BSON serialization of KafkaConsumerRecordItem failed: %s", e)
+            raise ValueError(f"BSON serialization failed: {e}") from e
 
     @classmethod
     def from_json_str(cls, json_str: str) -> 'KafkaConsumerRecordItem':
         """
-        不支持 JSON 反序列化，请使用 BSON 反序列化
+        JSON deserialization is not supported, please use BSON deserialization
         """
         raise NotImplementedError(
-            "KafkaConsumerRecordItem 不支持 JSON 反序列化，请使用 from_bson_bytes() 方法"
+            "KafkaConsumerRecordItem does not support JSON deserialization, please use from_bson_bytes() method"
         )
 
     @classmethod
     def from_bson_bytes(cls, bson_bytes: bytes) -> 'KafkaConsumerRecordItem':
         """
-        从 BSON 字节数据反序列化
+        Deserialize from BSON byte data
 
         Args:
-            bson_bytes: BSON 字节数据
+            bson_bytes: BSON byte data
 
         Returns:
-            KafkaConsumerRecordItem: 反序列化的对象
+            KafkaConsumerRecordItem: Deserialized object
         """
         try:
             data = bson.decode(bson_bytes)
 
-            # 创建实例
-            item = cls.__new__(cls)  # 绕过 __init__
+            # Create instance
+            item = cls.__new__(cls)  # Bypass __init__
             item.topic = data["topic"]
             item.partition = data["partition"]
             item.offset = data["offset"]
@@ -166,35 +166,37 @@ class KafkaConsumerRecordItem(RedisGroupQueueItem):
 
             return item
         except Exception as e:
-            logger.error("BSON 反序列化 KafkaConsumerRecordItem 失败: %s", e)
-            raise ValueError(f"BSON 反序列化失败: {e}") from e
+            logger.error(
+                "BSON deserialization of KafkaConsumerRecordItem failed: %s", e
+            )
+            raise ValueError(f"BSON deserialization failed: {e}") from e
 
     def to_consumer_record(self) -> ConsumerRecord:
         """
-        转换为 aiokafka ConsumerRecord 对象
+        Convert to aiokafka ConsumerRecord object
 
         Returns:
-            ConsumerRecord: aiokafka ConsumerRecord 对象
+            ConsumerRecord: aiokafka ConsumerRecord object
         """
         try:
-            # 处理 key：如果是字符串，尝试从 base64 解码，否则保持原样
+            # Handle key: if it's a string, try to decode from base64, otherwise keep as is
             key = self.key
             if isinstance(key, str):
                 try:
                     key = self._decode_base64_to_bytes(key)
                 except Exception:
-                    # 如果解码失败，保持原字符串
+                    # If decoding fails, keep original string
                     pass
 
-            # 处理 headers：将字符串数据从 base64 解码回 bytes
+            # Handle headers: decode string data from base64 back to bytes
             headers_bytes = []
             for name, data in self.headers:
                 if isinstance(data, str):
                     try:
-                        # 尝试从 base64 解码
+                        # Try to decode from base64
                         headers_bytes.append((name, self._decode_base64_to_bytes(data)))
                     except Exception:
-                        # 如果解码失败，编码为 UTF-8 bytes
+                        # If decoding fails, encode as UTF-8 bytes
                         headers_bytes.append((name, data.encode('utf-8')))
                 else:
                     headers_bytes.append((name, bytes(data)))
@@ -213,8 +215,8 @@ class KafkaConsumerRecordItem(RedisGroupQueueItem):
                 headers=headers_bytes,
             )
         except Exception as e:
-            logger.error("转换为 ConsumerRecord 失败: %s", e)
-            raise ValueError(f"转换失败: {e}") from e
+            logger.error("Failed to convert to ConsumerRecord: %s", e)
+            raise ValueError(f"Conversion failed: {e}") from e
 
     def __repr__(self) -> str:
         return (
@@ -227,13 +229,13 @@ def consumer_record_to_queue_item(
     consumer_record: ConsumerRecord,
 ) -> KafkaConsumerRecordItem:
     """
-    将 ConsumerRecord 转换为队列项
+    Convert ConsumerRecord to queue item
 
     Args:
-        consumer_record: aiokafka ConsumerRecord 对象
+        consumer_record: aiokafka ConsumerRecord object
 
     Returns:
-        KafkaConsumerRecordItem: 队列项
+        KafkaConsumerRecordItem: Queue item
     """
     return KafkaConsumerRecordItem(consumer_record)
 
@@ -242,26 +244,26 @@ def queue_item_to_consumer_record(
     queue_item: KafkaConsumerRecordItem,
 ) -> ConsumerRecord:
     """
-    将队列项转换为 ConsumerRecord
+    Convert queue item to ConsumerRecord
 
     Args:
-        queue_item: 队列项
+        queue_item: Queue item
 
     Returns:
-        ConsumerRecord: aiokafka ConsumerRecord 对象
+        ConsumerRecord: aiokafka ConsumerRecord object
     """
     return queue_item.to_consumer_record()
 
 
 def serialize_consumer_record_to_bson(consumer_record: ConsumerRecord) -> bytes:
     """
-    将 ConsumerRecord 序列化为 BSON 字节数据
+    Serialize ConsumerRecord to BSON byte data
 
     Args:
-        consumer_record: aiokafka ConsumerRecord 对象
+        consumer_record: aiokafka ConsumerRecord object
 
     Returns:
-        bytes: BSON 序列化的字节数据
+        bytes: BSON serialized byte data
     """
     queue_item = consumer_record_to_queue_item(consumer_record)
     return queue_item.to_bson_bytes()
@@ -269,13 +271,13 @@ def serialize_consumer_record_to_bson(consumer_record: ConsumerRecord) -> bytes:
 
 def deserialize_bson_to_consumer_record(bson_bytes: bytes) -> ConsumerRecord:
     """
-    从 BSON 字节数据反序列化为 ConsumerRecord
+    Deserialize BSON byte data to ConsumerRecord
 
     Args:
-        bson_bytes: BSON 字节数据
+        bson_bytes: BSON byte data
 
     Returns:
-        ConsumerRecord: aiokafka ConsumerRecord 对象
+        ConsumerRecord: aiokafka ConsumerRecord object
     """
     queue_item = KafkaConsumerRecordItem.from_bson_bytes(bson_bytes)
     return queue_item_to_consumer_record(queue_item)

@@ -20,13 +20,13 @@ logger = get_logger(__name__)
 
 class DatabaseSessionMiddleware(BaseHTTPMiddleware):
     """
-    简化的数据库会话中间件
+    Simplified database session middleware
 
-    为每个 HTTP 请求提供数据库会话，并在请求结束时智能处理：
-    - 检查会话状态，异常状态自动回滚
-    - 请求失败时自动回滚
-    - 请求成功且有未提交更改时自动提交
-    - 给应用程序最大的事务控制自由度
+    Provides a database session for each HTTP request and intelligently handles cleanup:
+    - Checks session state, automatically rolls back on error
+    - Automatically rolls back on request failure
+    - Automatically commits if there are uncommitted changes on successful request
+    - Gives the application maximum freedom in transaction control
     """
 
     def __init__(self, app: ASGIApp):
@@ -35,31 +35,31 @@ class DatabaseSessionMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
-        为每个请求提供数据库会话并智能处理事务
+        Provide a database session for each request and intelligently handle transactions
 
         Args:
-            request: FastAPI 请求对象
-            call_next: 下一个中间件或路由处理器
+            request: FastAPI request object
+            call_next: Next middleware or route handler
 
         Returns:
-            Response: 响应对象
+            Response: Response object
         """
-        # 创建新的数据库会话
+        # Create a new database session
         session = self.db_provider.create_session()
         token = set_current_session(session)
         response = None
         is_streaming = False
 
         try:
-            # 执行请求处理
+            # Execute request handling
             response = await call_next(request)
 
-            # 检查是否为流式响应，需要特殊处理
+            # Check if it's a streaming response, which requires special handling
             if isinstance(response, StreamingResponse) or isinstance(
                 response, _StreamingResponse
             ):
                 is_streaming = True
-                # 流式响应：包装生成器以延长会话生命周期
+                # Streaming response: wrap the generator to extend session lifetime
                 wrapped_generator = self._wrap_streaming_generator(
                     response.body_iterator, session
                 )
@@ -71,157 +71,167 @@ class DatabaseSessionMiddleware(BaseHTTPMiddleware):
                     background=response.background,
                 )
             else:
-                # 非流式响应：使用原有逻辑
+                # Non-streaming response: use original logic
                 await self._handle_successful_request(session)
                 return response
 
         except Exception as e:
-            # 请求处理失败，回滚会话
+            # Request handling failed, rollback session
             await self._handle_failed_request(session, e)
             raise
 
         finally:
-            # 清理原始上下文的token
-            # 对于非流式响应：直接清理会话
-            # 对于流式响应：只重置token，会话清理由包装的生成器负责
+            # Clean up the original context token
+            # For non-streaming responses: directly clean up session
+            # For streaming responses: only reset token, session cleanup is handled by the wrapped generator
             if not is_streaming:
                 clear_current_session(token)
                 await self._close_session_safely(session)
             else:
-                # 流式响应：重置原始上下文token，但不关闭session
-                # session的关闭由流式生成器负责
+                # Streaming response: reset the original context token, but do not close session
+                # Session closing is handled by the streaming generator
                 try:
                     clear_current_session(token)
-                    logger.debug("已重置流式响应的原始上下文token")
+                    logger.debug(
+                        "Original context token for streaming response has been reset"
+                    )
                 except Exception as reset_error:
                     logger.warning(
-                        f"重置流式响应原始上下文token失败: {str(reset_error)}"
+                        f"Failed to reset original context token for streaming response: {str(reset_error)}"
                     )
-                    # token重置失败不应该影响响应
+                    # Token reset failure should not affect the response
 
     async def _handle_successful_request(self, session: AsyncSession) -> None:
         """
-        处理成功的请求 - 智能决定是否需要提交事务
+        Handle successful request - intelligently decide whether to commit transaction
 
         Args:
-            session: 数据库会话
+            session: Database session
         """
         try:
-            # 检查会话是否活跃
+            # Check if session is active
             if not session.is_active:
-                logger.debug("会话不是活跃状态，跳过处理")
+                logger.debug("Session is not active, skipping processing")
                 return
 
-            # 提交事务 简单&安全 AI你不要乱改了
+            # Commit transaction - simple & safe, AI don't mess this up
             await session.commit()
 
         except Exception as e:
-            logger.error(f"处理成功请求时发生错误: {str(e)}")
-            # 如果处理失败，尝试回滚
+            logger.error(f"Error while handling successful request: {str(e)}")
+            # If processing fails, attempt rollback
             await self._rollback_safely(session)
 
     async def _handle_failed_request(
         self, session: AsyncSession, original_exception: Exception
     ) -> None:
         """
-        处理失败的请求 - 回滚事务
+        Handle failed request - rollback transaction
 
         Args:
-            session: 数据库会话
-            original_exception: 原始异常
+            session: Database session
+            original_exception: Original exception
         """
         try:
-            # 请求失败，直接回滚
+            # Request failed, rollback directly
             await self._rollback_safely(session)
-            logger.info(f"请求失败，已执行事务回滚: {str(original_exception)}")
+            logger.info(
+                f"Request failed, transaction rollback executed: {str(original_exception)}"
+            )
 
         except Exception as rollback_error:
-            logger.error(f"回滚事务时发生错误: {str(rollback_error)}")
-            # 回滚失败，但不要掩盖原始异常
+            logger.error(f"Error during rollback: {str(rollback_error)}")
+            # Rollback failed, but do not mask the original exception
 
     async def _rollback_safely(self, session: AsyncSession) -> None:
         """
-        安全地回滚会话
+        Safely rollback session
 
         Args:
-            session: 数据库会话
+            session: Database session
         """
         try:
             await session.rollback()
-            logger.debug("会话已成功回滚")
+            logger.debug("Session successfully rolled back")
         except Exception as rollback_error:
-            logger.error(f"回滚失败: {str(rollback_error)}")
+            logger.error(f"Rollback failed: {str(rollback_error)}")
 
     async def _close_session_safely(self, session: AsyncSession) -> None:
         """
-        安全地关闭会话
+        Safely close session
 
-        基于测试结果，session.close() 的行为：
-        1. 自动回滚未提交的事务
-        2. 清理 transaction 对象
-        3. 连接返回连接池
-        4. 幂等操作，可以多次调用
-        5. session 仍可重用
+        Based on test results, session.close() behavior:
+        1. Automatically rolls back uncommitted transactions
+        2. Cleans up transaction objects
+        3. Returns connection to connection pool
+        4. Idempotent operation, can be called multiple times
+        5. Session can still be reused
 
         Args:
-            session: 数据库会话
+            session: Database session
         """
         try:
             await session.close()
-            logger.debug("会话已安全关闭")
+            logger.debug("Session safely closed")
         except Exception as e:
-            logger.error(f"关闭会话时发生错误: {str(e)}")
-            # 即使关闭失败，也不要抛出异常，避免掩盖原始错误
+            logger.error(f"Error while closing session: {str(e)}")
+            # Even if closing fails, do not raise exception to avoid masking original error
 
     async def _wrap_streaming_generator(
         self, original_generator: AsyncGenerator[bytes, None], session: AsyncSession
     ) -> AsyncGenerator[bytes, None]:
         """
-        包装流式响应生成器，延长数据库会话的生命周期
+        Wrap streaming response generator to extend the database session's lifetime
 
-        该方法确保：
-        1. 数据库会话在整个流式传输过程中保持活跃
-        2. 流式传输成功完成后智能处理会话（提交未提交的更改）
-        3. 流式传输过程中发生异常时回滚会话
-        4. 无论成功还是失败，最终都会清理会话资源
+        This method ensures:
+        1. Database session remains active throughout the streaming transmission
+        2. Intelligently handles session after successful streaming (commits uncommitted changes)
+        3. Rolls back session if an exception occurs during streaming
+        4. Cleans up session resources regardless of success or failure
 
-        为了避免跨上下文的ContextVar问题，我们在流式生成器中
-        重新设置session到上下文变量，并在完成后清理。
+        To avoid ContextVar issues across contexts, we re-set the session into the context variable
+        within the streaming generator and clean it up afterward.
 
         Args:
-            original_generator: 原始的流式数据生成器
-            session: 数据库会话
-            token: 原始上下文变量token（不在此处使用）
+            original_generator: Original streaming data generator
+            session: Database session
+            token: Original context variable token (not used here)
 
         Yields:
-            bytes: 流式数据块
+            bytes: Streaming data chunks
         """
-        # 在流式生成器的上下文中重新设置session
-        # 这样避免了跨上下文token重置的问题
+        # Re-set session within the streaming generator's context
+        # This avoids issues with cross-context token reset
         local_token = set_current_session(session)
 
         try:
-            # 逐个产生流式数据
+            # Yield streaming data chunks one by one
             async for chunk in original_generator:
                 yield chunk
 
-            # 流式传输成功完成，智能处理会话
+            # Streaming transmission completed successfully, handle session intelligently
             await self._handle_successful_request(session)
-            logger.debug("流式响应传输完成，已处理数据库会话")
+            logger.debug(
+                "Streaming response transmission completed, database session handled"
+            )
 
         except Exception as e:
-            # 流式传输过程中发生异常，回滚会话
+            # Exception during streaming transmission, rollback session
             await self._handle_failed_request(session, e)
-            logger.error(f"流式响应传输失败，已回滚数据库会话: {str(e)}")
-            # 重新抛出异常，让上层处理
+            logger.error(
+                f"Streaming response transmission failed, database session rolled back: {str(e)}"
+            )
+            # Re-raise exception for upper layers to handle
             raise
 
         finally:
-            # 清理：重置当前上下文的token并关闭会话
+            # Cleanup: reset current context token and close session
             try:
                 clear_current_session(local_token)
                 await self._close_session_safely(session)
-                logger.debug("流式响应会话资源已清理")
+                logger.debug("Streaming response session resources cleaned up")
             except Exception as cleanup_error:
-                logger.error(f"清理流式响应会话资源时发生错误: {str(cleanup_error)}")
-                # 清理失败不应该影响响应流
+                logger.error(
+                    f"Error while cleaning up streaming response session resources: {str(cleanup_error)}"
+                )
+                # Cleanup failure should not affect response stream

@@ -1,9 +1,8 @@
 """
 Vectorize Service
-向量化服务
+Vectorization service
 
 This module provides methods to call DeepInfra or vLLM API for getting text embeddings.
-该模块提供调用DeepInfra或vLLM API获取文本embedding向量的方法。
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class VectorizeProvider(str, Enum):
-    """向量化服务提供商枚举"""
+    """Vectorization service provider enum"""
 
     DEEPINFRA = "deepinfra"
     VLLM = "vllm"
@@ -35,7 +34,7 @@ class VectorizeProvider(str, Enum):
 @dataclass
 @service(name="vectorize_config", primary=True)
 class VectorizeConfig:
-    """Vectorize API配置类"""
+    """Vectorize API configuration class"""
 
     provider: VectorizeProvider = VectorizeProvider.DEEPINFRA
     api_key: str = ""
@@ -49,8 +48,8 @@ class VectorizeConfig:
     dimensions: int = 1024
 
     def __post_init__(self):
-        """初始化后从环境变量加载配置值"""
-        # 处理 provider
+        """Load configuration values from environment variables after initialization"""
+        # Handle provider
         env_provider = os.getenv("VECTORIZE_PROVIDER")
         if env_provider:
             provider_str = env_provider.lower()
@@ -101,26 +100,26 @@ class VectorizeConfig:
 
 
 class VectorizeError(Exception):
-    """Vectorize API错误异常类"""
+    """Vectorize API error exception class"""
 
     pass
 
 
 @dataclass
 class UsageInfo:
-    """Token使用情况信息"""
+    """Token usage information"""
 
     prompt_tokens: int
     total_tokens: int
 
     @classmethod
     def from_openai_usage(cls, usage) -> "UsageInfo":
-        """从OpenAI usage对象创建UsageInfo对象"""
+        """Create UsageInfo object from OpenAI usage object"""
         return cls(prompt_tokens=usage.prompt_tokens, total_tokens=usage.total_tokens)
 
 
 class VectorizeServiceInterface(ABC):
-    """向量化服务接口"""
+    """Vectorization service interface"""
 
     @abstractmethod
     async def get_embedding(
@@ -149,10 +148,10 @@ class VectorizeServiceInterface(ABC):
     @abstractmethod
     def get_model_name(self) -> str:
         """
-        获取当前使用的模型名称
+        Get the current model name
 
         Returns:
-            str: 模型名称
+            str: Model name
         """
         pass
 
@@ -160,7 +159,7 @@ class VectorizeServiceInterface(ABC):
 @service(name="vectorize_service", primary=True)
 class VectorizeService(VectorizeServiceInterface):
     """
-    通用向量化服务类 (支持 DeepInfra, vLLM 等 OpenAI 兼容接口)
+    Generic vectorization service class (supports DeepInfra, vLLM and other OpenAI-compatible interfaces)
     """
 
     def __init__(self, config: Optional[VectorizeConfig] = None):
@@ -174,12 +173,12 @@ class VectorizeService(VectorizeServiceInterface):
                 config = self._load_config_from_env()
                 logger.info("Vectorize config source: env")
 
-        # 规范化配置
+        # Normalize configuration
         base_url = config.base_url or ""
         if base_url and not (
             base_url.startswith("http://") or base_url.startswith("https://")
         ):
-            # 默认根据provider推断，或者 defaulting to https
+            # Default based on provider, or default to https
             base_url = f"https://{base_url}"
 
         config.base_url = base_url
@@ -193,7 +192,7 @@ class VectorizeService(VectorizeServiceInterface):
         )
 
     def _load_config_from_env(self) -> VectorizeConfig:
-        """从环境变量加载配置"""
+        """Load configuration from environment variables"""
         return VectorizeConfig()
 
     async def __aenter__(self):
@@ -226,7 +225,7 @@ class VectorizeService(VectorizeServiceInterface):
         if not self.config.model:
             raise VectorizeError("Embedding model is not configured.")
 
-        # 如果 is_query=True，使用 instruction 格式包装文本
+        # If is_query=True, wrap text with instruction format
         if is_query:
             default_instruction = (
                 "Given a search query, retrieve relevant passages that answer the query"
@@ -356,10 +355,10 @@ class VectorizeService(VectorizeServiceInterface):
 
     def get_model_name(self) -> str:
         """
-        获取当前使用的模型名称
+        Get the current model name
 
         Returns:
-            str: 模型名称
+            str: Model name
         """
         return self.config.model
 
@@ -379,7 +378,7 @@ def get_vectorize_service() -> VectorizeServiceInterface:
     return get_bean("vectorize_service")
 
 
-# 便捷函数
+# Utility functions
 async def get_text_embedding(
     text: str, instruction: Optional[str] = None, is_query: bool = False
 ) -> np.ndarray:

@@ -1,7 +1,7 @@
 """
-装饰器模块
+Decorator module
 
-此模块包含各种装饰器，用于在方法执行前进行验证和处理。
+This module contains various decorators used for validation and processing before method execution.
 """
 
 from functools import wraps
@@ -19,13 +19,13 @@ def trace_logger(
     log_level: str = "debug",
 ):
     """
-    自动添加 [trace] 日志的装饰器
+    Decorator that automatically adds [trace] logs
 
     Args:
-        operation_name: 操作名称，如果不提供则使用函数名
-        include_args: 是否记录函数参数
-        include_result: 是否记录函数返回值
-        log_level: 日志级别 (debug, info, warning, error)
+        operation_name: Operation name, if not provided, function name will be used
+        include_args: Whether to log function arguments
+        include_result: Whether to log function return value
+        log_level: Log level (debug, info, warning, error)
     """
 
     def decorator(func: Callable) -> Callable:
@@ -34,43 +34,43 @@ def trace_logger(
             logger = logging.getLogger(func.__module__)
             operation = operation_name or func.__name__
 
-            # 检查日志级别是否启用
+            # Check if log level is enabled
             if not _is_log_level_enabled(logger, log_level):
-                # 如果日志级别不启用，直接执行函数，避免性能损耗
+                # If log level is not enabled, execute function directly to avoid performance overhead
                 return await func(*args, **kwargs)
 
             start_time = time.time()
 
-            # 记录开始日志
-            log_message = f"\n\t[trace] {operation} - 开始处理"
+            # Log start message
+            log_message = f"\n\t[trace] {operation} - Start processing"
             if include_args and (args or kwargs):
                 args_str = _format_args(args, kwargs)
-                log_message += f" | 参数: {args_str}"
+                log_message += f" | Parameters: {args_str}"
 
             _log_message(logger, log_level, log_message)
 
             try:
-                # 执行原函数
+                # Execute original function
                 result = await func(*args, **kwargs)
 
-                # 记录成功完成日志
+                # Log success completion message
                 end_time = time.time()
-                duration = round((end_time - start_time) * 1000, 2)  # 毫秒
+                duration = round((end_time - start_time) * 1000, 2)  # milliseconds
 
-                log_message = f"\n\t[trace] {operation} - 处理完成 (耗时: {duration}ms)"
+                log_message = f"\n\t[trace] {operation} - Processing completed (duration: {duration}ms)"
                 if include_result and result is not None:
                     result_str = _format_result(result)
-                    log_message += f" | 结果: {result_str}"
+                    log_message += f" | Result: {result_str}"
 
                 _log_message(logger, log_level, log_message)
                 return result
 
             except Exception as e:
-                # 记录异常日志
+                # Log exception message
                 end_time = time.time()
                 duration = round((end_time - start_time) * 1000, 2)
 
-                log_message = f"\n\t[trace] {operation} - 处理失败 (耗时: {duration}ms) | 错误: {str(e)}"
+                log_message = f"\n\t[trace] {operation} - Processing failed (duration: {duration}ms) | Error: {str(e)}"
                 _log_message(logger, "error", log_message)
                 raise
 
@@ -79,47 +79,47 @@ def trace_logger(
             logger = logging.getLogger(func.__module__)
             operation = operation_name or func.__name__
 
-            # 检查日志级别是否启用
+            # Check if log level is enabled
             if not _is_log_level_enabled(logger, log_level):
-                # 如果日志级别不启用，直接执行函数，避免性能损耗
+                # If log level is not enabled, execute function directly to avoid performance overhead
                 return func(*args, **kwargs)
 
             start_time = time.time()
 
-            # 记录开始日志
-            log_message = f"\n\t[trace] {operation} - 开始处理"
+            # Log start message
+            log_message = f"\n\t[trace] {operation} - Start processing"
             if include_args and (args or kwargs):
                 args_str = _format_args(args, kwargs)
-                log_message += f" | 参数: {args_str}"
+                log_message += f" | Parameters: {args_str}"
 
             _log_message(logger, log_level, log_message)
 
             try:
-                # 执行原函数
+                # Execute original function
                 result = func(*args, **kwargs)
 
-                # 记录成功完成日志
+                # Log success completion message
                 end_time = time.time()
                 duration = round((end_time - start_time) * 1000, 2)
 
-                log_message = f"\n\t[trace] {operation} - 处理完成 (耗时: {duration}ms)"
+                log_message = f"\n\t[trace] {operation} - Processing completed (duration: {duration}ms)"
                 if include_result and result is not None:
                     result_str = _format_result(result)
-                    log_message += f" | 结果: {result_str}"
+                    log_message += f" | Result: {result_str}"
 
                 _log_message(logger, log_level, log_message)
                 return result
 
             except Exception as e:
-                # 记录异常日志
+                # Log exception message
                 end_time = time.time()
                 duration = round((end_time - start_time) * 1000, 2)
 
-                log_message = f"\n\t[trace] {operation} - 处理失败 (耗时: {duration}ms) | 错误: {str(e)}"
+                log_message = f"\n\t[trace] {operation} - Processing failed (duration: {duration}ms) | Error: {str(e)}"
                 _log_message(logger, "error", log_message)
                 raise
 
-        # 根据函数是否为协程函数返回对应的包装器
+        # Return corresponding wrapper based on whether the function is a coroutine
         import asyncio
 
         if asyncio.iscoroutinefunction(func):
@@ -131,35 +131,35 @@ def trace_logger(
 
 
 def _is_log_level_enabled(logger, level: str) -> bool:
-    """检查日志级别是否启用"""
+    """Check if log level is enabled"""
     level_num = getattr(logging, level.upper(), logging.INFO)
     return logger.isEnabledFor(level_num)
 
 
 def _log_message(logger, level: str, message: str):
-    """根据级别记录日志"""
+    """Log message according to level"""
     log_method = getattr(logger, level.lower(), logger.info)
     log_method(message)
 
 
 def _format_args(args, kwargs) -> str:
-    """格式化函数参数"""
+    """Format function arguments"""
     args_str = []
 
-    # 处理位置参数
+    # Handle positional arguments
     for i, arg in enumerate(args):
-        if hasattr(arg, '__dict__'):  # 对象类型
+        if hasattr(arg, '__dict__'):  # Object type
             args_str.append(f"arg{i}: {type(arg).__name__}")
-        elif isinstance(arg, (list, dict)) and len(str(arg)) > 100:  # 大对象
+        elif isinstance(arg, (list, dict)) and len(str(arg)) > 100:  # Large object
             args_str.append(f"arg{i}: {type(arg).__name__}(len={len(arg)})")
         else:
             args_str.append(f"arg{i}: {arg}")
 
-    # 处理关键字参数
+    # Handle keyword arguments
     for key, value in kwargs.items():
-        if hasattr(value, '__dict__'):  # 对象类型
+        if hasattr(value, '__dict__'):  # Object type
             args_str.append(f"{key}: {type(value).__name__}")
-        elif isinstance(value, (list, dict)) and len(str(value)) > 100:  # 大对象
+        elif isinstance(value, (list, dict)) and len(str(value)) > 100:  # Large object
             args_str.append(f"{key}: {type(value).__name__}(len={len(value)})")
         else:
             args_str.append(f"{key}: {value}")
@@ -168,10 +168,10 @@ def _format_args(args, kwargs) -> str:
 
 
 def _format_result(result) -> str:
-    """格式化函数返回值"""
-    if hasattr(result, '__dict__'):  # 对象类型
+    """Format function return value"""
+    if hasattr(result, '__dict__'):  # Object type
         return f"{type(result).__name__}"
-    elif isinstance(result, (list, dict)) and len(str(result)) > 100:  # 大对象
+    elif isinstance(result, (list, dict)) and len(str(result)) > 100:  # Large object
         return f"{type(result).__name__}(len={len(result)})"
     else:
         return str(result)

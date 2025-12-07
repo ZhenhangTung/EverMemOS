@@ -9,18 +9,22 @@ from core.oxm.mongo.audit_base import AuditBase
 
 class Entity(DocumentBase, AuditBase):
     """
-    实体库文档模型
+    Entity document model
 
-    存储从情景记忆中提取出的实体信息，包括人物、项目、组织等。
+    Stores entity information extracted from episodic memory, including people, projects, organizations, etc.
     """
 
-    # 基本信息
-    name: str = Field(..., description="实体名字")
-    type: str = Field(..., description="实体类型（Project、Person、组织名等）")
-    aliases: Optional[List[str]] = Field(default=None, description="关联的别名")
+    # Basic information
+    name: str = Field(..., description="Entity name")
+    type: str = Field(
+        ..., description="Entity type (Project, Person, Organization, etc.)"
+    )
+    aliases: Optional[List[str]] = Field(default=None, description="Associated aliases")
 
-    # 通用字段
-    extend: Optional[Dict[str, Any]] = Field(default=None, description="备用拓展字段")
+    # Common fields
+    extend: Optional[Dict[str, Any]] = Field(
+        default=None, description="Reserved extension field"
+    )
 
     model_config = ConfigDict(
         collection="entities",
@@ -28,10 +32,13 @@ class Entity(DocumentBase, AuditBase):
         json_encoders={datetime: lambda dt: dt.isoformat()},
         json_schema_extra={
             "example": {
-                "name": "张三",
+                "name": "Zhang San",
                 "type": "Person",
-                "aliases": ["小张", "张工", "zhangsan"],
-                "extend": {"department": "技术部", "level": "高级工程师"},
+                "aliases": ["Xiao Zhang", "Engineer Zhang", "zhangsan"],
+                "extend": {
+                    "department": "Technology Department",
+                    "level": "Senior Engineer",
+                },
             }
         },
     )
@@ -41,11 +48,11 @@ class Entity(DocumentBase, AuditBase):
         return self.id
 
     class Settings:
-        """Beanie 设置"""
+        """Beanie settings"""
 
         name = "entities"
         indexes = [
-            # 注意：entity_id 映射到 _id 字段，MongoDB 已自动为 _id 创建主键索引
+            # Note: entity_id maps to the _id field, MongoDB automatically creates a primary key index on _id
             IndexModel([("aliases", ASCENDING)], name="idx_aliases", sparse=True),
             IndexModel([("created_at", DESCENDING)], name="idx_created_at"),
             IndexModel([("updated_at", DESCENDING)], name="idx_updated_at"),

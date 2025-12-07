@@ -14,12 +14,12 @@ async def sync_episodic_memory_docs(
     batch_size: int, limit: Optional[int], days: Optional[int]
 ) -> None:
     """
-    同步情景记忆文档到 Elasticsearch。
+    Sync episodic memory documents to Elasticsearch.
 
     Args:
-        batch_size: 批处理大小
-        limit: 最多处理的文档数量
-        days: 仅处理最近 N 天创建的文档；为 None 处理全部
+        batch_size: Batch size
+        limit: Maximum number of documents to process
+        days: Only process documents created in the last N days; None means process all
     """
     from infra_layer.adapters.out.persistence.repository.episodic_memory_raw_repository import (
         EpisodicMemoryRawRepository,
@@ -41,26 +41,30 @@ async def sync_episodic_memory_docs(
         now = get_now_with_timezone()
         start_time = now - timedelta(days=days)
         query_filter["created_at"] = {"$gte": start_time}
-        logger.info("只处理过去 %s 天创建的文档（从 %s 开始）", days, start_time)
+        logger.info(
+            "Only processing documents created in the past %s days (starting from %s)",
+            days,
+            start_time,
+        )
 
-    logger.info("开始同步情景记忆文档到ES...")
+    logger.info("Starting to sync episodic memory documents to ES...")
 
     total_processed = 0
     success_count = 0
     error_count = 0
 
-    # 获取 ES 异步客户端与索引名
+    # Get ES async client and index name
     try:
         async_client = EpisodicMemoryDoc.get_connection()
     except Exception as e:  # noqa: BLE001
-        logger.error("获取 Elasticsearch 客户端失败: %s", e)
+        logger.error("Failed to get Elasticsearch client: %s", e)
         raise
 
     async def generate_actions() -> AsyncIterator[Dict[str, Any]]:
         nonlocal total_processed
         skip = 0
         while True:
-            # 使用 repository 方法分页查询
+            # Use repository method to query with pagination
             mongo_docs = await mongo_repo.find_by_filter_paginated(
                 query_filter=query_filter,
                 skip=skip,
@@ -70,21 +74,21 @@ async def sync_episodic_memory_docs(
             )
 
             if not mongo_docs:
-                logger.info("没有更多文档需要处理")
+                logger.info("No more documents to process")
                 break
 
             first_doc_time = (
                 mongo_docs[0].created_at
                 if hasattr(mongo_docs[0], "created_at")
-                else "未知"
+                else "unknown"
             )
             last_doc_time = (
                 mongo_docs[-1].created_at
                 if hasattr(mongo_docs[-1], "created_at")
-                else "未知"
+                else "unknown"
             )
             logger.info(
-                "准备批量写入第 %s - %s 个文档，时间范围: %s ~ %s",
+                "Preparing to bulk write documents %s - %s, time range: %s ~ %s",
                 skip + 1,
                 skip + len(mongo_docs),
                 first_doc_time,
@@ -107,16 +111,18 @@ async def sync_episodic_memory_docs(
 
                 total_processed += 1
                 if limit and total_processed >= limit:
-                    logger.info("已达到处理限制 %s，停止继续生成 actions", limit)
+                    logger.info(
+                        "Reached processing limit %s, stop generating actions", limit
+                    )
                     return
 
             skip += batch_size
             if len(mongo_docs) < batch_size:
-                logger.info("已处理完所有文档")
+                logger.info("All documents have been processed")
                 break
 
     try:
-        # 使用 streaming bulk 批量 upsert
+        # Use streaming bulk to perform bulk upsert
         async for ok, info in async_streaming_bulk(
             async_client, generate_actions(), chunk_size=batch_size
         ):
@@ -124,18 +130,18 @@ async def sync_episodic_memory_docs(
                 success_count += 1
             else:
                 error_count += 1
-                logger.error("批量写入失败: %s", info)
+                logger.error("Bulk write failed: %s", info)
 
-        # 刷新索引
+        # Refresh index
         await async_client.indices.refresh(index=index_name)
 
         logger.info(
-            "同步完成! 总处理: %s, 成功: %s, 失败: %s",
+            "Sync completed! Total processed: %s, Success: %s, Failed: %s",
             total_processed,
             success_count,
             error_count,
         )
     except Exception as exc:  # noqa: BLE001
-        logger.error("同步过程中发生错误: %s", exc)
+        logger.error("An error occurred during sync: %s", exc)
         traceback.print_exc()
         raise

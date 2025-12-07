@@ -15,8 +15,9 @@ from api_specs.memory_types import MemoryType, Memory, MemCell
 @dataclass
 class MemoryExtractRequest:
     """
-    记忆提取请求基类
+    Base class for memory extraction requests
     """
+
     memcell: MemCell
     user_id: Optional[str] = None
     group_id: Optional[str] = None

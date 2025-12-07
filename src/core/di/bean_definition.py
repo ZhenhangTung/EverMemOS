@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Bean定义模块
+Bean definition module
 
-包含Bean的定义类和作用域枚举
+Contains Bean definition classes and scope enumeration
 """
 
 from enum import Enum
@@ -10,7 +10,7 @@ from typing import Type, Callable, Any, Set, Dict, Optional
 
 
 class BeanScope(str, Enum):
-    """Bean作用域枚举"""
+    """Bean scope enumeration"""
 
     SINGLETON = "singleton"
     PROTOTYPE = "prototype"
@@ -18,7 +18,7 @@ class BeanScope(str, Enum):
 
 
 class BeanDefinition:
-    """Bean定义类"""
+    """Bean definition class"""
 
     def __init__(
         self,
@@ -32,17 +32,17 @@ class BeanDefinition:
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """
-        初始化Bean定义
+        Initialize Bean definition
 
         Args:
-            bean_type: Bean的类型
-            bean_name: Bean的名称，默认为类型名称的小写
-            scope: Bean的作用域，默认为单例
-            is_primary: 是否为主Bean，用于在有多个实现时优先选择
-            is_mock: 是否为Mock实现
-            factory_method: 工厂方法，用于创建Bean实例
-            instance: 预先创建的实例
-            metadata: Bean的元数据，可用于存储额外信息
+            bean_type: Type of the Bean
+            bean_name: Name of the Bean, defaults to lowercase type name
+            scope: Scope of the Bean, defaults to singleton
+            is_primary: Whether it is the primary Bean, used to prioritize when multiple implementations exist
+            is_mock: Whether it is a Mock implementation
+            factory_method: Factory method used to create the Bean instance
+            instance: Pre-created instance
+            metadata: Metadata of the Bean, can be used to store additional information
         """
         self.bean_type = bean_type
         self.bean_name = bean_name or bean_type.__name__.lower()
@@ -52,7 +52,7 @@ class BeanDefinition:
         self.factory_method = factory_method
         self.instance = instance
         self.metadata = metadata or {}
-        # 依赖项集合
+        # Dependency set
         self.dependencies: Set[Type] = set()
 
     def __repr__(self):

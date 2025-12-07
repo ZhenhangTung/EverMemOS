@@ -3,12 +3,12 @@
 cd /Users/admin/memsys_opensource
 PYTHONPATH=/Users/admin/memsys_opensource/src python -m pytest src/core/di/tests/test_bean_order_strategy.py -v
 
-BeanOrderStrategy 测试模块
+BeanOrderStrategy Test Module
 
-全面测试Bean排序策略的各种场景，包括：
-- calculate_order_key 方法的各种优先级计算
-- sort_beans_with_context 方法的综合排序和过滤逻辑
-- sort_beans 方法的简单排序逻辑
+Comprehensively test various scenarios of Bean sorting strategy, including:
+- Various priority calculations of the calculate_order_key method
+- Comprehensive sorting and filtering logic of the sort_beans_with_context method
+- Simple sorting logic of the sort_beans method
 """
 
 import pytest
@@ -17,46 +17,46 @@ from core.di.bean_definition import BeanDefinition, BeanScope
 from core.di.bean_order_strategy import BeanOrderStrategy
 
 
-# ==================== 测试辅助类 ====================
+# ==================== Test Helper Classes ====================
 
 
 class ServiceA:
-    """测试服务A"""
+    """Test service A"""
 
     pass
 
 
 class ServiceB:
-    """测试服务B"""
+    """Test service B"""
 
     pass
 
 
 class ServiceC:
-    """测试服务C"""
+    """Test service C"""
 
     pass
 
 
 class ServiceD:
-    """测试服务D"""
+    """Test service D"""
 
     pass
 
 
-# ==================== calculate_order_key 方法测试 ====================
+# ==================== Test calculate_order_key Method ====================
 
 
 class TestCalculateOrderKey:
-    """测试 calculate_order_key 方法"""
+    """Test calculate_order_key method"""
 
     def test_mock_priority_in_mock_mode(self):
-        """测试Mock模式下，Mock Bean优先级高于非Mock Bean"""
-        # 创建Mock Bean和非Mock Bean
+        """Test in Mock mode, Mock Bean has higher priority than non-Mock Bean"""
+        # Create Mock Bean and non-Mock Bean
         mock_bean = BeanDefinition(ServiceA, is_mock=True)
         normal_bean = BeanDefinition(ServiceA, is_mock=False)
 
-        # 计算排序键（Mock模式，直接匹配）
+        # Calculate sort key (Mock mode, direct match)
         mock_key = BeanOrderStrategy.calculate_order_key(
             mock_bean, is_direct_match=True, mock_mode=True
         )
@@ -64,18 +64,18 @@ class TestCalculateOrderKey:
             normal_bean, is_direct_match=True, mock_mode=True
         )
 
-        # 验证：Mock Bean的mock_priority=0，非Mock Bean的mock_priority=1
-        assert mock_key[0] == 0  # Mock Bean的mock优先级
-        assert normal_key[0] == 1  # 非Mock Bean的mock优先级
-        assert mock_key < normal_key  # Mock Bean优先级更高
+        # Verify: Mock Bean's mock_priority=0, non-Mock Bean's mock_priority=1
+        assert mock_key[0] == 0  # Mock Bean's mock priority
+        assert normal_key[0] == 1  # Non-Mock Bean's mock priority
+        assert mock_key < normal_key  # Mock Bean has higher priority
 
     def test_mock_priority_in_normal_mode(self):
-        """测试非Mock模式下，Mock Bean和非Mock Bean的mock_priority都为0"""
-        # 创建Mock Bean和非Mock Bean
+        """Test in non-Mock mode, both Mock and non-Mock Beans have mock_priority=0"""
+        # Create Mock Bean and non-Mock Bean
         mock_bean = BeanDefinition(ServiceA, is_mock=True)
         normal_bean = BeanDefinition(ServiceA, is_mock=False)
 
-        # 计算排序键（非Mock模式，直接匹配）
+        # Calculate sort key (non-Mock mode, direct match)
         mock_key = BeanOrderStrategy.calculate_order_key(
             mock_bean, is_direct_match=True, mock_mode=False
         )
@@ -83,15 +83,15 @@ class TestCalculateOrderKey:
             normal_bean, is_direct_match=True, mock_mode=False
         )
 
-        # 验证：非Mock模式下，两者的mock_priority都为0
+        # Verify: In non-Mock mode, both have mock_priority=0
         assert mock_key[0] == 0
         assert normal_key[0] == 0
 
     def test_direct_match_priority(self):
-        """测试直接匹配优先于实现类匹配"""
+        """Test direct match has higher priority than implementation class match"""
         bean = BeanDefinition(ServiceA)
 
-        # 计算排序键
+        # Calculate sort key
         direct_match_key = BeanOrderStrategy.calculate_order_key(
             bean, is_direct_match=True, mock_mode=False
         )
@@ -99,17 +99,17 @@ class TestCalculateOrderKey:
             bean, is_direct_match=False, mock_mode=False
         )
 
-        # 验证：直接匹配的match_priority=0，实现类匹配的match_priority=1
-        assert direct_match_key[1] == 0  # 直接匹配
-        assert impl_match_key[1] == 1  # 实现类匹配
-        assert direct_match_key < impl_match_key  # 直接匹配优先级更高
+        # Verify: direct match has match_priority=0, implementation match has match_priority=1
+        assert direct_match_key[1] == 0  # Direct match
+        assert impl_match_key[1] == 1  # Implementation match
+        assert direct_match_key < impl_match_key  # Direct match has higher priority
 
     def test_primary_priority(self):
-        """测试Primary Bean优先于非Primary Bean"""
+        """Test Primary Bean has higher priority than non-Primary Bean"""
         primary_bean = BeanDefinition(ServiceA, is_primary=True)
         normal_bean = BeanDefinition(ServiceA, is_primary=False)
 
-        # 计算排序键（直接匹配，非Mock模式）
+        # Calculate sort key (direct match, non-Mock mode)
         primary_key = BeanOrderStrategy.calculate_order_key(
             primary_bean, is_direct_match=True, mock_mode=False
         )
@@ -117,18 +117,18 @@ class TestCalculateOrderKey:
             normal_bean, is_direct_match=True, mock_mode=False
         )
 
-        # 验证：Primary Bean的primary_priority=0，非Primary Bean的primary_priority=1
+        # Verify: Primary Bean's primary_priority=0, non-Primary Bean's primary_priority=1
         assert primary_key[2] == 0  # Primary Bean
-        assert normal_key[2] == 1  # 非Primary Bean
-        assert primary_key < normal_key  # Primary Bean优先级更高
+        assert normal_key[2] == 1  # Non-Primary Bean
+        assert primary_key < normal_key  # Primary Bean has higher priority
 
     def test_factory_scope_priority(self):
-        """测试Factory Bean优先于非Factory Bean"""
+        """Test Factory Bean has higher priority than non-Factory Bean"""
         factory_bean = BeanDefinition(ServiceA, scope=BeanScope.FACTORY)
         singleton_bean = BeanDefinition(ServiceA, scope=BeanScope.SINGLETON)
         prototype_bean = BeanDefinition(ServiceA, scope=BeanScope.PROTOTYPE)
 
-        # 计算排序键（直接匹配，非Mock模式）
+        # Calculate sort key (direct match, non-Mock mode)
         factory_key = BeanOrderStrategy.calculate_order_key(
             factory_bean, is_direct_match=True, mock_mode=False
         )
@@ -139,17 +139,17 @@ class TestCalculateOrderKey:
             prototype_bean, is_direct_match=True, mock_mode=False
         )
 
-        # 验证：Factory Bean的scope_priority=0，其他的scope_priority=1
+        # Verify: Factory Bean's scope_priority=0, others' scope_priority=1
         assert factory_key[3] == 0  # Factory Bean
         assert singleton_key[3] == 1  # Singleton Bean
         assert prototype_key[3] == 1  # Prototype Bean
-        assert factory_key < singleton_key  # Factory Bean优先级更高
-        assert factory_key < prototype_key  # Factory Bean优先级更高
+        assert factory_key < singleton_key  # Factory Bean has higher priority
+        assert factory_key < prototype_key  # Factory Bean has higher priority
 
     def test_comprehensive_priority_ordering(self):
-        """测试综合优先级排序：mock > match > primary > scope"""
-        # 在Mock模式下，创建各种组合的Bean
-        # 最高优先级：Mock + 直接匹配 + Primary + Factory
+        """Test comprehensive priority ordering: mock > match > primary > scope"""
+        # In Mock mode, create Beans with various combinations
+        # Highest priority: Mock + direct match + Primary + Factory
         bean1 = BeanDefinition(
             ServiceA, is_mock=True, is_primary=True, scope=BeanScope.FACTORY
         )
@@ -157,7 +157,7 @@ class TestCalculateOrderKey:
             bean1, is_direct_match=True, mock_mode=True
         )
 
-        # 次高优先级：Mock + 直接匹配 + Primary + 非Factory
+        # Second highest priority: Mock + direct match + Primary + non-Factory
         bean2 = BeanDefinition(
             ServiceA, is_mock=True, is_primary=True, scope=BeanScope.SINGLETON
         )
@@ -165,7 +165,7 @@ class TestCalculateOrderKey:
             bean2, is_direct_match=True, mock_mode=True
         )
 
-        # 第三优先级：Mock + 直接匹配 + 非Primary + Factory
+        # Third priority: Mock + direct match + non-Primary + Factory
         bean3 = BeanDefinition(
             ServiceA, is_mock=True, is_primary=False, scope=BeanScope.FACTORY
         )
@@ -173,7 +173,7 @@ class TestCalculateOrderKey:
             bean3, is_direct_match=True, mock_mode=True
         )
 
-        # 第四优先级：Mock + 实现类匹配 + Primary + Factory
+        # Fourth priority: Mock + implementation match + Primary + Factory
         bean4 = BeanDefinition(
             ServiceA, is_mock=True, is_primary=True, scope=BeanScope.FACTORY
         )
@@ -181,7 +181,7 @@ class TestCalculateOrderKey:
             bean4, is_direct_match=False, mock_mode=True
         )
 
-        # 第五优先级：非Mock + 直接匹配 + Primary + Factory
+        # Fifth priority: non-Mock + direct match + Primary + Factory
         bean5 = BeanDefinition(
             ServiceA, is_mock=False, is_primary=True, scope=BeanScope.FACTORY
         )
@@ -189,27 +189,39 @@ class TestCalculateOrderKey:
             bean5, is_direct_match=True, mock_mode=True
         )
 
-        # 验证排序顺序 - key1 是最高优先级
-        assert key1 < key2  # Factory优先于非Factory（同为Mock+直接+Primary）
-        assert key1 < key3  # Primary优先于非Primary（同为Mock+直接+Factory）
-        assert key1 < key4  # 直接匹配优先于实现类匹配（同为Mock+Primary+Factory）
-        assert key1 < key5  # Mock优先于非Mock（同为直接+Primary+Factory）
+        # Verify sort order - key1 has highest priority
+        assert (
+            key1 < key2
+        )  # Factory has higher priority than non-Factory (same Mock+direct+Primary)
+        assert (
+            key1 < key3
+        )  # Primary has higher priority than non-Primary (same Mock+direct+Factory)
+        assert (
+            key1 < key4
+        )  # Direct match has higher priority than implementation match (same Mock+Primary+Factory)
+        assert (
+            key1 < key5
+        )  # Mock has higher priority than non-Mock (same direct+Primary+Factory)
 
-        # 验证次级优先级 - 在优先级元组中，前面的位权重更高
-        assert key2 < key3  # (0,0,0,1) < (0,0,1,0): scope差异 vs primary差异
-        assert key3 < key4  # (0,0,1,0) < (0,1,0,0): primary差异 vs match差异
-        assert key4 < key5  # (0,1,0,0) < (1,0,0,0): match差异 vs mock差异
+        # Verify secondary priorities - earlier positions in the tuple have higher weight
+        assert (
+            key2 < key3
+        )  # (0,0,0,1) < (0,0,1,0): scope difference vs primary difference
+        assert (
+            key3 < key4
+        )  # (0,0,1,0) < (0,1,0,0): primary difference vs match difference
+        assert key4 < key5  # (0,1,0,0) < (1,0,0,0): match difference vs mock difference
 
 
-# ==================== sort_beans_with_context 方法测试 ====================
+# ==================== Test sort_beans_with_context Method ====================
 
 
 class TestSortBeansWithContext:
-    """测试 sort_beans_with_context 方法"""
+    """Test sort_beans_with_context method"""
 
     def test_filter_mock_beans_in_normal_mode(self):
-        """测试非Mock模式下，Mock Bean被过滤掉"""
-        # 创建包含Mock Bean和非Mock Bean的列表
+        """Test in non-Mock mode, Mock Beans are filtered out"""
+        # Create list containing Mock and non-Mock Beans
         bean_defs = [
             BeanDefinition(ServiceA, bean_name="mock_a", is_mock=True),
             BeanDefinition(ServiceB, bean_name="normal_b", is_mock=False),
@@ -217,19 +229,19 @@ class TestSortBeansWithContext:
             BeanDefinition(ServiceD, bean_name="normal_d", is_mock=False),
         ]
 
-        # 排序（非Mock模式）
+        # Sort (non-Mock mode)
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs, direct_match_types=set(), mock_mode=False
         )
 
-        # 验证：只剩下非Mock Bean
+        # Verify: only non-Mock Beans remain
         assert len(sorted_beans) == 2
         assert all(not bd.is_mock for bd in sorted_beans)
         assert {bd.bean_name for bd in sorted_beans} == {"normal_b", "normal_d"}
 
     def test_keep_mock_beans_in_mock_mode(self):
-        """测试Mock模式下，Mock Bean被保留且优先"""
-        # 创建包含Mock Bean和非Mock Bean的列表
+        """Test in Mock mode, Mock Beans are retained and prioritized"""
+        # Create list containing Mock and non-Mock Beans
         bean_defs = [
             BeanDefinition(ServiceA, bean_name="normal_a", is_mock=False),
             BeanDefinition(ServiceB, bean_name="mock_b", is_mock=True),
@@ -237,25 +249,25 @@ class TestSortBeansWithContext:
             BeanDefinition(ServiceD, bean_name="normal_d", is_mock=False),
         ]
 
-        # 排序（Mock模式，所有都是直接匹配）
+        # Sort (Mock mode, all are direct matches)
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs,
             direct_match_types={ServiceA, ServiceB, ServiceC, ServiceD},
             mock_mode=True,
         )
 
-        # 验证：所有Bean都被保留
+        # Verify: all Beans are retained
         assert len(sorted_beans) == 4
 
-        # 验证：Mock Bean在前，非Mock Bean在后
+        # Verify: Mock Beans come first, non-Mock Beans come last
         assert sorted_beans[0].is_mock
         assert sorted_beans[1].is_mock
         assert not sorted_beans[2].is_mock
         assert not sorted_beans[3].is_mock
 
     def test_direct_match_types_sorting(self):
-        """测试直接匹配类型的优先排序"""
-        # 创建Bean列表
+        """Test priority sorting of direct match types"""
+        # Create Bean list
         bean_defs = [
             BeanDefinition(ServiceA, bean_name="impl_a"),
             BeanDefinition(ServiceB, bean_name="direct_b"),
@@ -263,23 +275,23 @@ class TestSortBeansWithContext:
             BeanDefinition(ServiceD, bean_name="direct_d"),
         ]
 
-        # 设置ServiceB和ServiceD为直接匹配类型
+        # Set ServiceB and ServiceD as direct match types
         direct_match_types = {ServiceB, ServiceD}
 
-        # 排序（非Mock模式）
+        # Sort (non-Mock mode)
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs, direct_match_types=direct_match_types, mock_mode=False
         )
 
-        # 验证：直接匹配的Bean在前
+        # Verify: direct match Beans come first
         assert sorted_beans[0].bean_type in direct_match_types
         assert sorted_beans[1].bean_type in direct_match_types
         assert sorted_beans[2].bean_type not in direct_match_types
         assert sorted_beans[3].bean_type not in direct_match_types
 
     def test_primary_beans_sorting(self):
-        """测试Primary Bean的优先排序"""
-        # 创建Bean列表（所有都是直接匹配，非Mock模式）
+        """Test priority sorting of Primary Beans"""
+        # Create Bean list (all direct matches, non-Mock mode)
         bean_defs = [
             BeanDefinition(ServiceA, bean_name="normal_a", is_primary=False),
             BeanDefinition(ServiceB, bean_name="primary_b", is_primary=True),
@@ -287,22 +299,22 @@ class TestSortBeansWithContext:
             BeanDefinition(ServiceD, bean_name="primary_d", is_primary=True),
         ]
 
-        # 排序（所有都是直接匹配）
+        # Sort (all are direct matches)
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs,
             direct_match_types={ServiceA, ServiceB, ServiceC, ServiceD},
             mock_mode=False,
         )
 
-        # 验证：Primary Bean在前
+        # Verify: Primary Beans come first
         assert sorted_beans[0].is_primary
         assert sorted_beans[1].is_primary
         assert not sorted_beans[2].is_primary
         assert not sorted_beans[3].is_primary
 
     def test_factory_scope_sorting(self):
-        """测试Factory Bean的优先排序"""
-        # 创建Bean列表（所有都是直接匹配，非Primary，非Mock）
+        """Test priority sorting of Factory Beans"""
+        # Create Bean list (all direct matches, non-Primary, non-Mock)
         bean_defs = [
             BeanDefinition(
                 ServiceA, bean_name="singleton_a", scope=BeanScope.SINGLETON
@@ -314,76 +326,78 @@ class TestSortBeansWithContext:
             BeanDefinition(ServiceD, bean_name="factory_d", scope=BeanScope.FACTORY),
         ]
 
-        # 排序（所有都是直接匹配）
+        # Sort (all are direct matches)
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs,
             direct_match_types={ServiceA, ServiceB, ServiceC, ServiceD},
             mock_mode=False,
         )
 
-        # 验证：Factory Bean在前
+        # Verify: Factory Beans come first
         assert sorted_beans[0].scope == BeanScope.FACTORY
         assert sorted_beans[1].scope == BeanScope.FACTORY
         assert sorted_beans[2].scope in {BeanScope.SINGLETON, BeanScope.PROTOTYPE}
         assert sorted_beans[3].scope in {BeanScope.SINGLETON, BeanScope.PROTOTYPE}
 
     def test_comprehensive_sorting(self):
-        """测试综合排序场景：mock + match + primary + scope"""
-        # 创建各种组合的Bean列表
+        """Test comprehensive sorting scenario: mock + match + primary + scope"""
+        # Create Bean list with various combinations
         bean_defs = [
-            # 最低优先级：非直接匹配 + 非Primary + 非Factory
+            # Lowest priority: non-direct match + non-Primary + non-Factory
             BeanDefinition(
                 ServiceA,
                 bean_name="lowest",
                 is_primary=False,
                 scope=BeanScope.SINGLETON,
             ),
-            # 中等优先级：直接匹配 + 非Primary + 非Factory
+            # Medium priority: direct match + non-Primary + non-Factory
             BeanDefinition(
                 ServiceB,
                 bean_name="medium1",
                 is_primary=False,
                 scope=BeanScope.SINGLETON,
             ),
-            # 较高优先级：直接匹配 + Primary + 非Factory
+            # Higher priority: direct match + Primary + non-Factory
             BeanDefinition(
                 ServiceC, bean_name="high1", is_primary=True, scope=BeanScope.SINGLETON
             ),
-            # 最高优先级：直接匹配 + Primary + Factory
+            # Highest priority: direct match + Primary + Factory
             BeanDefinition(
                 ServiceD, bean_name="highest", is_primary=True, scope=BeanScope.FACTORY
             ),
-            # 次高优先级：直接匹配 + 非Primary + Factory
+            # Second highest priority: direct match + non-Primary + Factory
             BeanDefinition(
                 ServiceA, bean_name="high2", is_primary=False, scope=BeanScope.FACTORY
             ),
         ]
 
-        # 设置直接匹配类型（ServiceB, ServiceC, ServiceD，但不包括ServiceA）
+        # Set direct match types (ServiceB, ServiceC, ServiceD, but not ServiceA)
         direct_match_types = {ServiceB, ServiceC, ServiceD}
 
-        # 排序（非Mock模式）
+        # Sort (non-Mock mode)
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs, direct_match_types=direct_match_types, mock_mode=False
         )
 
-        # 验证排序顺序
-        assert sorted_beans[0].bean_name == "highest"  # 直接+Primary+Factory
+        # Verify sort order
+        assert sorted_beans[0].bean_name == "highest"  # direct+Primary+Factory
         assert sorted_beans[1].bean_name in {
             "high1",
             "high2",
-        }  # 直接+Primary+非Factory 或 直接+非Primary+Factory
-        assert sorted_beans[4].bean_name == "lowest"  # 非直接+非Primary+非Factory
+        }  # direct+Primary+non-Factory or direct+non-Primary+Factory
+        assert (
+            sorted_beans[4].bean_name == "lowest"
+        )  # non-direct+non-Primary+non-Factory
 
     def test_empty_list(self):
-        """测试空列表"""
+        """Test empty list"""
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=[], direct_match_types=set(), mock_mode=False
         )
         assert sorted_beans == []
 
     def test_single_bean(self):
-        """测试单个Bean"""
+        """Test single Bean"""
         bean_defs = [BeanDefinition(ServiceA, bean_name="single")]
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs, direct_match_types={ServiceA}, mock_mode=False
@@ -392,7 +406,7 @@ class TestSortBeansWithContext:
         assert sorted_beans[0].bean_name == "single"
 
     def test_all_mock_beans_in_normal_mode(self):
-        """测试非Mock模式下，所有Bean都是Mock Bean的情况"""
+        """Test when all Beans are Mock Beans in non-Mock mode"""
         bean_defs = [
             BeanDefinition(ServiceA, bean_name="mock_a", is_mock=True),
             BeanDefinition(ServiceB, bean_name="mock_b", is_mock=True),
@@ -402,13 +416,13 @@ class TestSortBeansWithContext:
             bean_defs=bean_defs, direct_match_types=set(), mock_mode=False
         )
 
-        # 验证：所有Mock Bean被过滤，结果为空
+        # Verify: all Mock Beans are filtered out, result is empty
         assert sorted_beans == []
 
     def test_complex_mock_mode_sorting(self):
-        """测试Mock模式下的复杂排序"""
+        """Test complex sorting in Mock mode"""
         bean_defs = [
-            # 非Mock + 非直接 + 非Primary + 非Factory（最低）
+            # non-Mock + non-direct + non-Primary + non-Factory (lowest)
             BeanDefinition(
                 ServiceA,
                 bean_name="lowest",
@@ -416,7 +430,7 @@ class TestSortBeansWithContext:
                 is_primary=False,
                 scope=BeanScope.SINGLETON,
             ),
-            # Mock + 非直接 + 非Primary + 非Factory（中等）
+            # Mock + non-direct + non-Primary + non-Factory (medium)
             BeanDefinition(
                 ServiceB,
                 bean_name="medium",
@@ -424,7 +438,7 @@ class TestSortBeansWithContext:
                 is_primary=False,
                 scope=BeanScope.SINGLETON,
             ),
-            # Mock + 直接 + 非Primary + 非Factory（较高）
+            # Mock + direct + non-Primary + non-Factory (higher)
             BeanDefinition(
                 ServiceC,
                 bean_name="high",
@@ -432,7 +446,7 @@ class TestSortBeansWithContext:
                 is_primary=False,
                 scope=BeanScope.SINGLETON,
             ),
-            # Mock + 直接 + Primary + Factory（最高）
+            # Mock + direct + Primary + Factory (highest)
             BeanDefinition(
                 ServiceD,
                 bean_name="highest",
@@ -442,28 +456,32 @@ class TestSortBeansWithContext:
             ),
         ]
 
-        # 排序（Mock模式，ServiceC和ServiceD为直接匹配）
+        # Sort (Mock mode, ServiceC and ServiceD are direct matches)
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs, direct_match_types={ServiceC, ServiceD}, mock_mode=True
         )
 
-        # 验证排序顺序
-        assert sorted_beans[0].bean_name == "highest"  # Mock+直接+Primary+Factory
-        assert sorted_beans[1].bean_name == "high"  # Mock+直接+非Primary+非Factory
-        assert sorted_beans[2].bean_name == "medium"  # Mock+非直接+非Primary+非Factory
+        # Verify sort order
+        assert sorted_beans[0].bean_name == "highest"  # Mock+direct+Primary+Factory
+        assert (
+            sorted_beans[1].bean_name == "high"
+        )  # Mock+direct+non-Primary+non-Factory
+        assert (
+            sorted_beans[2].bean_name == "medium"
+        )  # Mock+non-direct+non-Primary+non-Factory
         assert (
             sorted_beans[3].bean_name == "lowest"
-        )  # 非Mock+非直接+非Primary+非Factory
+        )  # non-Mock+non-direct+non-Primary+non-Factory
 
 
-# ==================== sort_beans 方法测试 ====================
+# ==================== Test sort_beans Method ====================
 
 
 class TestSortBeans:
-    """测试 sort_beans 方法（简单排序）"""
+    """Test sort_beans method (simple sorting)"""
 
     def test_primary_priority_simple(self):
-        """测试Primary Bean优先于非Primary Bean（简单排序）"""
+        """Test Primary Bean has higher priority than non-Primary Bean (simple sorting)"""
         bean_defs = [
             BeanDefinition(ServiceA, bean_name="normal_a", is_primary=False),
             BeanDefinition(ServiceB, bean_name="primary_b", is_primary=True),
@@ -473,14 +491,14 @@ class TestSortBeans:
 
         sorted_beans = BeanOrderStrategy.sort_beans(bean_defs)
 
-        # 验证：Primary Bean在前
+        # Verify: Primary Beans come first
         assert sorted_beans[0].is_primary
         assert sorted_beans[1].is_primary
         assert not sorted_beans[2].is_primary
         assert not sorted_beans[3].is_primary
 
     def test_factory_scope_priority_simple(self):
-        """测试Factory Bean优先于非Factory Bean（简单排序）"""
+        """Test Factory Bean has higher priority than non-Factory Bean (simple sorting)"""
         bean_defs = [
             BeanDefinition(
                 ServiceA, bean_name="singleton_a", scope=BeanScope.SINGLETON
@@ -494,31 +512,31 @@ class TestSortBeans:
 
         sorted_beans = BeanOrderStrategy.sort_beans(bean_defs)
 
-        # 验证：Factory Bean在前
+        # Verify: Factory Beans come first
         assert sorted_beans[0].scope == BeanScope.FACTORY
         assert sorted_beans[1].scope == BeanScope.FACTORY
         assert sorted_beans[2].scope in {BeanScope.SINGLETON, BeanScope.PROTOTYPE}
         assert sorted_beans[3].scope in {BeanScope.SINGLETON, BeanScope.PROTOTYPE}
 
     def test_primary_and_factory_combined(self):
-        """测试Primary和Factory优先级组合（简单排序）"""
+        """Test combined Primary and Factory priority (simple sorting)"""
         bean_defs = [
-            # 最低优先级：非Primary + 非Factory
+            # Lowest priority: non-Primary + non-Factory
             BeanDefinition(
                 ServiceA,
                 bean_name="lowest",
                 is_primary=False,
                 scope=BeanScope.SINGLETON,
             ),
-            # 中等优先级：非Primary + Factory
+            # Medium priority: non-Primary + Factory
             BeanDefinition(
                 ServiceB, bean_name="medium", is_primary=False, scope=BeanScope.FACTORY
             ),
-            # 较高优先级：Primary + 非Factory
+            # Higher priority: Primary + non-Factory
             BeanDefinition(
                 ServiceC, bean_name="high", is_primary=True, scope=BeanScope.SINGLETON
             ),
-            # 最高优先级：Primary + Factory
+            # Highest priority: Primary + Factory
             BeanDefinition(
                 ServiceD, bean_name="highest", is_primary=True, scope=BeanScope.FACTORY
             ),
@@ -526,14 +544,14 @@ class TestSortBeans:
 
         sorted_beans = BeanOrderStrategy.sort_beans(bean_defs)
 
-        # 验证排序顺序
+        # Verify sort order
         assert sorted_beans[0].bean_name == "highest"  # Primary+Factory
-        assert sorted_beans[1].bean_name == "high"  # Primary+非Factory
-        assert sorted_beans[2].bean_name == "medium"  # 非Primary+Factory
-        assert sorted_beans[3].bean_name == "lowest"  # 非Primary+非Factory
+        assert sorted_beans[1].bean_name == "high"  # Primary+non-Factory
+        assert sorted_beans[2].bean_name == "medium"  # non-Primary+Factory
+        assert sorted_beans[3].bean_name == "lowest"  # non-Primary+non-Factory
 
     def test_mock_beans_not_filtered_in_simple_sort(self):
-        """测试简单排序不过滤Mock Bean"""
+        """Test simple sorting does not filter Mock Beans"""
         bean_defs = [
             BeanDefinition(
                 ServiceA, bean_name="mock_a", is_mock=True, is_primary=False
@@ -545,26 +563,26 @@ class TestSortBeans:
 
         sorted_beans = BeanOrderStrategy.sort_beans(bean_defs)
 
-        # 验证：Mock Bean不被过滤（简单排序不考虑Mock）
+        # Verify: Mock Bean is not filtered (simple sorting does not consider Mock)
         assert len(sorted_beans) == 2
-        # 验证：Primary优先（不管是否Mock）
+        # Verify: Primary takes precedence (regardless of Mock status)
         assert sorted_beans[0].bean_name == "normal_b"
         assert sorted_beans[1].bean_name == "mock_a"
 
     def test_empty_list_simple(self):
-        """测试空列表（简单排序）"""
+        """Test empty list (simple sorting)"""
         sorted_beans = BeanOrderStrategy.sort_beans([])
         assert sorted_beans == []
 
     def test_single_bean_simple(self):
-        """测试单个Bean（简单排序）"""
+        """Test single Bean (simple sorting)"""
         bean_defs = [BeanDefinition(ServiceA, bean_name="single")]
         sorted_beans = BeanOrderStrategy.sort_beans(bean_defs)
         assert len(sorted_beans) == 1
         assert sorted_beans[0].bean_name == "single"
 
     def test_same_priority_beans(self):
-        """测试相同优先级的Bean保持原有顺序"""
+        """Test Beans with same priority maintain original order"""
         bean_defs = [
             BeanDefinition(
                 ServiceA, bean_name="a", is_primary=False, scope=BeanScope.SINGLETON
@@ -579,20 +597,20 @@ class TestSortBeans:
 
         sorted_beans = BeanOrderStrategy.sort_beans(bean_defs)
 
-        # 验证：相同优先级的Bean保持原有顺序（stable sort）
+        # Verify: Beans with same priority maintain original order (stable sort)
         assert sorted_beans[0].bean_name == "a"
         assert sorted_beans[1].bean_name == "b"
         assert sorted_beans[2].bean_name == "c"
 
 
-# ==================== 边界情况测试 ====================
+# ==================== Edge Case Tests ====================
 
 
 class TestEdgeCases:
-    """测试边界情况和异常场景"""
+    """Test edge cases and exceptional scenarios"""
 
     def test_none_direct_match_types(self):
-        """测试direct_match_types为空集合"""
+        """Test direct_match_types is empty set"""
         bean_defs = [
             BeanDefinition(ServiceA, bean_name="a"),
             BeanDefinition(ServiceB, bean_name="b"),
@@ -602,11 +620,11 @@ class TestEdgeCases:
             bean_defs=bean_defs, direct_match_types=set(), mock_mode=False
         )
 
-        # 验证：所有Bean都被视为非直接匹配
+        # Verify: all Beans are treated as non-direct match
         assert len(sorted_beans) == 2
 
     def test_all_direct_match_types(self):
-        """测试所有Bean都是直接匹配"""
+        """Test all Beans are direct matches"""
         bean_defs = [
             BeanDefinition(ServiceA, bean_name="a", is_primary=True),
             BeanDefinition(ServiceB, bean_name="b", is_primary=False),
@@ -618,12 +636,12 @@ class TestEdgeCases:
             mock_mode=False,
         )
 
-        # 验证：Primary Bean优先
+        # Verify: Primary Bean comes first
         assert sorted_beans[0].bean_name == "a"
         assert sorted_beans[1].bean_name == "b"
 
     def test_multiple_beans_same_type(self):
-        """测试同一类型的多个Bean"""
+        """Test multiple Beans of the same type"""
         bean_defs = [
             BeanDefinition(
                 ServiceA, bean_name="a1", is_primary=False, scope=BeanScope.SINGLETON
@@ -643,15 +661,15 @@ class TestEdgeCases:
             bean_defs=bean_defs, direct_match_types={ServiceA}, mock_mode=False
         )
 
-        # 验证排序顺序：Primary+Factory > Primary+非Factory > 非Primary+Factory > 非Primary+非Factory
+        # Verify sort order: Primary+Factory > Primary+non-Factory > non-Primary+Factory > non-Primary+non-Factory
         assert sorted_beans[0].bean_name == "a4"  # Primary+Factory
-        assert sorted_beans[1].bean_name == "a2"  # Primary+非Factory
-        assert sorted_beans[2].bean_name == "a3"  # 非Primary+Factory
-        assert sorted_beans[3].bean_name == "a1"  # 非Primary+非Factory
+        assert sorted_beans[1].bean_name == "a2"  # Primary+non-Factory
+        assert sorted_beans[2].bean_name == "a3"  # non-Primary+Factory
+        assert sorted_beans[3].bean_name == "a1"  # non-Primary+non-Factory
 
     def test_all_attributes_combinations(self):
-        """测试所有属性的组合（2^4=16种组合）"""
-        # 生成所有可能的组合
+        """Test all combinations of attributes (2^4=16 combinations)"""
+        # Generate all possible combinations
         combinations = []
         for i in range(16):
             is_mock = bool(i & 8)
@@ -669,20 +687,20 @@ class TestEdgeCases:
             )
             combinations.append((bean, is_direct, bean_type))
 
-        # 提取Bean列表和直接匹配类型
+        # Extract Bean list and direct match types
         bean_defs = [c[0] for c in combinations]
         direct_match_types = {c[2] for c in combinations if c[1]}
 
-        # 排序（Mock模式）
+        # Sort (Mock mode)
         sorted_beans = BeanOrderStrategy.sort_beans_with_context(
             bean_defs=bean_defs, direct_match_types=direct_match_types, mock_mode=True
         )
 
-        # 验证：按优先级排序，Mock Bean在前
-        # 验证所有Bean都被保留
+        # Verify: sorted by priority, Mock Beans come first
+        # Verify all Beans are retained
         assert len(sorted_beans) == 16
 
-        # 验证第一个Bean应该是优先级最高的
+        # Verify the first Bean should be the highest priority
         first_bean = sorted_beans[0]
         first_key = BeanOrderStrategy.calculate_order_key(
             first_bean,
@@ -690,7 +708,7 @@ class TestEdgeCases:
             mock_mode=True,
         )
 
-        # 验证所有其他Bean的优先级都不高于第一个Bean
+        # Verify priority of all other Beans is not higher than the first Bean
         for bean in sorted_beans[1:]:
             bean_key = BeanOrderStrategy.calculate_order_key(
                 bean,
@@ -701,5 +719,5 @@ class TestEdgeCases:
 
 
 if __name__ == "__main__":
-    # 运行测试
+    # Run tests
     pytest.main([__file__, "-v", "--tb=short"])

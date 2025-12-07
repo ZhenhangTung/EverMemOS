@@ -1,8 +1,8 @@
 """
-Milvus 集合转换器基类
+Milvus collection converter base class
 
-提供任意数据源到 Milvus 集合的转换基础功能。
-所有 Milvus 集合转换器都应该继承这个基类以获得统一的转换接口。
+Provides basic functionality for converting arbitrary data sources to Milvus collections.
+All Milvus collection converters should inherit from this base class to obtain a unified conversion interface.
 """
 
 from abc import ABC, abstractmethod
@@ -12,33 +12,33 @@ from core.observation.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 泛型类型变量 - 只限制 Milvus 集合类型
+# Generic type variable - only restricts Milvus collection type
 MilvusCollectionType = TypeVar('MilvusCollectionType', bound=MilvusCollectionBase)
 
 
 class BaseMilvusConverter(ABC, Generic[MilvusCollectionType]):
     """
-    Milvus 集合转换器基类
+    Milvus collection converter base class
 
-    提供任意数据源到 Milvus 集合的转换基础功能。
-    所有 Milvus 集合转换器都应该继承这个类。
+    Provides basic functionality for converting arbitrary data sources to Milvus collections.
+    All Milvus collection converters should inherit from this class.
 
-    特性：
-    - 统一的转换接口（类方法）
-    - 类型安全的 Milvus 集合泛型支持
-    - 自动从泛型获取 Milvus 集合类型
-    - 灵活的数据源支持
+    Features:
+    - Unified conversion interface (class methods)
+    - Type-safe Milvus collection generic support
+    - Automatically retrieves Milvus collection type from generics
+    - Flexible data source support
     """
 
     @classmethod
     def get_milvus_model(cls) -> Type[MilvusCollectionType]:
         """
-        从泛型信息中获取 Milvus 集合模型类型
+        Retrieve the Milvus collection model type from generic information
 
         Returns:
-            Type[MilvusCollectionType]: Milvus 集合模型类
+            Type[MilvusCollectionType]: Milvus collection model class
         """
-        # 获取类的泛型基类
+        # Get the generic base class of the current class
         if hasattr(cls, '__orig_bases__'):
             for base in cls.__orig_bases__:
                 if get_origin(base) is BaseMilvusConverter:
@@ -46,23 +46,25 @@ class BaseMilvusConverter(ABC, Generic[MilvusCollectionType]):
                     if args:
                         return args[0]
 
-        raise ValueError(f"无法从 {cls.__name__} 的泛型信息中获取 Milvus 集合类型")
+        raise ValueError(
+            f"Unable to retrieve Milvus collection type from generic information of {cls.__name__}"
+        )
 
     @classmethod
     @abstractmethod
     def from_mongo(cls, source_doc: Any) -> MilvusCollectionType:
         """
-        从数据源转换为 Milvus 集合实体
+        Convert from data source to Milvus collection entity
 
-        这是核心转换方法，子类必须实现具体的转换逻辑。
+        This is the core conversion method; subclasses must implement specific conversion logic.
 
         Args:
-            source_doc: 源数据（可以是任意类型）
+            source_doc: Source data (can be of any type)
 
         Returns:
-            MilvusCollectionType: Milvus 集合实体实例
+            MilvusCollectionType: Instance of Milvus collection entity
 
         Raises:
-            Exception: 当转换过程中发生错误时抛出异常
+            Exception: Raises an exception when an error occurs during conversion
         """
-        raise NotImplementedError("子类必须实现 from_mongo 方法")
+        raise NotImplementedError("Subclasses must implement the from_mongo method")

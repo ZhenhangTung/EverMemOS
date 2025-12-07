@@ -1,7 +1,7 @@
 """
-FastAPI生命周期接口定义
+FastAPI lifespan interface definition
 
-简单的生命周期管理接口，支持顺序和name字段定义
+Simple lifespan management interface that supports ordering and name field definition
 """
 
 from abc import ABC, abstractmethod
@@ -14,25 +14,25 @@ logger = get_logger(__name__)
 
 
 class LifespanProvider(ABC):
-    """生命周期提供者接口"""
+    """Lifespan provider interface"""
 
     def __init__(self, name: str, order: int = 0):
         """
-        初始化生命周期提供者
+        Initialize lifespan provider
 
         Args:
-            name (str): 提供者名称
-            order (int): 执行顺序，数字越小越先执行
+            name (str): Provider name
+            order (int): Execution order, smaller numbers execute first
         """
         self.name = name
         self.order = order
 
     @abstractmethod
     async def startup(self, app: FastAPI) -> Any:
-        """启动逻辑"""
+        """Startup logic"""
         ...
 
     @abstractmethod
     async def shutdown(self, app: FastAPI) -> None:
-        """关闭逻辑"""
+        """Shutdown logic"""
         ...

@@ -20,11 +20,19 @@ LEVEL_PRIORITY = {
     # Empty/missing
     "": 0,
     # Low level
-    "低级": 1, "low": 1, "basic": 1, "beginner": 1, "初级": 1, "familiar": 1, "weak": 1,
+    "low": 1,
+    "basic": 1,
+    "beginner": 1,
+    "familiar": 1,
+    "weak": 1,
     # Medium level
-    "中级": 2, "medium": 2, "intermediate": 2,
+    "medium": 2,
+    "intermediate": 2,
     # High level
-    "高级": 3, "high": 3, "advanced": 3, "strong": 3, "专家": 3, "expert": 3,
+    "high": 3,
+    "advanced": 3,
+    "strong": 3,
+    "expert": 3,
 }
 
 
@@ -61,7 +69,7 @@ def _compare_levels(level1: Any, level2: Any) -> str:
 
 
 def merge_value_with_evidences_lists_keep_highest_level(
-    *sources: Optional[List[Dict[str, Any]]],
+    *sources: Optional[List[Dict[str, Any]]]
 ) -> Optional[List[Dict[str, Any]]]:
     """
     Merge multiple value/evidence lists while keeping the highest level for each value.
@@ -138,8 +146,7 @@ def merge_value_with_evidences_lists_keep_highest_level(
 
 
 def merge_value_with_evidences_lists(
-    existing: Optional[List[Dict[str, Any]]],
-    incoming: Optional[List[Dict[str, Any]]],
+    existing: Optional[List[Dict[str, Any]]], incoming: Optional[List[Dict[str, Any]]]
 ) -> Optional[List[Dict[str, Any]]]:
     """Merge two value/evidence lists while deduplicating evidences."""
     if not existing and not incoming:
@@ -215,8 +222,7 @@ def extract_values_with_evidence(
         formatted_evidences: List[str] = []
         for item in evidence_items:
             formatted = format_evidence_entry(
-                item,
-                conversation_date_map=conversation_date_map,
+                item, conversation_date_map=conversation_date_map
             )
             if not formatted:
                 continue
@@ -224,8 +230,7 @@ def extract_values_with_evidence(
                 conversation_id = conversation_id_from_evidence(formatted)
                 if not conversation_id or conversation_id not in valid_conversation_ids:
                     logger.debug(
-                        "LLM Generated Unknown Conversation ID %s",
-                        conversation_id,
+                        "LLM Generated Unknown Conversation ID %s", conversation_id
                     )
                     continue
             formatted_evidences.append(formatted)
@@ -254,7 +259,11 @@ def extract_values_with_evidence(
 
     if isinstance(raw_value, dict):
         if "value" in raw_value:
-            add_entry(raw_value.get("value"), raw_value.get("evidences"), raw_value.get("level"))
+            add_entry(
+                raw_value.get("value"),
+                raw_value.get("evidences"),
+                raw_value.get("level"),
+            )
         else:
             for key, evidence_list in raw_value.items():
                 if key == "evidences":
@@ -265,19 +274,23 @@ def extract_values_with_evidence(
             if isinstance(entry, dict):
                 if "value" in entry:
                     add_entry(
-                        entry.get("value"),
-                        entry.get("evidences"),
-                        entry.get("level"),
+                        entry.get("value"), entry.get("evidences"), entry.get("level")
                     )
                 else:
-                    evidence_source = entry.get("evidences") if "evidences" in entry else None
+                    evidence_source = (
+                        entry.get("evidences") if "evidences" in entry else None
+                    )
                     processed = False
                     for key, evidence_list in entry.items():
                         if key == "evidences":
                             continue
                         add_entry(
                             key,
-                            evidence_list if evidence_source is None else evidence_source,
+                            (
+                                evidence_list
+                                if evidence_source is None
+                                else evidence_source
+                            ),
                             entry.get("level"),
                         )
                         processed = True

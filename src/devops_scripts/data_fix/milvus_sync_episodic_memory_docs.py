@@ -1,15 +1,15 @@
 """
-同步情景记忆文档到 Milvus
+Sync episodic memory documents to Milvus
 
-从 MongoDB 批量获取情景记忆文档，转换后批量插入到 Milvus。
-注重效率，采用批量获取、批量转换、批量插入的策略。
+Bulk retrieve episodic memory documents from MongoDB, convert them, and insert into Milvus.
+Focuses on efficiency using a strategy of bulk retrieval, bulk conversion, and bulk insertion.
 
-技术实现：
-- 批量从 MongoDB 读取文档（batch_size 控制）
-- 使用 EpisodicMemoryMilvusConverter 进行格式转换
-- 批量插入到 Milvus Collection
-- 支持增量同步（基于 days 参数）
-- 支持幂等操作（使用 upsert 语义）
+Technical implementation:
+- Bulk read documents from MongoDB (controlled by batch_size)
+- Use EpisodicMemoryMilvusConverter for format conversion
+- Bulk insert into Milvus Collection
+- Supports incremental sync (based on days parameter)
+- Supports idempotent operations (using upsert semantics)
 """
 
 import traceback
@@ -27,18 +27,18 @@ async def sync_episodic_memory_docs(
     batch_size: int, limit: Optional[int], days: Optional[int]
 ) -> None:
     """
-    同步情景记忆文档到 Milvus。
+    Sync episodic memory documents to Milvus.
 
-    实现策略：
-    1. 从 MongoDB 批量获取文档（batch_size 条）
-    2. 批量转换为 Milvus 实体格式
-    3. 批量插入到 Milvus（使用 upsert 语义，支持幂等）
-    4. 循环处理直到所有文档处理完毕
+    Implementation strategy:
+    1. Bulk retrieve documents from MongoDB (batch_size per batch)
+    2. Bulk convert to Milvus entity format
+    3. Bulk insert into Milvus (using upsert semantics, supports idempotency)
+    4. Loop until all documents are processed
 
     Args:
-        batch_size: 批处理大小，建议 500-1000
-        limit: 最多处理的文档数量，None 表示处理全部
-        days: 仅处理最近 N 天创建的文档，None 表示处理全部
+        batch_size: Batch size, recommended 500-1000
+        limit: Maximum number of documents to process, None means process all
+        days: Only process documents created in the last N days, None means process all
     """
     from infra_layer.adapters.out.persistence.repository.episodic_memory_raw_repository import (
         EpisodicMemoryRawRepository,
@@ -51,83 +51,90 @@ async def sync_episodic_memory_docs(
     )
     from common_utils.datetime_utils import get_now_with_timezone
 
-    # 获取 MongoDB Repository
+    # Get MongoDB Repository
     mongo_repo = get_bean_by_type(EpisodicMemoryRawRepository)
 
-    # 构建查询过滤条件
+    # Build query filter
     query_filter: Dict[str, Any] = {}
     if days is not None:
         now = get_now_with_timezone()
         start_time = now - timedelta(days=days)
         query_filter["created_at"] = {"$gte": start_time}
-        logger.info("只处理过去 %s 天创建的文档（从 %s 开始）", days, start_time)
+        logger.info(
+            "Only processing documents created in the past %s days (starting from %s)",
+            days,
+            start_time,
+        )
 
-    logger.info("开始同步情景记忆文档到 Milvus...")
+    logger.info("Starting to sync episodic memory documents to Milvus...")
 
-    # 统计计数器
+    # Statistics counters
     total_processed = 0
     success_count = 0
     error_count = 0
 
-    # 获取 Milvus Collection
+    # Get Milvus Collection
     try:
-        # 直接使用 EpisodicMemoryCollection 的 async_collection() 方法
+        # Directly use the async_collection() method of EpisodicMemoryCollection
         collection = EpisodicMemoryCollection.async_collection()
         collection_name = collection.collection.name
-        logger.info("使用 Milvus Collection: %s", collection_name)
+        logger.info("Using Milvus Collection: %s", collection_name)
     except Exception as e:  # noqa: BLE001
-        logger.error("获取 Milvus Collection 失败: %s", e)
+        logger.error("Failed to get Milvus Collection: %s", e)
         raise
 
-    # 批量处理主循环
+    # Main loop for batch processing
     try:
         skip = 0
         while True:
-            # 从 MongoDB 批量获取文档
+            # Bulk retrieve documents from MongoDB
             query = mongo_repo.model.find(query_filter).sort("created_at")
             mongo_docs = await query.skip(skip).limit(batch_size).to_list()
 
             if not mongo_docs:
-                logger.info("没有更多文档需要处理")
+                logger.info("No more documents to process")
                 break
 
-            # 记录当前批次的时间范围
+            # Record time range of current batch
             first_doc_time = (
                 mongo_docs[0].created_at
                 if hasattr(mongo_docs[0], "created_at")
-                else "未知"
+                else "unknown"
             )
             last_doc_time = (
                 mongo_docs[-1].created_at
                 if hasattr(mongo_docs[-1], "created_at")
-                else "未知"
+                else "unknown"
             )
             logger.info(
-                "准备批量写入第 %s - %s 个文档，时间范围: %s ~ %s",
+                "Preparing to write batch %s - %s, time range: %s ~ %s",
                 skip + 1,
                 skip + len(mongo_docs),
                 first_doc_time,
                 last_doc_time,
             )
 
-            # 批量转换为 Milvus 实体
+            # Bulk convert to Milvus entities
             milvus_entities: List[Dict[str, Any]] = []
             batch_errors = 0
 
             for mongo_doc in mongo_docs:
                 try:
-                    # 转换单个文档
+                    # Convert individual document
                     milvus_entity = EpisodicMemoryMilvusConverter.from_mongo(mongo_doc)
 
-                    # 验证必要字段
+                    # Validate required fields
                     if not milvus_entity.get("id"):
-                        logger.warning("文档缺少 id 字段，跳过: %s", mongo_doc.id)
+                        logger.warning(
+                            "Document missing id field, skipping: %s", mongo_doc.id
+                        )
                         batch_errors += 1
                         continue
 
                     if not milvus_entity.get("vector"):
                         logger.warning(
-                            "文档缺少 vector 字段，跳过: id=%s", milvus_entity.get("id")
+                            "Document missing vector field, skipping: id=%s",
+                            milvus_entity.get("id"),
                         )
                         batch_errors += 1
                         continue
@@ -136,63 +143,63 @@ async def sync_episodic_memory_docs(
 
                 except Exception as e:  # noqa: BLE001
                     logger.error(
-                        "转换文档失败: id=%s, error=%s",
+                        "Failed to convert document: id=%s, error=%s",
                         getattr(mongo_doc, 'id', 'unknown'),
                         e,
                     )
                     batch_errors += 1
                     continue
 
-            # 批量插入到 Milvus
+            # Bulk insert into Milvus
             if milvus_entities:
                 try:
-                    # Milvus insert 方法接受列表格式的数据
-                    # 需要将实体字典列表转换为列表的列表格式
+                    # Milvus insert method accepts list format data
+                    # Need to convert list of entity dictionaries to list of lists format
                     insert_data = milvus_entities
 
                     _ = await collection.insert(insert_data)
 
-                    # 统计成功数量
+                    # Count successful insertions
                     inserted_count = len(milvus_entities)
                     success_count += inserted_count
-                    logger.info("批量插入成功: %d 条记录", inserted_count)
+                    logger.info("Bulk insert successful: %d records", inserted_count)
 
                 except Exception as e:  # noqa: BLE001
-                    logger.error("批量插入 Milvus 失败: %s", e)
+                    logger.error("Bulk insert to Milvus failed: %s", e)
                     traceback.print_exc()
                     error_count += len(milvus_entities)
 
-            # 更新统计
+            # Update statistics
             total_processed += len(mongo_docs)
             error_count += batch_errors
 
-            # 检查是否达到限制
+            # Check if limit reached
             if limit and total_processed >= limit:
-                logger.info("已达到处理限制 %s，停止处理", limit)
+                logger.info("Processing limit %s reached, stopping", limit)
                 break
 
-            # 继续下一批
+            # Move to next batch
             skip += batch_size
             if len(mongo_docs) < batch_size:
-                logger.info("已处理完所有文档")
+                logger.info("All documents have been processed")
                 break
 
-        # 刷新 Collection 以确保数据持久化
+        # Flush Collection to ensure data persistence
         try:
             await collection.flush()
-            logger.info("Milvus Collection 刷新完成")
+            logger.info("Milvus Collection flush completed")
         except Exception as e:  # noqa: BLE001
-            logger.warning("Milvus Collection 刷新失败: %s", e)
+            logger.warning("Milvus Collection flush failed: %s", e)
 
-        # 输出统计信息
+        # Output statistics
         logger.info(
-            "同步完成! 总处理: %s, 成功: %s, 失败: %s",
+            "Sync completed! Total processed: %s, Success: %s, Failed: %s",
             total_processed,
             success_count,
             error_count,
         )
 
     except Exception as exc:  # noqa: BLE001
-        logger.error("同步过程中发生错误: %s", exc)
+        logger.error("Error occurred during sync: %s", exc)
         traceback.print_exc()
         raise

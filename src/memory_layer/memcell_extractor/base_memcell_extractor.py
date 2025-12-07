@@ -17,7 +17,7 @@ from api_specs.dtos.memory_command import RawData
 class MemCellExtractRequest:
     history_raw_data_list: List[RawData]
     new_raw_data_list: List[RawData]
-    # 整个群的user id
+    # user id list of the entire group
     user_id_list: List[str]
     group_id: Optional[str] = None
     group_name: Optional[str] = None
@@ -30,7 +30,7 @@ class MemCellExtractRequest:
 class StatusResult:
     """Status control result."""
 
-    # 表示下次触发时，这次的对话会累积一起作为new message输入
+    # Indicates that when triggered next time, this conversation will be accumulated and input as new message
     should_wait: bool
 
 

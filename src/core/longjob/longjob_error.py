@@ -1,57 +1,57 @@
 """
 Long job system specific errors.
-长任务系统专用错误定义。
+Long task system specific error definitions.
 """
 
 
 class FatalError(Exception):
     """
-    致命错误，不应该重试
-    用于标识那些重试也无法解决的错误
+    Fatal error, should not retry
+    Used to identify errors that cannot be resolved by retrying
 
     Examples:
-        - 内存不足
-        - 系统级错误
-        - 配置错误
-        - 编程错误（TypeError, AttributeError等）
+        - Out of memory
+        - System-level errors
+        - Configuration errors
+        - Programming errors (TypeError, AttributeError, etc.)
     """
 
 
 class BusinessLogicError(Exception):
     """
-    业务逻辑错误，可以重试
-    用于标识那些可能通过重试解决的错误
+    Business logic error, can retry
+    Used to identify errors that might be resolved by retrying
 
     Examples:
-        - 网络连接错误
-        - 临时性数据库连接问题
-        - 第三方服务暂时不可用
-        - 资源锁定冲突
+        - Network connection errors
+        - Temporary database connection issues
+        - Third-party service temporarily unavailable
+        - Resource lock conflicts
     """
 
 
 class LongJobError(Exception):
     """
-    长任务系统基础错误
-    所有长任务相关错误的基类
+    Long task system base error
+    Base class for all long task related errors
     """
 
 
 class JobNotFoundError(LongJobError):
-    """任务未找到错误"""
+    """Job not found error"""
 
 
 class JobAlreadyExistsError(LongJobError):
-    """任务已存在错误"""
+    """Job already exists error"""
 
 
 class JobStateError(LongJobError):
-    """任务状态错误"""
+    """Job state error"""
 
 
 class ManagerShutdownError(LongJobError):
-    """管理器已关闭错误"""
+    """Manager has been shut down error"""
 
 
 class MaxConcurrentJobsError(LongJobError):
-    """超过最大并发任务数错误"""
+    """Exceeded maximum number of concurrent jobs error"""

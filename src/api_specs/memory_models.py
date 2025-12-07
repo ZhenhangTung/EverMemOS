@@ -1,7 +1,7 @@
 """
-记忆数据模型定义
+Memory data model definitions
 
-此模块包含 fetch_mem_service 的输入输出数据结构定义
+This module contains input and output data structure definitions for fetch_mem_service
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from datetime import datetime
 
 
 class RetrieveMethod(str, Enum):
-    """检索方法枚举"""
+    """Enumeration of retrieval methods"""
 
     KEYWORD = "keyword"
     VECTOR = "vector"
@@ -21,44 +21,44 @@ class RetrieveMethod(str, Enum):
 
 
 class MemoryType(str, Enum):
-    """记忆类型枚举"""
+    """Enumeration of memory types"""
 
     BASE_MEMORY = "base_memory"
     PROFILE = "profile"
     PREFERENCE = "preference"
 
-    # core就是multiple，就是上面三个
-    MULTIPLE = "multiple"  # 多类型查询
-    CORE = "core"  # 核心记忆
+    # core is multiple, referring to the three above
+    MULTIPLE = "multiple"  # Multi-type query
+    CORE = "core"  # Core memory
 
     EPISODIC_MEMORY = "episodic_memory"
-    FORESIGHT = "foresight"  # 前瞻记忆
+    FORESIGHT = "foresight"  # Prospective memory
     ENTITY = "entity"
     RELATION = "relation"
     BEHAVIOR_HISTORY = "behavior_history"
 
-    EVENT_LOG = "event_log"  # 事件日志（原子事实）
+    EVENT_LOG = "event_log"  # Event log (atomic facts)
 
-    GROUP_PROFILE = "group_profile"  # 群组画像
+    GROUP_PROFILE = "group_profile"  # Group profile
 
 
 @dataclass
 class Metadata:
-    """记忆元数据类"""
+    """Memory metadata class"""
 
-    # 必需字段
-    source: str  # 数据来源
-    user_id: str  # 用户ID
-    memory_type: str  # 记忆类型
+    # Required fields
+    source: str  # Data source
+    user_id: str  # User ID
+    memory_type: str  # Memory type
 
-    # 可选字段
-    limit: Optional[int] = None  # 限制数量
-    email: Optional[str] = None  # 邮箱
-    phone: Optional[str] = None  # 电话
-    full_name: Optional[str] = None  # 全名
+    # Optional fields
+    limit: Optional[int] = None  # Limit count
+    email: Optional[str] = None  # Email
+    phone: Optional[str] = None  # Phone number
+    full_name: Optional[str] = None  # Full name
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
+        """Convert to dictionary format"""
         result = {}
         for key, value in self.__dict__.items():
             if value is not None:
@@ -67,13 +67,13 @@ class Metadata:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Metadata':
-        """从字典创建 Metadata 对象"""
+        """Create Metadata object from dictionary"""
         return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
 
 
 @dataclass
 class BaseMemoryModel:
-    """基础记忆模型"""
+    """Base memory model"""
 
     id: str
     user_id: str
@@ -85,7 +85,7 @@ class BaseMemoryModel:
 
 @dataclass
 class ProfileModel:
-    """用户画像模型"""
+    """User profile model"""
 
     id: str
     user_id: str
@@ -102,7 +102,7 @@ class ProfileModel:
 
 @dataclass
 class PreferenceModel:
-    """用户偏好模型"""
+    """User preference model"""
 
     id: str
     user_id: str
@@ -117,11 +117,11 @@ class PreferenceModel:
 
 @dataclass
 class EpisodicMemoryModel:
-    """情景记忆模型"""
+    """Episodic memory model"""
 
     id: str
     user_id: str
-    episode_id: str  # 就是id，没区别，为了兼容性先留着
+    episode_id: str  # Same as id, no difference, kept for compatibility
     title: str
     summary: str
     timestamp: Optional[datetime] = None
@@ -140,7 +140,7 @@ class EpisodicMemoryModel:
 
 @dataclass
 class ForesightModel:
-    """前瞻模型"""
+    """Prospective memory model"""
 
     id: str
     user_id: str
@@ -157,7 +157,7 @@ class ForesightModel:
 
 @dataclass
 class EntityModel:
-    """实体模型"""
+    """Entity model"""
 
     id: str
     user_id: str
@@ -173,7 +173,7 @@ class EntityModel:
 
 @dataclass
 class RelationModel:
-    """关系模型"""
+    """Relation model"""
 
     id: str
     user_id: str
@@ -189,7 +189,7 @@ class RelationModel:
 
 @dataclass
 class BehaviorHistoryModel:
-    """行为历史模型"""
+    """Behavior history model"""
 
     id: str
     user_id: str
@@ -206,14 +206,14 @@ class BehaviorHistoryModel:
 
 @dataclass
 class CoreMemoryModel:
-    """核心记忆模型"""
+    """Core memory model"""
 
     id: str
     user_id: str
     version: str
     is_latest: bool
 
-    # ==================== BaseMemory 字段 ====================
+    # ==================== BaseMemory fields ====================
     user_name: Optional[str] = None
     gender: Optional[str] = None
     position: Optional[str] = None
@@ -225,7 +225,7 @@ class CoreMemoryModel:
     age: Optional[int] = None
     department: Optional[str] = None
 
-    # ==================== Profile 字段 ====================
+    # ==================== Profile fields ====================
     hard_skills: Optional[List[Dict[str, str]]] = None
     soft_skills: Optional[List[Dict[str, str]]] = None
     output_reasoning: Optional[str] = None
@@ -243,7 +243,7 @@ class CoreMemoryModel:
     interests: Optional[List[str]] = None
     tendency: Optional[List[str]] = None
 
-    # ==================== 通用字段 ====================
+    # ==================== Common fields ====================
     extend: Optional[Dict[str, Any]] = None
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
@@ -252,18 +252,18 @@ class CoreMemoryModel:
 
 @dataclass
 class EventLogModel:
-    """事件日志模型（原子事实）
+    """Event log model (atomic facts)
 
-    从情景记忆中提取的原子事实，用于细粒度检索。
+    Atomic facts extracted from episodic memories, used for fine-grained retrieval.
     """
 
     id: str
     user_id: str
-    atomic_fact: str  # 原子事实内容
-    parent_episode_id: str  # 父情景记忆ID
-    timestamp: datetime  # 事件发生时间
+    atomic_fact: str  # Content of the atomic fact
+    parent_episode_id: str  # Parent episodic memory ID
+    timestamp: datetime  # Event occurrence time
 
-    # 可选字段
+    # Optional fields
     user_name: Optional[str] = None
     group_id: Optional[str] = None
     group_name: Optional[str] = None
@@ -273,7 +273,7 @@ class EventLogModel:
     event_type: Optional[str] = None
     extend: Optional[Dict[str, Any]] = None
 
-    # 通用时间戳
+    # Common timestamps
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     metadata: Metadata = field(default_factory=Metadata)
@@ -281,36 +281,36 @@ class EventLogModel:
 
 @dataclass
 class ForesightRecordModel:
-    """前瞻记录模型
+    """Prospective record model
 
-    从情景记忆中提取的前瞻信息，支持个人和群组前瞻。
+    Prospective information extracted from episodic memories, supporting individual and group foresight.
     """
 
     id: str
-    content: str  # 前瞻内容
-    parent_episode_id: str  # 父情景记忆ID
+    content: str  # Prospective content
+    parent_episode_id: str  # Parent episodic memory ID
 
-    # 可选字段
+    # Optional fields
     user_id: Optional[str] = None
     user_name: Optional[str] = None
     group_id: Optional[str] = None
     group_name: Optional[str] = None
-    start_time: Optional[str] = None  # 开始时间（日期字符串）
-    end_time: Optional[str] = None  # 结束时间（日期字符串）
-    duration_days: Optional[int] = None  # 持续天数
+    start_time: Optional[str] = None  # Start time (date string)
+    end_time: Optional[str] = None  # End time (date string)
+    duration_days: Optional[int] = None  # Duration in days
     participants: Optional[List[str]] = None
     vector: Optional[List[float]] = None
     vector_model: Optional[str] = None
-    evidence: Optional[str] = None  # 支持该前瞻的证据
+    evidence: Optional[str] = None  # Evidence supporting this foresight
     extend: Optional[Dict[str, Any]] = None
 
-    # 通用时间戳
+    # Common timestamps
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     metadata: Metadata = field(default_factory=Metadata)
 
 
-# 联合类型定义
+# Union type definition
 MemoryModel = Union[
     BaseMemoryModel,
     ProfileModel,

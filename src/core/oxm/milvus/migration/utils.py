@@ -1,12 +1,12 @@
 """
-Milvus 集合重建与别名切换通用工具
+Milvus collection rebuild and alias switching utility
 
-设计目标：
-- 将与基础设施相关、可复用的 Milvus 重建逻辑沉淀在 core 层
-- 业务或脚本层仅负责获取 client、传入 alias 和选项
+Design goals:
+- Consolidate infrastructure-related, reusable Milvus rebuild logic into the core layer
+- Business or script layers only need to provide the client, alias, and options
 
-注意：
-- 本工具仅做结构重建与别名切换，不做数据迁移
+Note:
+- This tool only handles structure rebuilding and alias switching, not data migration
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class RebuildResult:
-    """Milvus 集合重建结果。"""
+    """Result of Milvus collection rebuild."""
 
     alias: str
     source_collection: str
@@ -39,34 +39,34 @@ class RebuildResult:
 
 def find_collection_manager_by_alias(alias: str) -> Type[MilvusCollectionBase]:
     """
-    根据别名查找对应的 Collection 管理类
+    Find the corresponding Collection manager class by alias
 
     Args:
-        alias: Collection 别名
+        alias: Collection alias
 
     Returns:
-        对应的 MilvusCollectionBase 子类
+        Corresponding MilvusCollectionBase subclass
 
     Raises:
-        ValueError: 找不到对应的集合类
+        ValueError: If no corresponding collection class is found
     """
     all_doc_classes = get_all_subclasses(MilvusCollectionBase)
 
-    # 遍历所有子类，找到 alias 匹配的
+    # Iterate through all subclasses to find the one matching the alias
     for doc_class in all_doc_classes:
-        # 跳过抽象类
-        # pylint: disable=protected-access  # 框架内部使用，访问子类的配置属性
+        # Skip abstract classes
+        # pylint: disable=protected-access  # Internal framework usage, accessing subclass configuration attributes
         if (
             not hasattr(doc_class, '_COLLECTION_NAME')
             or doc_class._COLLECTION_NAME is None
         ):
             continue
 
-        # 检查是否是 MilvusCollectionWithSuffix 类型
+        # Check if it's a MilvusCollectionWithSuffix type
         if issubclass(doc_class, MilvusCollectionWithSuffix):
-            # 临时实例化以获取 alias（需要解析 suffix）
+            # Temporarily instantiate to get alias (requires parsing suffix)
             try:
-                # 尝试从 alias 解析 suffix
+                # Try to parse suffix from alias
                 base_name = (
                     doc_class._COLLECTION_NAME
                 )  # pylint: disable=protected-access
@@ -74,14 +74,14 @@ def find_collection_manager_by_alias(alias: str) -> Type[MilvusCollectionBase]:
                     return doc_class
             except (
                 Exception
-            ):  # pylint: disable=broad-except  # 忽略实例化失败，继续尝试下一个类
+            ):  # pylint: disable=broad-except  # Ignore instantiation failure, continue to next class
                 continue
         else:
-            # 对于 MilvusCollectionBase，直接比较 _COLLECTION_NAME
+            # For MilvusCollectionBase, directly compare _COLLECTION_NAME
             if doc_class._COLLECTION_NAME == alias:  # pylint: disable=protected-access
                 return doc_class
 
-    raise ValueError(f"找不到别名 '{alias}' 对应的集合类")
+    raise ValueError(f"Cannot find collection class corresponding to alias '{alias}'")
 
 
 def rebuild_collection(
@@ -90,34 +90,36 @@ def rebuild_collection(
     populate_fn: Optional[Callable[[Collection, Collection], None]] = None,
 ) -> RebuildResult:
     """
-    基于别名进行 Milvus 集合重建流程：
-    1) 根据别名找到对应的 Collection 管理类
-    2) 调用 create_new_collection() 创建新集合（自动创建索引并 load）
-    3) 调用可选的数据填充回调（由调用方实现）
-    4) 调用 switch_alias() 切换别名，按需删除旧集合
+    Rebuild Milvus collection based on alias:
+    1) Find the corresponding Collection manager class by alias
+    2) Call create_new_collection() to create a new collection (automatically create index and load)
+    3) Call optional data population callback (implemented by caller)
+    4) Call switch_alias() to switch alias, optionally delete old collection
 
     Args:
-        alias: 集合别名
-        drop_old: 是否删除旧集合
-        populate_fn: 可选回调，用于在索引创建完成后、别名切换前执行数据填充。
-            函数签名为 (old_collection: Collection, new_collection: Collection) -> None
+        alias: Collection alias
+        drop_old: Whether to delete the old collection
+        populate_fn: Optional callback to populate data after index creation and before alias switching.
+            Function signature: (old_collection: Collection, new_collection: Collection) -> None
 
     Returns:
-        RebuildResult: 重建结果信息
+        RebuildResult: Information about the rebuild result
 
     Raises:
-        ValueError: 找不到对应的集合类
-        MilvusException: Milvus 操作失败
+        ValueError: If no corresponding collection class is found
+        MilvusException: If Milvus operation fails
     """
-    logger.info("开始重建 Collection: alias=%s, drop_old=%s", alias, drop_old)
+    logger.info(
+        "Starting to rebuild Collection: alias=%s, drop_old=%s", alias, drop_old
+    )
 
-    # 1. 根据别名找到对应的 Collection 管理类
+    # 1. Find the corresponding Collection manager class by alias
     collection_class = find_collection_manager_by_alias(alias)
-    logger.info("找到集合类: %s", collection_class.__name__)
+    logger.info("Found collection class: %s", collection_class.__name__)
 
-    # 2. 实例化管理器（从 alias 解析 suffix）
+    # 2. Instantiate manager (parse suffix from alias)
     if issubclass(collection_class, MilvusCollectionWithSuffix):
-        # 从 alias 解析 suffix
+        # Parse suffix from alias
         base_name = (
             collection_class._COLLECTION_NAME
         )  # pylint: disable=protected-access
@@ -126,36 +128,38 @@ def rebuild_collection(
             suffix = alias[len(base_name) + 1 :]
         manager = collection_class(suffix=suffix)
     else:
-        raise NotImplementedError("不支持的集合类型: %s", collection_class.__name__)
+        raise NotImplementedError(
+            "Unsupported collection type: %s", collection_class.__name__
+        )
 
-    # 确保原集合已加载
+    # Ensure the original collection is loaded
     manager.ensure_loaded()
     old_collection = manager.collection()
     old_real_name = old_collection.name
-    logger.info("原集合真实名: %s", old_real_name)
+    logger.info("Original collection real name: %s", old_real_name)
 
-    # 3. 创建新集合（自动创建索引并 load）
-    logger.info("开始创建新集合...")
+    # 3. Create new collection (automatically create index and load)
+    logger.info("Starting to create new collection...")
     new_collection = manager.create_new_collection()
     new_real_name = new_collection.name
-    logger.info("新集合创建完成: %s", new_real_name)
+    logger.info("New collection created: %s", new_real_name)
 
-    # 4. 调用数据填充回调（如果提供）
+    # 4. Call data population callback if provided
     if populate_fn:
-        logger.info("开始执行数据填充回调...")
+        logger.info("Starting data population callback...")
         try:
             populate_fn(old_collection, new_collection)
-            logger.info("数据填充完成")
+            logger.info("Data population completed")
         except Exception as e:
-            logger.error("数据填充失败: %s", e)
+            logger.error("Data population failed: %s", e)
             raise
 
-    # 5. 切换别名到新集合，并可选删除旧集合
-    logger.info("切换别名 '%s' 到新集合 '%s'...", alias, new_real_name)
+    # 5. Switch alias to new collection and optionally delete old collection
+    logger.info("Switching alias '%s' to new collection '%s'...", alias, new_real_name)
     manager.switch_alias(new_collection, drop_old=drop_old)
 
     logger.info(
-        "重建完成: alias=%s, src=%s -> dest=%s, dropped_old=%s",
+        "Rebuild completed: alias=%s, src=%s -> dest=%s, dropped_old=%s",
         alias,
         old_real_name,
         new_real_name,

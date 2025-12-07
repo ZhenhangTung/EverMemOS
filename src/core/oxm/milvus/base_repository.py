@@ -1,7 +1,7 @@
 """
-Milvus 基础仓库类
+Milvus Base Repository Class
 
-提供通用的基础操作，所有 Milvus 仓库都应该继承这个类以获得统一的操作支持。
+Provides common basic operations, all Milvus repositories should inherit from this class to obtain unified operation support.
 """
 
 from abc import ABC
@@ -13,29 +13,29 @@ from core.di.utils import get_bean
 
 logger = get_logger(__name__)
 
-# 泛型类型变量
+# Generic type variable
 T = TypeVar('T', bound=MilvusCollectionBase)
 
 
 class BaseMilvusRepository(ABC, Generic[T]):
     """
-    Milvus 基础仓库类
+    Milvus Base Repository Class
 
-    提供通用的基础操作，所有 Milvus 仓库都应该继承这个类。
+    Provides common basic operations, all Milvus repositories should inherit from this class.
 
-    特性：
-    - 异步 Milvus 集合管理
-    - 基础 CRUD 操作模板
-    - 统一的错误处理和日志记录
-    - 集合管理
+    Features:
+    - Asynchronous Milvus collection management
+    - Basic CRUD operation templates
+    - Unified error handling and logging
+    - Collection management
     """
 
     def __init__(self, model: Type[T]):
         """
-        初始化基础仓库
+        Initialize base repository
 
         Args:
-            model: Milvus 集合模型类
+            model: Milvus collection model class
         """
         self.model = model
         self.model_name = model.__name__
@@ -43,42 +43,44 @@ class BaseMilvusRepository(ABC, Generic[T]):
         self.schema = model._SCHEMA
         self.all_output_fields = [field.name for field in self.schema.fields]
 
-    # ==================== 基础 CRUD 操作 ====================
+    # ==================== Basic CRUD Operations ====================
 
     async def insert(self, entity: T, flush: bool = False) -> str:
         """
-        插入新实体
+        Insert new entity
 
         Args:
-            entity: 实体实例
-            flush: 是否立即刷新
+            entity: Entity instance
+            flush: Whether to flush immediately
 
         Returns:
-            str: 插入的实体ID
+            str: Inserted entity ID
         """
         try:
             entity_id = await self.collection.insert(entity)
             if flush:
                 await self.collection.flush()
-            logger.debug("✅ 插入实体成功 [%s]: %s", self.model_name, entity_id)
+            logger.debug(
+                "✅ Insert entity successful [%s]: %s", self.model_name, entity_id
+            )
             return entity_id
         except Exception as e:
-            logger.error("❌ 插入实体失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Insert entity failed [%s]: %s", self.model_name, e)
             raise
 
     async def get_by_id(self, entity_id: str) -> Optional[T]:
         """
-        根据ID获取实体
+        Get entity by ID
 
         Args:
-            entity_id: 实体ID
+            entity_id: Entity ID
 
         Returns:
-            实体实例或 None
+            Entity instance or None
         """
         try:
-            # 获取集合的所有字段
-            # 使用query查询
+            # Get all fields of the collection
+            # Use query to search
             results = await self.collection.query(
                 expr=f'id == "{entity_id}"',
                 output_fields=self.all_output_fields,
@@ -86,40 +88,42 @@ class BaseMilvusRepository(ABC, Generic[T]):
             )
             return results[0] if results else None
         except Exception as e:
-            logger.error("❌ 根据ID获取实体失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Failed to get entity by ID [%s]: %s", self.model_name, e)
             return None
 
     async def upsert(self, entity: T, flush: bool = False) -> str:
         """
-        更新或插入实体
+        Update or insert entity
 
         Args:
-            entity: 实体实例
-            flush: 是否立即刷新
+            entity: Entity instance
+            flush: Whether to flush immediately
 
         Returns:
-            str: 实体ID
+            str: Entity ID
         """
         try:
             entity_id = await self.collection.upsert(entity)
             if flush:
                 await self.collection.flush()
-            logger.debug("✅ 更新/插入实体成功 [%s]: %s", self.model_name, entity_id)
+            logger.debug(
+                "✅ Upsert entity successful [%s]: %s", self.model_name, entity_id
+            )
             return entity_id
         except Exception as e:
-            logger.error("❌ 更新/插入实体失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Upsert entity failed [%s]: %s", self.model_name, e)
             raise
 
     async def delete_by_id(self, entity_id: str, flush: bool = False) -> bool:
         """
-        根据ID删除实体
+        Delete entity by ID
 
         Args:
-            entity_id: 实体ID
-            flush: 是否立即刷新
+            entity_id: Entity ID
+            flush: Whether to flush immediately
 
         Returns:
-            bool: 删除成功返回 True
+            bool: Return True if deletion is successful
         """
         try:
             result = await self.collection.delete(expr=f'id == "{entity_id}"')
@@ -128,76 +132,80 @@ class BaseMilvusRepository(ABC, Generic[T]):
             if flush and success:
                 await self.collection.flush()
             if success:
-                logger.debug("✅ 删除实体成功 [%s]: %s", self.model_name, entity_id)
+                logger.debug(
+                    "✅ Delete entity successful [%s]: %s", self.model_name, entity_id
+                )
             return success
         except Exception as e:
-            logger.error("❌ 删除实体失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Delete entity failed [%s]: %s", self.model_name, e)
             return False
 
-    # ==================== 批量操作 ====================
+    # ==================== Batch Operations ====================
 
     async def insert_batch(self, entities: List[T], flush: bool = False) -> List[str]:
         """
-        批量插入实体
+        Insert entities in batch
 
         Args:
-            entities: 实体列表
-            flush: 是否立即刷新
+            entities: List of entities
+            flush: Whether to flush immediately
 
         Returns:
-            List[str]: 插入的实体ID列表
+            List[str]: List of inserted entity IDs
         """
         try:
             entity_ids = await self.collection.insert_batch(entities)
             if flush:
                 await self.collection.flush()
             logger.debug(
-                "✅ 批量插入实体成功 [%s]: %d 条记录", self.model_name, len(entities)
+                "✅ Batch insert entities successful [%s]: %d records",
+                self.model_name,
+                len(entities),
             )
             return entity_ids
         except Exception as e:
-            logger.error("❌ 批量插入实体失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Batch insert entities failed [%s]: %s", self.model_name, e)
             raise
 
-    # ==================== 集合操作 ====================
+    # ==================== Collection Operations ====================
 
     async def flush(self) -> bool:
         """
-        刷新集合
+        Flush collection
 
         Returns:
-            bool: 刷新成功返回 True
+            bool: Return True if flush is successful
         """
         try:
             await self.collection.flush()
-            logger.debug("✅ 刷新集合成功 [%s]", self.model_name)
+            logger.debug("✅ Flush collection successful [%s]", self.model_name)
             return True
         except Exception as e:
-            logger.error("❌ 刷新集合失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Flush collection failed [%s]: %s", self.model_name, e)
             return False
 
     async def load(self) -> bool:
         """
-        加载集合到内存
+        Load collection into memory
 
         Returns:
-            bool: 加载成功返回 True
+            bool: Return True if load is successful
         """
         try:
             await self.collection.load()
-            logger.debug("✅ 加载集合成功 [%s]", self.model_name)
+            logger.debug("✅ Load collection successful [%s]", self.model_name)
             return True
         except Exception as e:
-            logger.error("❌ 加载集合失败 [%s]: %s", self.model_name, e)
+            logger.error("❌ Load collection failed [%s]: %s", self.model_name, e)
             return False
 
-    # ==================== 辅助方法 ====================
+    # ==================== Helper Methods ====================
 
     def get_model_name(self) -> str:
         """
-        获取模型名称
+        Get model name
 
         Returns:
-            str: 模型类名
+            str: Model class name
         """
         return self.model_name

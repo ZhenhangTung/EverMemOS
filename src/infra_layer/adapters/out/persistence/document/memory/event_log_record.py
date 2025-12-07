@@ -1,7 +1,7 @@
 """
-EventLogRecord Beanie ODM 模型
+EventLogRecord Beanie ODM model
 
-统一存储从情景记忆（个人或群组）中提取的事件日志（原子事实）。
+Unified storage for event logs (atomic facts) extracted from episodic memory (individual or group).
 """
 
 from datetime import datetime
@@ -15,34 +15,44 @@ from beanie import PydanticObjectId
 
 class EventLogRecord(DocumentBase, AuditBase):
     """
-    通用事件日志文档模型
+    Generic event log document model
 
-    统一存储个人或群组情景记忆中拆分出的原子事实，用于细粒度检索。
+    Stores atomic facts split from individual or group episodic memory for fine-grained retrieval.
     """
 
-    # 核心字段
-    user_id: Optional[str] = Field(default=None, description="用户ID，个人事件必填")
-    user_name: Optional[str] = Field(default=None, description="用户名称")
-    group_id: Optional[str] = Field(default=None, description="群组ID")
-    group_name: Optional[str] = Field(default=None, description="群组名称")
-    atomic_fact: str = Field(..., description="原子事实内容（单条句子）")
-    parent_episode_id: str = Field(..., description="父情景记忆的 event_id")
-
-    # 时间信息
-    timestamp: datetime = Field(..., description="事件发生时间")
-
-    # 群组和参与者信息
-    participants: Optional[List[str]] = Field(default=None, description="相关参与者")
-
-    # 向量和模型
-    vector: Optional[List[float]] = Field(default=None, description="原子事实向量")
-    vector_model: Optional[str] = Field(default=None, description="使用的向量化模型")
-
-    # 事件类型和扩展信息
-    event_type: Optional[str] = Field(
-        default=None, description="事件类型，如 Conversation"
+    # Core fields
+    user_id: Optional[str] = Field(
+        default=None, description="User ID, required for personal events"
     )
-    extend: Optional[Dict[str, Any]] = Field(default=None, description="扩展字段")
+    user_name: Optional[str] = Field(default=None, description="User name")
+    group_id: Optional[str] = Field(default=None, description="Group ID")
+    group_name: Optional[str] = Field(default=None, description="Group name")
+    atomic_fact: str = Field(..., description="Atomic fact content (single sentence)")
+    parent_episode_id: str = Field(..., description="Parent episodic memory event_id")
+
+    # Time information
+    timestamp: datetime = Field(..., description="Event occurrence time")
+
+    # Group and participant information
+    participants: Optional[List[str]] = Field(
+        default=None, description="Related participants"
+    )
+
+    # Vector and model
+    vector: Optional[List[float]] = Field(
+        default=None, description="Atomic fact vector"
+    )
+    vector_model: Optional[str] = Field(
+        default=None, description="Vectorization model used"
+    )
+
+    # Event type and extension information
+    event_type: Optional[str] = Field(
+        default=None, description="Event type, such as Conversation"
+    )
+    extend: Optional[Dict[str, Any]] = Field(
+        default=None, description="Extension field"
+    )
 
     model_config = ConfigDict(
         collection="event_log_records",
@@ -53,49 +63,49 @@ class EventLogRecord(DocumentBase, AuditBase):
                 "id": "atomic_fact_001",
                 "user_id": "user_12345",
                 "user_name": "Alice",
-                "atomic_fact": "用户在2024年1月1日去了成都，喜欢当地的川菜。",
+                "atomic_fact": "The user went to Chengdu on January 1, 2024, and enjoyed the local Sichuan cuisine.",
                 "parent_episode_id": "episode_001",
                 "timestamp": "2024-01-01T10:00:00+08:00",
                 "group_id": "group_travel",
-                "group_name": "旅行群",
-                "participants": ["张三", "李四"],
+                "group_name": "Travel Group",
+                "participants": ["Zhang San", "Li Si"],
                 "vector": [0.1, 0.2, 0.3],
                 "event_type": "Conversation",
-                "extend": {"location": "成都"},
+                "extend": {"location": "Chengdu"},
             }
         },
     )
 
     @property
     def event_id(self) -> Optional[PydanticObjectId]:
-        """兼容性属性，返回文档ID"""
+        """Compatibility property, returns document ID"""
         return self.id
 
     class Settings:
-        """Beanie 设置"""
+        """Beanie Settings"""
 
         name = "event_log_records"
 
         indexes = [
-            # 用户ID索引
+            # User ID index
             IndexModel([("user_id", ASCENDING)], name="idx_user_id"),
-            # 父情景记忆索引
+            # Parent episodic memory index
             IndexModel([("parent_episode_id", ASCENDING)], name="idx_parent_episode"),
-            # 用户ID和父情景记忆复合索引
+            # Composite index of user ID and parent episodic memory
             IndexModel(
                 [("user_id", ASCENDING), ("parent_episode_id", ASCENDING)],
                 name="idx_user_parent",
             ),
-            # 用户ID和时间戳复合索引
+            # Composite index of user ID and timestamp
             IndexModel(
                 [("user_id", ASCENDING), ("timestamp", DESCENDING)],
                 name="idx_user_timestamp",
             ),
-            # 群组ID索引
+            # Group ID index
             IndexModel([("group_id", ASCENDING)], name="idx_group_id", sparse=True),
-            # 创建时间索引
+            # Creation time index
             IndexModel([("created_at", DESCENDING)], name="idx_created_at"),
-            # 更新时间索引
+            # Update time index
             IndexModel([("updated_at", DESCENDING)], name="idx_updated_at"),
         ]
 
@@ -105,34 +115,42 @@ class EventLogRecord(DocumentBase, AuditBase):
 
 class EventLogRecordProjection(DocumentBase, AuditBase):
     """
-    事件日志简化模型（不包含向量）
+    Simplified event log model (without vector)
 
-    用于大部分不需要向量数据的场景，减少数据传输和内存占用。
+    Used in most scenarios where vector data is not needed, reducing data transfer and memory usage.
     """
 
-    # 核心字段
-    id: Optional[PydanticObjectId] = Field(default=None, description="记录ID")
-    user_id: Optional[str] = Field(default=None, description="用户ID，个人事件必填")
-    user_name: Optional[str] = Field(default=None, description="用户名称")
-    group_id: Optional[str] = Field(default=None, description="群组ID")
-    group_name: Optional[str] = Field(default=None, description="群组名称")
-    atomic_fact: str = Field(..., description="原子事实内容（单条句子）")
-    parent_episode_id: str = Field(..., description="父情景记忆的 event_id")
-
-    # 时间信息
-    timestamp: datetime = Field(..., description="事件发生时间")
-
-    # 群组和参与者信息
-    participants: Optional[List[str]] = Field(default=None, description="相关参与者")
-
-    # 向量模型信息（保留模型名称，但不包含向量数据）
-    vector_model: Optional[str] = Field(default=None, description="使用的向量化模型")
-
-    # 事件类型和扩展信息
-    event_type: Optional[str] = Field(
-        default=None, description="事件类型，如 Conversation"
+    # Core fields
+    id: Optional[PydanticObjectId] = Field(default=None, description="Record ID")
+    user_id: Optional[str] = Field(
+        default=None, description="User ID, required for personal events"
     )
-    extend: Optional[Dict[str, Any]] = Field(default=None, description="扩展字段")
+    user_name: Optional[str] = Field(default=None, description="User name")
+    group_id: Optional[str] = Field(default=None, description="Group ID")
+    group_name: Optional[str] = Field(default=None, description="Group name")
+    atomic_fact: str = Field(..., description="Atomic fact content (single sentence)")
+    parent_episode_id: str = Field(..., description="Parent episodic memory event_id")
+
+    # Time information
+    timestamp: datetime = Field(..., description="Event occurrence time")
+
+    # Group and participant information
+    participants: Optional[List[str]] = Field(
+        default=None, description="Related participants"
+    )
+
+    # Vector model information (retain model name, but exclude vector data)
+    vector_model: Optional[str] = Field(
+        default=None, description="Vectorization model used"
+    )
+
+    # Event type and extension information
+    event_type: Optional[str] = Field(
+        default=None, description="Event type, such as Conversation"
+    )
+    extend: Optional[Dict[str, Any]] = Field(
+        default=None, description="Extension field"
+    )
 
     model_config = ConfigDict(
         validate_assignment=True,
@@ -144,9 +162,9 @@ class EventLogRecordProjection(DocumentBase, AuditBase):
 
     @property
     def event_id(self) -> Optional[PydanticObjectId]:
-        """兼容性属性，返回文档ID"""
+        """Compatibility property, returns document ID"""
         return self.id
 
 
-# 导出模型
+# Export models
 __all__ = ["EventLogRecord", "EventLogRecordProjection"]

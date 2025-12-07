@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-事件模块
+Event module
 
-提供应用级事件发布/订阅机制，支持：
-- 事件基类 (BaseEvent): 所有业务事件的基类，支持 JSON/BSON 序列化
-- 事件监听器 (EventListener): 事件监听器抽象基类
-- 事件发布器 (ApplicationEventPublisher): 全局事件发布器
+Provides application-level event publish/subscribe mechanism, supporting:
+- Base event (BaseEvent): Base class for all business events, supports JSON/BSON serialization
+- Event listener (EventListener): Abstract base class for event listeners
+- Event publisher (ApplicationEventPublisher): Global event publisher
 
-使用示例:
+Usage examples:
 
-1. 定义事件:
+1. Define an event:
     >>> from dataclasses import dataclass
     >>> from core.events import BaseEvent
     >>>
@@ -27,7 +27,7 @@
     ...             username=data["username"],
     ...         )
 
-2. 定义监听器:
+2. Define a listener:
     >>> from core.di import component
     >>> from core.events import EventListener, BaseEvent
     >>>
@@ -37,9 +37,9 @@
     ...         return [UserCreatedEvent]
     ...
     ...     async def on_event(self, event: BaseEvent):
-    ...         print(f"用户创建: {event.user_id}")
+    ...         print(f"User created: {event.user_id}")
 
-3. 发布事件:
+3. Publish an event:
     >>> from core.di import get_bean_by_type
     >>> from core.events import ApplicationEventPublisher
     >>>

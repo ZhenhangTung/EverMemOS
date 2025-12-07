@@ -1,5 +1,5 @@
 """
-业务生命周期提供者实现
+Business lifecycle provider implementation
 """
 
 from fastapi import FastAPI
@@ -17,40 +17,40 @@ logger = get_logger(__name__)
 
 @component(name="business_lifespan_provider")
 class BusinessLifespanProvider(LifespanProvider):
-    """业务生命周期提供者"""
+    """Business lifecycle provider"""
 
     def __init__(self, name: str = "business", order: int = 20):
         """
-        初始化业务生命周期提供者
+        Initialize business lifecycle provider
 
         Args:
-            name (str): 提供者名称
-            order (int): 执行顺序，业务逻辑通常在数据库之后启动
+            name (str): Provider name
+            order (int): Execution order, business logic usually starts after database
         """
         super().__init__(name, order)
 
     async def startup(self, app: FastAPI) -> Dict[str, Any]:
         """
-        启动业务逻辑
+        Start business logic
 
         Args:
-            app (FastAPI): FastAPI应用实例
+            app (FastAPI): FastAPI application instance
 
         Returns:
-            Dict[str, Any]: 业务初始化信息
+            Dict[str, Any]: Business initialization information
         """
-        logger.info("正在初始化业务逻辑...")
+        logger.info("Initializing business logic...")
 
-        # 1. 创建业务图结构
+        # 1. Create business graph structure
         graphs = self._register_graphs(app)
 
-        # 2. 注册控制器
+        # 2. Register controllers
         controllers = self._register_controllers(app)
 
-        # 3. 注册能力
+        # 3. Register capabilities
         capabilities = self._register_capabilities(app)
 
-        logger.info("业务应用初始化完成")
+        logger.info("Business application initialization completed")
 
         return {
             'graphs': graphs,
@@ -60,51 +60,57 @@ class BusinessLifespanProvider(LifespanProvider):
 
     async def shutdown(self, app: FastAPI) -> None:
         """
-        关闭业务逻辑
+        Shutdown business logic
 
         Args:
-            app (FastAPI): FastAPI应用实例
+            app (FastAPI): FastAPI application instance
         """
-        logger.info("正在关闭业务逻辑...")
+        logger.info("Shutting down business logic...")
 
-        # 清理app.state中的业务相关属性
+        # Clean up business-related attributes in app.state
         if hasattr(app.state, 'graphs'):
             delattr(app.state, 'graphs')
 
-        logger.info("业务应用关闭完成")
+        logger.info("Business application shutdown completed")
 
     def _register_controllers(self, app: FastAPI) -> list:
-        """注册所有控制器"""
+        """Register all controllers"""
         all_controllers = get_beans_by_type(BaseController)
         for controller in all_controllers:
             controller.register_to_app(app)
-        logger.info("控制器注册完成，共注册 %d 个控制器", len(all_controllers))
+        logger.info(
+            "Controller registration completed, %d controllers registered",
+            len(all_controllers),
+        )
         return all_controllers
 
     def _register_capabilities(self, app: FastAPI) -> list:
-        """注册所有应用能力"""
+        """Register all application capabilities"""
         capability_beans = get_beans_by_type(ApplicationCapability)
         for capability in capability_beans:
             capability.enable(app)
-        logger.info("应用能力注册完成，共注册 %d 个能力", len(capability_beans))
+        logger.info(
+            "Application capability registration completed, %d capabilities registered",
+            len(capability_beans),
+        )
         return capability_beans
 
     def _create_graphs(self, checkpointer=None) -> dict:
-        """创建所有业务图结构"""
-        logger.info("正在创建业务图结构...")
+        """Create all business graph structures"""
+        logger.info("Creating business graph structures...")
         graphs = {}
-        # 这里可以根据具体需求创建图结构
-        logger.info("业务图结构创建完成，共创建 %d 个图", len(graphs))
+        # Business graph structures can be created based on specific requirements here
+        logger.info("Business graph structures created, %d graphs created", len(graphs))
         return graphs
 
     def _register_graphs(self, app: FastAPI) -> dict:
-        """注册所有图结构到FastAPI应用"""
+        """Register all graph structures to FastAPI application"""
         checkpointer = getattr(app.state, 'checkpointer', None)
         if not checkpointer:
-            logger.warning("未找到checkpointer，跳过图结构创建")
+            logger.warning("Checkpointer not found, skipping graph structure creation")
             return {}
 
         graphs = self._create_graphs(checkpointer)
         app.state.graphs = graphs
-        logger.info("图结构注册完成，共注册 %d 个图", len(graphs))
+        logger.info("Graph structures registered, %d graphs registered", len(graphs))
         return graphs

@@ -1,10 +1,10 @@
 """
-应用启动模块
+Application startup module
 
-负责应用启动时的各种初始化操作
+Responsible for various initialization operations when the application starts
 """
 
-# 导入依赖注入相关模块
+# Import dependency injection related modules
 from core.observation.logger import get_logger
 from core.addons.addons_registry import ADDONS_REGISTRY
 from core.addons.addonize.di_setup import (
@@ -12,48 +12,48 @@ from core.addons.addonize.di_setup import (
     print_registered_beans,
 )
 
-# 推荐用法：模块顶部获取一次logger，后续直接使用（高性能）
+# Recommended usage: get logger once at the top of the module, then use directly (high performance)
 logger = get_logger(__name__)
 
 
 def setup_all(load_entrypoints: bool = True):
     """
-    设置所有组件
+    Set up all components
 
     Args:
-        load_entrypoints (bool): 是否从 entry points 加载 addons。默认为 True
+        load_entrypoints (bool): Whether to load addons from entry points. Default is True
 
     Returns:
-        ComponentScanner: 配置好的组件扫描器
+        ComponentScanner: Configured component scanner
     """
-    # 0. 加载 addons entry points（如果启用）
+    # 0. Load addons entry points (if enabled)
     if load_entrypoints:
-        logger.info("🔌 正在加载 addons entry points...")
+        logger.info("🔌 Loading addons entry points...")
         ADDONS_REGISTRY.load_entrypoints()
 
-    # 获取所有 addons
+    # Get all addons
     all_addons = ADDONS_REGISTRY.get_all()
-    logger.info("📦 共加载 %d 个 addon", len(all_addons))
+    logger.info("📦 Loaded %d addons in total", len(all_addons))
 
-    # 1. 设置依赖注入
+    # 1. Set up dependency injection
     scanner = setup_dependency_injection(all_addons)
 
-    # 2. 设置异步任务
+    # 2. Set up asynchronous tasks
     # setup_async_tasks(all_addons)
 
     return scanner
 
 
 if __name__ == "__main__":
-    # 启动依赖注入
+    # Start dependency injection
     setup_all()
 
-    # 打印注册的Bean信息
+    # Print registered Bean information
     print_registered_beans()
 
-    # 打印已注册的任务
+    # Print registered tasks
     from core.addons.addonize.asynctasks_setup import print_registered_tasks
 
     print_registered_tasks()
 
-    logger.info("\n✨ 应用启动完成！")
+    logger.info("\n✨ Application startup completed!")

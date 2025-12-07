@@ -9,7 +9,11 @@ from core.observation.logger import get_logger
 from ...llm.llm_provider import LLMProvider
 from .conversation import build_evidence_completion_prompt
 from .data_normalize import merge_evidences_recursive
-from .evidence_utils import conversation_id_from_evidence, ensure_str_list, format_evidence_entry
+from .evidence_utils import (
+    conversation_id_from_evidence,
+    ensure_str_list,
+    format_evidence_entry,
+)
 
 logger = get_logger(__name__)
 
@@ -44,7 +48,9 @@ def _project_nested_item_has_missing_evidence(item: Any) -> bool:
             return False
         if "value" in item:
             return _has_non_empty_value(item.get("value"))
-        return any(_project_nested_item_has_missing_evidence(val) for val in item.values())
+        return any(
+            _project_nested_item_has_missing_evidence(val) for val in item.values()
+        )
     if isinstance(item, list):
         return any(_project_nested_item_has_missing_evidence(val) for val in item)
     if isinstance(item, str):
@@ -116,21 +122,23 @@ async def complete_missing_evidences(
                 continue
 
             repair_prompt = (
-                "输入的字符串是json格式，但有语法错误，请修复语法错误,输出时只给出格式正确的json格式```json {}```"
-                "不要有任何多余的解释和说明\n 原始字符串为:\n" + (response_text or "")
+                "The input string is in json format, but has syntax errors. Please fix the syntax errors and output only the correctly formatted json ```json {}```. "
+                "Do not include any additional explanations or notes.\n Original string:\n"
+                + (response_text or "")
             )
             try:
-                response_text = await llm_provider.generate(repair_prompt, temperature=0)
+                response_text = await llm_provider.generate(
+                    repair_prompt, temperature=0
+                )
                 parsed_payload = parse_payload(response_text)
                 break
             except Exception as repair_exc:  # pylint: disable=broad-except
                 logger.error(
-                    " Evidence completion repair attempt failed: %s",
-                    repair_exc,
+                    "Evidence completion repair attempt failed: %s", repair_exc
                 )
                 if response_text:
                     logger.error(
-                        " Evidence completion repair response preview: %s",
+                        "Evidence completion repair response preview: %s",
                         response_text[:500],
                     )
                 return
@@ -150,7 +158,7 @@ async def complete_missing_evidences(
         completed_profiles = None
 
     if not completed_profiles:
-        logger.warning(" Evidence completion batch returned empty payload")
+        logger.warning("Evidence completion batch returned empty payload")
         return
 
     completed_map: Dict[str, Dict[str, Any]] = {}
@@ -166,10 +174,7 @@ async def complete_missing_evidences(
                 valid_conversation_ids=valid_conversation_ids,
                 conversation_participants_map=conversation_participants_map,
             )
-        _format_evidences_with_dates(
-            item,
-            conversation_date_map=conversation_date_map,
-        )
+        _format_evidences_with_dates(item, conversation_date_map=conversation_date_map)
         completed_map[user_id] = item
 
     for original_profile, payload in completion_targets:
@@ -177,7 +182,7 @@ async def complete_missing_evidences(
         completed_profile = completed_map.get(user_id)
         if not completed_profile:
             logger.warning(
-                " Evidence completion response missing profile for user %s",
+                "Evidence completion response missing profile for user %s",
                 user_id or "<unknown>",
             )
             continue
@@ -191,7 +196,7 @@ async def complete_missing_evidences(
 
 
 def _extract_missing_evidences_payload(
-    profile: Dict[str, Any],
+    profile: Dict[str, Any]
 ) -> Optional[Dict[str, Any]]:
     """Return a minimal payload containing only entries lacking evidences."""
     if not profile:
@@ -230,11 +235,7 @@ def _extract_missing_evidences_payload(
         if pruned:
             payload[field] = pruned
 
-    extra_keys = [
-        key
-        for key in payload.keys()
-        if key not in {"user_id", "user_name"}
-    ]
+    extra_keys = [key for key in payload.keys() if key not in {"user_id", "user_name"}]
     return payload if extra_keys else None
 
 
@@ -248,7 +249,9 @@ def _remove_invalid_evidences(
     if not profile or valid_conversation_ids is None:
         return
 
-    user_id = str(profile.get("user_id", "")).strip() if isinstance(profile, dict) else ""
+    user_id = (
+        str(profile.get("user_id", "")).strip() if isinstance(profile, dict) else ""
+    )
 
     def sanitize(node: Any) -> None:
         if isinstance(node, dict):
@@ -264,23 +267,25 @@ def _remove_invalid_evidences(
                         if conversation_id not in valid_conversation_ids:
                             should_remove = True
                             logger.debug(
-                                " Removing hallucinated evidence %s for user %s",
+                                "Removing hallucinated evidence %s for user %s",
                                 conversation_id or "<unknown>",
                                 user_id or "<unknown>",
                             )
                         elif conversation_participants_map is not None:
-                            participants = conversation_participants_map.get(conversation_id)
+                            participants = conversation_participants_map.get(
+                                conversation_id
+                            )
                             if participants is None:
                                 should_remove = True
                                 logger.debug(
-                                    " Removing evidence %s for user %s: participants not available",
+                                    "Removing evidence %s for user %s: participants not available",
                                     conversation_id or "<unknown>",
                                     user_id or "<unknown>",
                                 )
                             elif user_id not in participants:
                                 should_remove = True
                                 logger.debug(
-                                    " Removing evidence %s for user %s not in participants",
+                                    "Removing evidence %s for user %s not in participants",
                                     conversation_id or "<unknown>",
                                     user_id or "<unknown>",
                                 )
@@ -297,9 +302,7 @@ def _remove_invalid_evidences(
 
 
 def _format_evidences_with_dates(
-    profile: Dict[str, Any],
-    *,
-    conversation_date_map: Optional[Dict[str, str]],
+    profile: Dict[str, Any], *, conversation_date_map: Optional[Dict[str, str]]
 ) -> None:
     """Format all evidence entries to include conversation dates when available."""
     if not profile:
@@ -315,10 +318,11 @@ def _format_evidences_with_dates(
                     for evidence in evidences_list:
                         if not evidence:
                             continue
-                        conversation_id = conversation_id_from_evidence(evidence) or evidence
+                        conversation_id = (
+                            conversation_id_from_evidence(evidence) or evidence
+                        )
                         formatted_entry = format_evidence_entry(
-                            conversation_id,
-                            conversation_date_map=conversation_date_map,
+                            conversation_id, conversation_date_map=conversation_date_map
                         )
                         if formatted_entry and formatted_entry not in seen:
                             formatted.append(formatted_entry)
@@ -334,10 +338,7 @@ def _format_evidences_with_dates(
 
 
 def _prune_missing_evidences(
-    value: Any,
-    *,
-    root_field: Optional[str] = None,
-    parent_key: Optional[str] = None,
+    value: Any, *, root_field: Optional[str] = None, parent_key: Optional[str] = None
 ) -> Optional[Any]:
     """Recursively retain only segments where evidences are absent."""
     if isinstance(value, dict):
@@ -356,18 +357,15 @@ def _prune_missing_evidences(
         result_dict: Dict[str, Any] = {}
         for key, item in value.items():
             pruned_item = _prune_missing_evidences(
-                item,
-                root_field=root_field,
-                parent_key=key,
+                item, root_field=root_field, parent_key=key
             )
             if pruned_item is not None:
                 result_dict[key] = pruned_item
         if not result_dict:
             return None
 
-        if (
-            root_field == "projects_participated"
-            and any(key in value for key in PROJECTS_PARTICIPATED_NESTED_FIELDS)
+        if root_field == "projects_participated" and any(
+            key in value for key in PROJECTS_PARTICIPATED_NESTED_FIELDS
         ):
             has_pending_nested = any(
                 _project_nested_item_has_missing_evidence(result_dict.get(sub_key))
@@ -382,9 +380,7 @@ def _prune_missing_evidences(
         result_list: List[Any] = []
         for item in value:
             pruned_item = _prune_missing_evidences(
-                item,
-                root_field=root_field,
-                parent_key=parent_key,
+                item, root_field=root_field, parent_key=parent_key
             )
             if pruned_item is not None:
                 if (

@@ -6,81 +6,81 @@ from core.di.decorators import component
 
 
 class AuthProvider(ABC):
-    """认证提供者接口，负责处理authorization header和用户上下文"""
+    """Authentication provider interface, responsible for handling authorization header and user context"""
 
     @abstractmethod
     async def get_optional_user_data_from_request(
         self, request: Request
     ) -> Optional[Dict[str, Any]]:
         """
-        从请求中提取完整的用户数据（可选）
+        Extract full user data from the request (optional)
 
         Args:
-            request: FastAPI请求对象
+            request: FastAPI request object
 
         Returns:
-            Optional[Dict[str, Any]]: 用户数据，包含user_id、role等信息，如果不存在或无效则返回None
+            Optional[Dict[str, Any]]: User data, including user_id, role, etc. Return None if not present or invalid
         """
 
 
 @component(name="auth_provider")
 class TestAuthProviderImpl(AuthProvider):
-    """认证提供者实现，负责处理authorization header和用户上下文"""
+    """Authentication provider implementation, responsible for handling authorization header and user context"""
 
     def __init__(self):
-        """初始化认证提供者"""
+        """Initialize the authentication provider"""
 
     async def get_user_id_from_request(self, request: Request) -> int:
         """
-        从请求中提取用户ID
+        Extract user ID from the request
 
-        目前实现：直接从authorization header中获取用户ID（临时方案）
-        未来扩展：可以支持JWT token解析等
+        Current implementation: directly obtain user ID from the authorization header (temporary solution)
+        Future extension: can support JWT token parsing, etc.
 
         Args:
-            request: FastAPI请求对象
+            request: FastAPI request object
 
         Returns:
-            int: 用户ID
+            int: User ID
 
         Raises:
-            HTTPException: 当authorization header缺失或无效时
+            HTTPException: When the authorization header is missing or invalid
         """
-        # 从authorization header中获取用户ID
+        # Get user ID from the authorization header
         auth_header = request.headers.get("authorization")
 
         if not auth_header:
-            raise HTTPException(status_code=401, detail="缺少authorization header")
+            raise HTTPException(status_code=401, detail="Missing authorization header")
 
-        # 移除可能的"Bearer "前缀
+        # Remove possible "Bearer " prefix
         user_id_str = auth_header.replace("Bearer ", "").strip()
 
         try:
             user_id = int(user_id_str)
             if user_id <= 0:
-                raise ValueError("用户ID必须是正整数")
+                raise ValueError("User ID must be a positive integer")
             return user_id
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail="authorization header中的用户ID格式无效，应该是正整数",
+                detail="Invalid user ID format in authorization header, should be a positive integer",
             )
 
     async def get_optional_user_data_from_request(
         self, request: Request
     ) -> Optional[Dict[str, Any]]:
         """
-        从请求中提取完整的用户数据（可选）
+        Extract full user data from the request (optional)
 
         Args:
-            request: FastAPI请求对象
+            request: FastAPI request object
 
         Returns:
-            Optional[Dict[str, Any]]: 用户数据，包含user_id、role等信息，如果不存在或无效则返回None
+            Optional[Dict[str, Any]]: User data, including user_id, role, etc. Return None if not present or invalid
         """
         try:
             user_id = await self.get_user_id_from_request(request)
-            # 导入 Role 枚举
+            # Import Role enum
             from core.authorize.enums import Role
 
             return {"user_id": user_id, "role": Role.USER.value}

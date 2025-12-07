@@ -9,86 +9,89 @@ from core.oxm.mongo.audit_base import AuditBase
 
 class GroupUserProfileMemory(DocumentBase, AuditBase):
     """
-    核心记忆文档模型
+    Core memory document model
 
-    统一存储用户的基础信息、个人档案和偏好设置。
-    单个文档包含所有三种记忆类型的数据。
+    Unified storage for user's basic information, personal profile, and preference settings.
+    A single document contains data of all three memory types.
 
-    所有 profile 字段现在都使用嵌入 evidences 的格式：
-    - 技能: [{"value": "Python", "level": "高级", "evidences": ["2024-01-01|conv_123"]}]
-    - Legacy格式: [{"skill": "Python", "level": "高级", "evidences": ["..."]}] (自动转换)
-    - 其他属性: [{"value": "xxx", "evidences": ["2024-01-01|conv_123"]}]
+    All profile fields now use the embedded evidences format:
+    - Skills: [{"value": "Python", "level": "Advanced", "evidences": ["2024-01-01|conv_123"]}]
+    - Legacy format: [{"skill": "Python", "level": "Advanced", "evidences": ["..."]}] (automatically converted)
+    - Other attributes: [{"value": "xxx", "evidences": ["2024-01-01|conv_123"]}]
     """
 
-    user_id: Indexed(str) = Field(..., description="用户ID")
-    group_id: Indexed(str) = Field(..., description="群组ID")
+    user_id: Indexed(str) = Field(..., description="User ID")
+    group_id: Indexed(str) = Field(..., description="Group ID")
 
-    # ==================== 版本控制字段 ====================
-    version: Optional[str] = Field(default=None, description="版本号，用于支持版本管理")
+    # ==================== Version control fields ====================
+    version: Optional[str] = Field(
+        default=None, description="Version number, used for version management"
+    )
     is_latest: Optional[bool] = Field(
-        default=True, description="是否为最新版本，默认为True"
+        default=True, description="Whether it is the latest version, default is True"
     )
 
-    user_name: Optional[str] = Field(default=None, description="用户姓名")
+    user_name: Optional[str] = Field(default=None, description="User name")
 
-    # ==================== Profile 字段 ====================
-    # 技能字段 - 格式: [{"value": "Python", "level": "高级", "evidences": ["id1"]}]
-    # Legacy格式: [{"skill": "Python", "level": "高级", "evidences": ["..."]}] (自动转换)
+    # ==================== Profile fields ====================
+    # Skill field - Format: [{"value": "Python", "level": "Advanced", "evidences": ["id1"]}]
+    # Legacy format: [{"skill": "Python", "level": "Advanced", "evidences": ["..."]}] (automatically converted)
     hard_skills: Optional[List[Dict[str, Any]]] = Field(
         default=None,
-        description="硬技能，SQL、Python、产品设计等，及其熟练程度，包含 evidences",
+        description="Hard skills, such as SQL, Python, product design, etc., along with proficiency levels, including evidences",
     )
     soft_skills: Optional[List[Dict[str, Any]]] = Field(
         default=None,
-        description="软技能，沟通能力、团队合作、情绪智力等，包含 evidences",
+        description="Soft skills, such as communication, teamwork, emotional intelligence, etc., including evidences",
     )
     output_reasoning: Optional[str] = Field(
-        default=None, description="本次输出的推理说明"
+        default=None, description="Reasoning explanation for this output"
     )
     motivation_system: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="激励系统，包含 value/level/evidences"
+        default=None, description="Motivation system, containing value/level/evidences"
     )
     fear_system: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="恐惧系统，包含 value/level/evidences"
+        default=None, description="Fear system, containing value/level/evidences"
     )
     value_system: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="价值体系，包含 value/level/evidences"
+        default=None, description="Value system, containing value/level/evidences"
     )
     humor_use: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="幽默使用方式，包含 value/level/evidences"
+        default=None, description="Humor usage style, containing value/level/evidences"
     )
     colloquialism: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="口头禅偏好，包含 value/level/evidences"
+        default=None,
+        description="Preferred catchphrases, containing value/level/evidences",
     )
 
-    # 其他档案字段 - 格式: [{"value": "xxx", "evidences": ["id1"]}]
+    # Other profile fields - Format: [{"value": "xxx", "evidences": ["id1"]}]
     personality: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="用户性格，包含 evidences"
+        default=None, description="User personality, including evidences"
     )
     projects_participated: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="参与项目信息"
+        default=None, description="Information about participated projects"
     )
     user_goal: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="用户目标，包含 evidences"
+        default=None, description="User goals, including evidences"
     )
     work_responsibility: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="工作职责，包含 evidences"
+        default=None, description="Work responsibilities, including evidences"
     )
     working_habit_preference: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="工作习惯偏好，包含 evidences"
+        default=None, description="Work habit preferences, including evidences"
     )
     interests: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="兴趣爱好，包含 evidences"
+        default=None, description="Hobbies and interests, including evidences"
     )
     tendency: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="用户选择偏好，包含 evidences"
+        default=None, description="User preference tendencies, including evidences"
     )
     way_of_decision_making: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="决策方式，包含 evidences"
+        default=None, description="Decision-making style, including evidences"
     )
 
     group_importance_evidence: Optional[Dict[str, Any]] = Field(
-        default=None, description="群组重要性证据"
+        default=None, description="Evidence of group importance"
     )
 
     model_config = ConfigDict(
@@ -99,21 +102,21 @@ class GroupUserProfileMemory(DocumentBase, AuditBase):
             "example": {
                 "user_id": "user_12345",
                 "group_id": "group_12345",
-                "personality": "内向但善于沟通，喜欢深度思考",
-                "hard_skills": [{"Python": "高级"}],
-                "working_habit_preference": ["远程工作", "弹性时间"],
-                "user_goal": ["成为技术专家", "提升领导力"],
+                "personality": "Introverted but good at communication, enjoys deep thinking",
+                "hard_skills": [{"Python": "Advanced"}],
+                "working_habit_preference": ["Remote work", "Flexible hours"],
+                "user_goal": ["Become a technical expert", "Improve leadership"],
                 "extend": {"priority": "high"},
             }
         },
     )
 
     class Settings:
-        """Beanie 设置"""
+        """Beanie settings"""
 
         name = "group_core_profile_memory"
         indexes = [
-            # 用户ID、群组ID和版本联合唯一索引
+            # Composite unique index on user_id, group_id, and version
             IndexModel(
                 [
                     ("user_id", ASCENDING),
@@ -123,7 +126,7 @@ class GroupUserProfileMemory(DocumentBase, AuditBase):
                 unique=True,
                 name="idx_user_id_group_id_version_unique",
             ),
-            # user_id查询最新版本的索引
+            # Index for querying the latest version by user_id
             IndexModel(
                 [
                     ("user_id", ASCENDING),
@@ -132,12 +135,12 @@ class GroupUserProfileMemory(DocumentBase, AuditBase):
                 ],
                 name="idx_user_id_group_id_is_latest",
             ),
-            # group_id查询最新版本的索引（支持get_by_group_id方法）
+            # Index for querying the latest version by group_id (supports get_by_group_id method)
             IndexModel(
                 [("group_id", ASCENDING), ("is_latest", ASCENDING)],
                 name="idx_group_id_is_latest",
             ),
-            # 审计字段索引
+            # Indexes for audit fields
             IndexModel([("created_at", DESCENDING)], name="idx_created_at"),
             IndexModel([("updated_at", DESCENDING)], name="idx_updated_at"),
         ]

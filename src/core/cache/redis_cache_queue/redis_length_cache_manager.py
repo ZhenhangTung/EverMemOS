@@ -1,10 +1,10 @@
 """
-Redis 长度限制缓存管理器
+Redis Length-Limited Cache Manager
 
-基于 Redis Sorted Set 实现的长度限制缓存，支持：
-- 按 key 追加数据到队列，优先使用传入时间作为 score
-- 按长度清理，从最早数据开始删除，最长保留 100 条记录
-- 队列过期时间为 60 分钟，每次 append 时续期
+Length-limited cache implementation based on Redis Sorted Set, supporting:
+- Append data to queue by key, prioritizing the provided timestamp as score
+- Clean up by length, removing from the earliest data, retaining up to 100 records at most
+- Queue expiration time is 60 minutes, extended on each append
 """
 
 import time
@@ -17,38 +17,38 @@ from core.observation.logger import get_logger
 from component.redis_provider import RedisProvider
 from .redis_data_processor import RedisDataProcessor
 
-# 配置常量
-DEFAULT_MAX_LENGTH = 100  # 默认最大长度 100 条
-DEFAULT_EXPIRE_MINUTES = 60  # 默认过期时间 60 分钟
-DEFAULT_CLEANUP_PROBABILITY = 0.1  # 10% 概率执行长度清理
+# Configuration constants
+DEFAULT_MAX_LENGTH = 100  # Default maximum length of 100 items
+DEFAULT_EXPIRE_MINUTES = 60  # Default expiration time of 60 minutes
+DEFAULT_CLEANUP_PROBABILITY = 0.1  # 10% probability of performing length cleanup
 
-# Lua 脚本：按长度清理数据
+# Lua script: Clean up data by length
 LENGTH_CLEANUP_LUA_SCRIPT = """
 local queue_key = KEYS[1]
 local max_length = tonumber(ARGV[1])
 
--- 1. 获取队列长度
+-- 1. Get queue length
 local queue_length = redis.call('ZCARD', queue_key)
 
--- 2. 如果超过最大长度，从最早的数据开始删除多余的元素
+-- 2. If exceeding max length, delete excess elements from the earliest data
 local cleaned_count = 0
 if queue_length > max_length then
     local excess_count = queue_length - max_length
-    -- 删除最早的数据（score最小的）
+    -- Remove the earliest data (lowest score)
     cleaned_count = redis.call('ZREMRANGEBYRANK', queue_key, 0, excess_count - 1)
 end
 
 return cleaned_count
 """
 
-# Lua 脚本：按时间戳范围获取数据（带分数）
+# Lua script: Fetch data by timestamp range (with scores)
 FETCH_BY_DATE_TIMESTAMP_RANGE_LUA_SCRIPT = """
 local queue_key = KEYS[1]
-local min_score = ARGV[1]  -- 最小时间戳
-local max_score = ARGV[2]  -- 最大时间戳
-local limit = tonumber(ARGV[3]) or -1  -- 限制数量，-1表示不限制
+local min_score = ARGV[1]  -- Minimum timestamp
+local max_score = ARGV[2]  -- Maximum timestamp
+local limit = tonumber(ARGV[3]) or -1  -- Limit number, -1 means no limit
 
--- 按score范围获取数据和分数，按时间戳升序排列
+-- Retrieve data and scores by score range, ordered by timestamp ascending
 local messages
 if limit > 0 then
     messages = redis.call('ZRANGEBYSCORE', queue_key, min_score, max_score, 'WITHSCORES', 'LIMIT', 0, limit)
@@ -64,41 +64,41 @@ logger = get_logger(__name__)
 
 @component(name="redis_length_cache_factory")
 class RedisLengthCacheFactory:
-    """Redis 长度限制缓存管理器工厂"""
+    """Redis length-limited cache manager factory"""
 
     def __init__(self, redis_provider: RedisProvider):
         """
-        初始化缓存工厂
+        Initialize cache factory
 
         Args:
-            redis_provider: Redis 连接提供者
+            redis_provider: Redis connection provider
         """
         self.redis_provider = redis_provider
         self._length_cleanup_script = None
         self._timestamp_range_script = None
-        logger.info("Redis 长度限制缓存工厂初始化完成")
+        logger.info("Redis length-limited cache factory initialized")
 
     async def _ensure_length_cleanup_script_registered(self):
-        """确保长度清理 Lua 脚本已注册（只注册一次）"""
+        """Ensure length cleanup Lua script is registered (register only once)"""
         if self._length_cleanup_script is None:
             client = await self.redis_provider.get_client()
             self._length_cleanup_script = client.register_script(
                 LENGTH_CLEANUP_LUA_SCRIPT
             )
-            logger.info("长度清理 Lua 脚本注册完成")
+            logger.info("Length cleanup Lua script registered")
         return self._length_cleanup_script
 
     async def _ensure_timestamp_range_script_registered(self):
-        """确保时间戳范围查询 Lua 脚本已注册（只注册一次）"""
+        """Ensure timestamp range query Lua script is registered (register only once)"""
         if self._timestamp_range_script is None:
-            # 使用binary_cache客户端注册脚本，确保与执行时使用相同的连接
+            # Use binary_cache client to register script, ensuring same connection as execution
             binary_client = await self.redis_provider.get_named_client(
                 "binary_cache", decode_responses=False
             )
             self._timestamp_range_script = binary_client.register_script(
                 FETCH_BY_DATE_TIMESTAMP_RANGE_LUA_SCRIPT
             )
-            logger.info("时间戳范围查询 Lua 脚本注册完成")
+            logger.info("Timestamp range query Lua script registered")
         return self._timestamp_range_script
 
     async def create_cache_manager(
@@ -108,15 +108,15 @@ class RedisLengthCacheFactory:
         cleanup_probability: float = DEFAULT_CLEANUP_PROBABILITY,
     ) -> 'RedisLengthCacheManager':
         """
-        创建缓存管理器实例
+        Create cache manager instance
 
         Args:
-            max_length: 最大长度
-            expire_minutes: 过期时间（分钟）
-            cleanup_probability: 长度清理概率 (0.0-1.0)
+            max_length: Maximum length
+            expire_minutes: Expiration time (minutes)
+            cleanup_probability: Length cleanup probability (0.0-1.0)
 
         Returns:
-            RedisLengthCacheManager: 缓存管理器实例
+            RedisLengthCacheManager: Cache manager instance
         """
         length_cleanup_script = await self._ensure_length_cleanup_script_registered()
         timestamp_range_script = await self._ensure_timestamp_range_script_registered()
@@ -132,13 +132,13 @@ class RedisLengthCacheFactory:
 
 class RedisLengthCacheManager:
     """
-    Redis 长度限制缓存管理器
+    Redis Length-Limited Cache Manager
 
-    基于 Redis Sorted Set (ZSET) 实现的长度限制队列缓存：
-    - Score: 优先使用传入时间，否则使用当前时间戳
-    - Member: 唯一标识符:数据内容，确保数据唯一性
-    - 支持按长度清理，从最早数据开始删除，最长保留指定条数
-    - 队列过期时间为 60 分钟，每次 append 时续期
+    Length-limited queue cache implemented using Redis Sorted Set (ZSET):
+    - Score: Prefer provided time, otherwise use current timestamp
+    - Member: Unique identifier:data content, ensuring data uniqueness
+    - Supports length-based cleanup, removing from earliest data, retaining up to specified count
+    - Queue expiration time is 60 minutes, renewed on each append
     """
 
     def __init__(
@@ -151,15 +151,15 @@ class RedisLengthCacheManager:
         cleanup_probability: float = DEFAULT_CLEANUP_PROBABILITY,
     ):
         """
-        初始化 Redis 长度限制缓存管理器
+        Initialize Redis length-limited cache manager
 
         Args:
-            redis_provider: Redis 连接提供者
-            length_cleanup_script: 预注册的长度清理 Lua 脚本对象
-            fetch_by_timestamp_range_script: 预注册的时间戳范围查询 Lua 脚本对象
-            max_length: 最大长度
-            expire_minutes: 过期时间（分钟）
-            cleanup_probability: 长度清理概率 (0.0-1.0)
+            redis_provider: Redis connection provider
+            length_cleanup_script: Pre-registered length cleanup Lua script object
+            fetch_by_timestamp_range_script: Pre-registered timestamp range query Lua script object
+            max_length: Maximum length
+            expire_minutes: Expiration time (minutes)
+            cleanup_probability: Length cleanup probability (0.0-1.0)
         """
         self.redis_provider = redis_provider
         self.max_length = max_length
@@ -169,7 +169,7 @@ class RedisLengthCacheManager:
         self._fetch_by_timestamp_range_script = fetch_by_timestamp_range_script
 
         logger.info(
-            "Redis 长度限制缓存管理器初始化完成: max_length=%d, expire=%d分钟, cleanup_prob=%.1f%%",
+            "Redis length-limited cache manager initialized: max_length=%d, expire=%d minutes, cleanup_prob=%.1f%%",
             max_length,
             expire_minutes,
             cleanup_probability * 100,
@@ -177,35 +177,35 @@ class RedisLengthCacheManager:
 
     def _convert_timestamp(self, timestamp: Optional[Union[int, datetime]]) -> int:
         """
-        将时间戳转换为毫秒级整数
+        Convert timestamp to millisecond-level integer
 
         Args:
-            timestamp: 时间戳（毫秒）或datetime对象，如果不提供则使用当前时间
+            timestamp: Timestamp (milliseconds) or datetime object, use current time if not provided
 
         Returns:
-            int: 毫秒级时间戳
+            int: Millisecond-level timestamp
         """
         if timestamp is None:
             return int(time.time() * 1000)
         elif isinstance(timestamp, datetime):
-            # 如果是datetime对象，转换为毫秒时间戳
+            # If it's a datetime object, convert to millisecond timestamp
             return int(timestamp.timestamp() * 1000)
         else:
-            # 如果是整数时间戳
+            # If it's an integer timestamp
             return int(timestamp)
 
     async def _cleanup_if_needed(self, key: str) -> int:
         """
-        根据概率决定是否执行长度清理
+        Decide whether to perform length cleanup based on probability
 
         Args:
-            key: 缓存键名
+            key: Cache key name
 
         Returns:
-            int: 清理的数据条数
+            int: Number of cleaned data items
         """
         if random.random() < self.cleanup_probability:
-            # 使用 Lua 脚本进行原子清理
+            # Use Lua script for atomic cleanup
             cleaned_count = await self._length_cleanup_script(
                 keys=[key], args=[self.max_length]
             )
@@ -219,35 +219,35 @@ class RedisLengthCacheManager:
         timestamp: Optional[Union[int, datetime]] = None,
     ) -> bool:
         """
-        向指定 key 的队列追加数据
+        Append data to the queue for the specified key
 
         Args:
-            key: 缓存键名
-            data: 要追加的数据，支持字符串、字典、列表等
-            timestamp: 时间戳（毫秒）或datetime对象，如果不提供则使用当前时间
+            key: Cache key name
+            data: Data to append, supports strings, dictionaries, lists, etc.
+            timestamp: Timestamp (milliseconds) or datetime object, use current time if not provided
 
         Returns:
-            bool: 操作是否成功
+            bool: Whether operation succeeded
 
         Examples:
-            # 追加字符串数据，使用当前时间
+            # Append string data using current time
             await cache.append("user_actions", "user_login")
 
-            # 追加字典数据，指定时间戳
+            # Append dictionary data with specified timestamp
             await cache.append("api_calls", {"method": "GET", "path": "/api/users"}, timestamp=1640995200000)
 
-            # 追加数据，使用datetime对象
+            # Append data using datetime object
             from datetime import datetime
             await cache.append("events", "user_action", timestamp=datetime.now())
         """
         try:
             client = await self.redis_provider.get_client()
 
-            # 1. 数据预处理
+            # 1. Data preprocessing
             score_timestamp = self._convert_timestamp(timestamp)
             unique_member = RedisDataProcessor.process_data_for_storage(data)
 
-            # 2. 执行 Redis 操作
+            # 2. Execute Redis operations
             add_result = await client.zadd(key, {unique_member: score_timestamp})
 
             expire_seconds = self.expire_minutes * 60
@@ -256,14 +256,14 @@ class RedisLengthCacheManager:
             zadd_result = add_result if add_result else None
             expire_result = expire_result if expire_result else None
 
-            # 3. 按概率执行清理
+            # 3. Perform cleanup based on probability
             cleaned_count = await self._cleanup_if_needed(key)
 
-            # 4. 记录结果
+            # 4. Record result
             if zadd_result is not None and expire_result:
                 if cleaned_count > 0:
                     logger.debug(
-                        "数据追加成功并清理了最早数据: key=%s, member_length=%d, timestamp=%d, expire=%ds, cleaned=%d",
+                        "Data appended successfully and earliest data cleaned: key=%s, member_length=%d, timestamp=%d, expire=%ds, cleaned=%d",
                         key,
                         len(unique_member),
                         score_timestamp,
@@ -272,7 +272,7 @@ class RedisLengthCacheManager:
                     )
                 else:
                     logger.debug(
-                        "数据追加成功: key=%s, member_length=%d, timestamp=%d, expire=%ds",
+                        "Data appended successfully: key=%s, member_length=%d, timestamp=%d, expire=%ds",
                         key,
                         len(unique_member),
                         score_timestamp,
@@ -281,7 +281,7 @@ class RedisLengthCacheManager:
                 return True
             else:
                 logger.warning(
-                    "数据追加部分失败: key=%s, zadd_result=%s, expire_result=%s",
+                    "Data append partially failed: key=%s, zadd_result=%s, expire_result=%s",
                     key,
                     zadd_result,
                     expire_result,
@@ -289,81 +289,87 @@ class RedisLengthCacheManager:
                 return False
 
         except (ConnectionError, TimeoutError, ValueError) as e:
-            logger.error("Redis 追加数据失败: key=%s, error=%s", key, str(e))
+            logger.error(
+                "Failed to append data to Redis: key=%s, error=%s", key, str(e)
+            )
             return False
 
     async def get_queue_size(self, key: str) -> int:
         """
-        获取指定队列的当前大小
+        Get current size of the specified queue
 
         Args:
-            key: 缓存键名
+            key: Cache key name
 
         Returns:
-            int: 队列中的元素数量
+            int: Number of elements in the queue
         """
         try:
             client = await self.redis_provider.get_client()
             size = await client.zcard(key)
             return size or 0
         except (ConnectionError, TimeoutError) as e:
-            logger.error("获取队列大小失败: key=%s, error=%s", key, str(e))
+            logger.error("Failed to get queue size: key=%s, error=%s", key, str(e))
             return 0
 
     async def clear_queue(self, key: str) -> bool:
         """
-        清空指定队列的所有数据
+        Clear all data from the specified queue
 
         Args:
-            key: 缓存键名
+            key: Cache key name
 
         Returns:
-            bool: 操作是否成功
+            bool: Whether operation succeeded
         """
         try:
             client = await self.redis_provider.get_client()
             result = await client.delete(key)
-            logger.info("清空队列: key=%s, result=%d", key, result)
+            logger.info("Cleared queue: key=%s, result=%d", key, result)
             return result > 0
         except (ConnectionError, TimeoutError) as e:
-            logger.error("清空队列失败: key=%s, error=%s", key, str(e))
+            logger.error("Failed to clear queue: key=%s, error=%s", key, str(e))
             return False
 
     async def delete(self, key: str) -> bool:
         """
-        删除指定的缓存键（clear_queue 的别名）
+        Delete the specified cache key (alias of clear_queue)
 
         Args:
-            key: 缓存键名
+            key: Cache key name
 
         Returns:
-            bool: 操作是否成功
+            bool: Whether operation succeeded
         """
         return await self.clear_queue(key)
 
     async def cleanup_excess(self, key: str) -> int:
         """
-        手动清理指定队列中超出长度限制的数据
+        Manually clean up data exceeding length limit in the specified queue
 
         Args:
-            key: 缓存键名
+            key: Cache key name
 
         Returns:
-            int: 清理的数据条数
+            int: Number of cleaned data items
         """
         try:
-            # 执行预注册的 Lua 脚本进行长度清理
+            # Execute pre-registered Lua script for length cleanup
             cleaned_count = await self._length_cleanup_script(
                 keys=[key], args=[self.max_length]
             )
 
             if cleaned_count > 0:
-                logger.info("手动清理最早数据: key=%s, cleaned=%d", key, cleaned_count)
+                logger.info(
+                    "Manually cleaned earliest data: key=%s, cleaned=%d",
+                    key,
+                    cleaned_count,
+                )
 
             return cleaned_count
 
         except (ConnectionError, TimeoutError) as e:
-            logger.error("清理最早数据失败: key=%s, error=%s", key, str(e))
+            logger.error("Failed to clean earliest data: key=%s, error=%s", key, str(e))
             return 0
 
     async def get_by_timestamp_range(
@@ -374,23 +380,23 @@ class RedisLengthCacheManager:
         limit: int = -1,
     ) -> List[Dict[str, Any]]:
         """
-        根据时间戳范围获取队列数据
+        Retrieve queue data by timestamp range
 
         Args:
-            key: 缓存键名
-            start_timestamp: 开始时间戳（毫秒）或datetime对象，None表示不限制
-            end_timestamp: 结束时间戳（毫秒）或datetime对象，None表示不限制
-            limit: 限制返回数量，-1表示不限制
+            key: Cache key name
+            start_timestamp: Start timestamp (milliseconds) or datetime object, None means no restriction
+            end_timestamp: End timestamp (milliseconds) or datetime object, None means no restriction
+            limit: Limit number of returned items, -1 means no limit
 
         Returns:
-            List[Dict[str, Any]]: 时间戳范围内的数据列表，每个元素包含：
-                - id: 唯一标识符
-                - data: 原始数据
-                - timestamp: 时间戳（毫秒）
-                - datetime: 格式化的时间字符串
+            List[Dict[str, Any]]: List of data within timestamp range, each element contains:
+                - id: Unique identifier
+                - data: Original data
+                - timestamp: Timestamp (milliseconds)
+                - datetime: Formatted time string
         """
         try:
-            # 转换时间戳
+            # Convert timestamps
             min_score = "-inf"
             max_score = "+inf"
 
@@ -400,26 +406,27 @@ class RedisLengthCacheManager:
             if end_timestamp is not None:
                 max_score = str(self._convert_timestamp(end_timestamp))
 
-            # 执行预注册的 Lua 脚本
+            # Execute pre-registered Lua script
             messages = await self._fetch_by_timestamp_range_script(
                 keys=[key], args=[min_score, max_score, limit]
             )
             if not messages:
                 logger.debug(
-                    "时间戳范围内无数据: key=%s, range=[%s, %s]",
+                    "No data in timestamp range: key=%s, range=[%s, %s]",
                     key,
                     min_score,
                     max_score,
                 )
                 return []
 
-            # 解析消息数据（WITHSCORES返回格式：[member1, score1, member2, score2, ...]）
+            # Parse message data (WITHSCORES returns format: [member1, score1, member2, score2, ...])
             result = []
 
-            # 处理WITHSCORES返回的结果，每两个元素为一组：消息内容和分数
+            # Process WITHSCORES returned results, every two elements form a pair: message content and score
             if len(messages) % 2 != 0:
                 logger.warning(
-                    "WITHSCORES返回数据长度异常: %d，应该是偶数", len(messages)
+                    "WITHSCORES returned data length abnormal: %d, should be even",
+                    len(messages),
                 )
                 return []
 
@@ -427,14 +434,16 @@ class RedisLengthCacheManager:
                 try:
                     if i + 1 >= len(messages):
                         logger.warning(
-                            "WITHSCORES数据索引越界: i=%d, len=%d", i, len(messages)
+                            "WITHSCORES data index out of bounds: i=%d, len=%d",
+                            i,
+                            len(messages),
                         )
                         break
 
-                    message = messages[i]  # 消息内容
-                    score_raw = messages[i + 1]  # 分数（可能是bytes或字符串）
+                    message = messages[i]  # Message content
+                    score_raw = messages[i + 1]  # Score (could be bytes or string)
 
-                    # 安全地转换分数为时间戳
+                    # Safely convert score to timestamp
                     try:
                         if isinstance(score_raw, bytes):
                             score_str = score_raw.decode('utf-8')
@@ -443,14 +452,16 @@ class RedisLengthCacheManager:
                         timestamp = int(float(score_str))
                     except (ValueError, UnicodeDecodeError) as score_e:
                         logger.warning(
-                            "分数转换失败: score_raw=%s (type=%s), error=%s",
+                            "Score conversion failed: score_raw=%s (type=%s), error=%s",
                             score_raw,
                             type(score_raw),
                             str(score_e),
                         )
-                        timestamp = int(time.time() * 1000)  # 使用当前时间作为fallback
+                        timestamp = int(
+                            time.time() * 1000
+                        )  # Use current time as fallback
 
-                    # 使用数据处理器解析数据
+                    # Use data processor to parse data
                     processed_data = RedisDataProcessor.process_data_from_storage(
                         message
                     )
@@ -468,18 +479,18 @@ class RedisLengthCacheManager:
 
                 except Exception as e:
                     logger.warning(
-                        "解析消息失败: i=%d, message=%s, error=%s",
+                        "Failed to parse message: i=%d, message=%s, error=%s",
                         i,
-                        message if i < len(messages) else "索引越界",
+                        message if i < len(messages) else "index out of bounds",
                         str(e),
                     )
                     continue
 
-            # 按时间戳排序（最新的在前）
+            # Sort by timestamp (newest first)
             result.sort(key=lambda x: x["timestamp"], reverse=True)
 
             logger.debug(
-                "按时间戳范围获取数据成功: key=%s, range=[%s, %s], count=%d",
+                "Successfully retrieved data by timestamp range: key=%s, range=[%s, %s], count=%d",
                 key,
                 min_score,
                 max_score,
@@ -489,23 +500,27 @@ class RedisLengthCacheManager:
             return result
 
         except Exception as e:
-            logger.error("按时间戳范围获取数据失败: key=%s, error=%s", key, str(e))
+            logger.error(
+                "Failed to retrieve data by timestamp range: key=%s, error=%s",
+                key,
+                str(e),
+            )
             return []
 
     async def get_queue_stats(self, key: str) -> Dict[str, Any]:
         """
-        获取队列的统计信息
+        Get queue statistics
 
         Args:
-            key: 缓存键名
+            key: Cache key name
 
         Returns:
-            Dict[str, Any]: 队列统计信息
+            Dict[str, Any]: Queue statistics
         """
         try:
             client = await self.redis_provider.get_client()
 
-            # 获取队列大小
+            # Get queue size
             total_count = await client.zcard(key) or 0
 
             if total_count == 0:
@@ -518,14 +533,14 @@ class RedisLengthCacheManager:
                     "ttl_seconds": -1,
                 }
 
-            # 获取最旧和最新的时间戳
+            # Get oldest and newest timestamps
             oldest_data = await client.zrange(key, 0, 0, withscores=True)
             newest_data = await client.zrange(key, -1, -1, withscores=True)
 
             oldest_timestamp = int(oldest_data[0][1]) if oldest_data else None
             newest_timestamp = int(newest_data[0][1]) if newest_data else None
 
-            # 获取 TTL
+            # Get TTL
             ttl = await client.ttl(key)
 
             return {
@@ -553,7 +568,9 @@ class RedisLengthCacheManager:
             }
 
         except (ConnectionError, TimeoutError) as e:
-            logger.error("获取队列统计失败: key=%s, error=%s", key, str(e))
+            logger.error(
+                "Failed to get queue statistics: key=%s, error=%s", key, str(e)
+            )
             return {
                 "key": key,
                 "total_count": 0,
@@ -565,10 +582,10 @@ class RedisLengthCacheManager:
             }
 
 
-# 为了保持向后兼容，提供一个默认的组件实例
+# For backward compatibility, provide a default component instance
 @component(name="redis_length_cache_manager")
 class DefaultRedisLengthCacheManager:
-    """默认的 Redis 长度限制缓存管理器（向后兼容）"""
+    """Default Redis length-limited cache manager (backward compatibility)"""
 
     def __init__(self, redis_provider: RedisProvider):
         self.redis_provider = redis_provider
@@ -576,7 +593,7 @@ class DefaultRedisLengthCacheManager:
         self._factory = None
 
     async def _get_manager(self):
-        """延迟初始化管理器"""
+        """Lazy initialization of manager"""
         if self._manager is None:
             if self._factory is None:
                 self._factory = RedisLengthCacheFactory(self.redis_provider)

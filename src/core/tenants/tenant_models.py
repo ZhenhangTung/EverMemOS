@@ -1,7 +1,7 @@
 """
-租户信息数据模型
+Tenant information data model
 
-本模块定义了租户相关的数据类，用于统一管理租户信息。
+This module defines data classes related to tenants for unified management of tenant information.
 """
 
 import json
@@ -12,53 +12,53 @@ from enum import Enum
 
 class TenantPatchKey(str, Enum):
     """
-    租户信息 Patch 缓存键枚举
+    Tenant information Patch cache key enumeration
 
-    用于统一管理 tenant_info_patch 中的缓存键，避免字符串硬编码导致的键名冲突。
+    Used to manage cache keys in tenant_info_patch uniformly, avoiding key name conflicts caused by string hardcoding.
 
-    设计说明：
-    - 所有 patch 缓存键都应该在这里定义
-    - 使用枚举可以提供更好的类型提示和防止拼写错误
-    - 继承自 str，使其可以直接作为字典 key 使用
+    Design notes:
+    - All patch cache keys should be defined here
+    - Using enumeration provides better type hints and prevents spelling errors
+    - Inherits from str, allowing it to be used directly as a dictionary key
 
-    缓存键说明：
-    - MONGO_CLIENT_CACHE_KEY: 用于缓存 MongoDB 客户端的 cache_key（连接参数的哈希值）
-    - ACTUAL_DATABASE_NAME: 用于缓存实际使用的数据库名称
-    - REAL_DATABASE_PREFIX: 用于缓存数据库对象的键前缀（实际使用时需要拼接数据库名）
-    - ES_CONNECTION_CACHE_KEY: 用于缓存 Elasticsearch 连接别名的 cache_key
+    Cache key descriptions:
+    - MONGO_CLIENT_CACHE_KEY: Used to cache the cache_key of MongoDB client (hash value of connection parameters)
+    - ACTUAL_DATABASE_NAME: Used to cache the actual database name used
+    - REAL_DATABASE_PREFIX: Used to cache the key prefix of the database object (needs to be concatenated with the database name during actual use)
+    - ES_CONNECTION_CACHE_KEY: Used to cache the cache_key of Elasticsearch connection alias
     """
 
-    # MongoDB 客户端相关
+    # MongoDB client related
     MONGO_CLIENT_CACHE_KEY = "mongo_client_cache_key"
 
-    # MongoDB 数据库相关
+    # MongoDB database related
     ACTUAL_DATABASE_NAME = "actual_database_name"
-    MONGO_REAL_DATABASE = "mongo_real_database"  # 真实的 MongoDB 数据库对象
+    MONGO_REAL_DATABASE = "mongo_real_database"  # Real MongoDB database object
 
-    # Milvus 连接相关
+    # Milvus connection related
     MILVUS_CONNECTION_CACHE_KEY = "milvus_connection_cache_key"
 
-    # Elasticsearch 连接相关
+    # Elasticsearch connection related
     ES_CONNECTION_CACHE_KEY = "es_connection_cache_key"
 
 
 @dataclass
 class TenantDetail:
     """
-    租户详细信息数据类
+    Tenant detailed information data class
 
-    这个类用于存储经过适配后的租户详细信息，外部的租户信息会被适配成这个数据模型。
+    This class is used to store adapted tenant detailed information; external tenant information will be adapted into this data model.
 
     Attributes:
-        tenant_info: 租户相关信息的字典，存放转换后的租户数据
-                    结构示例: {
+        tenant_info: Dictionary containing tenant-related information, storing converted tenant data
+                    Example structure: {
                         "hash_key": "...",
                         "account_id": "...",
                         "space_id": "...",
                         "organization_id": "..."
                     }
-        storage_info: 存储相关配置信息的字典，可选字段
-                     结构示例: {
+        storage_info: Dictionary containing storage configuration information, optional field
+                     Example structure: {
                          "mongodb": {"host": "...", "port": 27017, ...},
                          "redis": {"host": "...", "port": 6379, ...}
                      }
@@ -69,23 +69,23 @@ class TenantDetail:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        将 TenantDetail 转换为字典
+        Convert TenantDetail to dictionary
 
         Returns:
-            Dict[str, Any]: 包含 tenant_info 和 storage_info 的字典
+            Dict[str, Any]: Dictionary containing tenant_info and storage_info
         """
         return {'tenant_info': self.tenant_info, 'storage_info': self.storage_info}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TenantDetail':
         """
-        从字典创建 TenantDetail 实例
+        Create TenantDetail instance from dictionary
 
         Args:
-            data: 包含 tenant_info 和 storage_info 的字典
+            data: Dictionary containing tenant_info and storage_info
 
         Returns:
-            TenantDetail: 新创建的实例
+            TenantDetail: Newly created instance
         """
         return cls(
             tenant_info=data.get('tenant_info'), storage_info=data.get('storage_info')
@@ -95,16 +95,16 @@ class TenantDetail:
 @dataclass
 class TenantInfo:
     """
-    租户信息数据类
+    Tenant information data class
 
-    这个类是租户信息的主要数据模型，包含租户的核心信息。
+    This class is the main data model for tenant information, containing core tenant details.
 
     Attributes:
-        tenant_id: 租户唯一标识符
-        tenant_detail: 经过适配后的租户详细信息
-        origin_tenant_data: 外部直接传入的原始租户数据，保持原样不做适配
-        tenant_info_patch: 租户相关的缓存数据，用于存储计算后的值（如 actual_database_name, real_client 等）
-                          生命周期与 tenant_info 一致，避免重复计算
+        tenant_id: Unique identifier for the tenant
+        tenant_detail: Adapted detailed tenant information
+        origin_tenant_data: Original tenant data directly passed from external sources, kept unchanged without adaptation
+        tenant_info_patch: Cache data related to the tenant, used to store computed values (e.g., actual_database_name, real_client, etc.)
+                          Lifecycle aligns with tenant_info, avoiding redundant computation
     """
 
     tenant_id: str
@@ -114,15 +114,15 @@ class TenantInfo:
 
     def get_storage_info(self, storage_type: str) -> Optional[Dict[str, Any]]:
         """
-        获取指定类型的存储配置信息
+        Retrieve storage configuration information of the specified type
 
-        此方法从 tenant_detail.storage_info 中获取指定类型的存储配置。
+        This method retrieves the configuration for the specified storage type from tenant_detail.storage_info.
 
         Args:
-            storage_type: 存储类型，如 "mongodb", "redis", "elasticsearch" 等
+            storage_type: Storage type, such as "mongodb", "redis", "elasticsearch", etc.
 
         Returns:
-            指定存储类型的配置信息字典，如果不存在则返回 None
+            Configuration dictionary for the specified storage type, or None if not found
 
         Examples:
             >>> tenant_info = TenantInfo(
@@ -136,26 +136,26 @@ class TenantInfo:
             >>> print(mongo_config)
             {'host': 'localhost', 'port': 27017}
         """
-        # 检查 tenant_detail.storage_info 是否存在
+        # Check if tenant_detail.storage_info exists
         if self.tenant_detail.storage_info is None:
             return None
 
-        # 从 storage_info 中获取指定类型的配置
+        # Retrieve configuration of the specified type from storage_info
         return self.tenant_detail.storage_info.get(storage_type)
 
     def get_patch_value(self, key: str, default: Any = None) -> Any:
         """
-        从 tenant_info_patch 中获取缓存值
+        Retrieve cached value from tenant_info_patch
 
-        此方法用于获取缓存在 tenant_info_patch 中的计算值，
-        避免重复计算，提高性能。
+        This method is used to retrieve computed values cached in tenant_info_patch,
+        avoiding redundant computation and improving performance.
 
         Args:
-            key: 缓存键名
-            default: 如果键不存在时的默认返回值
+            key: Cache key name
+            default: Default return value if the key does not exist
 
         Returns:
-            缓存的值，如果不存在则返回 default
+            Cached value, or default if the key does not exist
 
         Examples:
             >>> tenant_info = TenantInfo(
@@ -163,21 +163,21 @@ class TenantInfo:
             ...     tenant_detail=TenantDetail(),
             ...     origin_tenant_data={}
             ... )
-            >>> # 获取缓存的数据库名称
+            >>> # Retrieve cached database name
             >>> db_name = tenant_info.get_patch_value(TenantPatchKey.ACTUAL_DATABASE_NAME)
         """
         return self.tenant_info_patch.get(key, default)
 
     def set_patch_value(self, key: str, value: Any) -> None:
         """
-        设置 tenant_info_patch 中的缓存值
+        Set cached value in tenant_info_patch
 
-        此方法用于缓存计算结果，避免后续重复计算。
-        缓存的生命周期与 TenantInfo 实例一致。
+        This method is used to cache computation results, avoiding redundant computation later.
+        The cache lifecycle is consistent with the TenantInfo instance.
 
         Args:
-            key: 缓存键名
-            value: 要缓存的值
+            key: Cache key name
+            value: Value to be cached
 
         Examples:
             >>> tenant_info = TenantInfo(
@@ -185,22 +185,22 @@ class TenantInfo:
             ...     tenant_detail=TenantDetail(),
             ...     origin_tenant_data={}
             ... )
-            >>> # 缓存数据库名称
+            >>> # Cache database name
             >>> tenant_info.set_patch_value(TenantPatchKey.ACTUAL_DATABASE_NAME, "tenant_001_db")
-            >>> # 缓存客户端的 cache_key
+            >>> # Cache client's cache_key
             >>> tenant_info.set_patch_value(TenantPatchKey.MONGO_CLIENT_CACHE_KEY, "cache_key_value")
         """
         self.tenant_info_patch[key] = value
 
     def has_patch_value(self, key: str) -> bool:
         """
-        检查 tenant_info_patch 中是否存在指定的缓存值
+        Check if a specific cached value exists in tenant_info_patch
 
         Args:
-            key: 缓存键名
+            key: Cache key name
 
         Returns:
-            如果存在返回 True，否则返回 False
+            Returns True if exists, otherwise False
 
         Examples:
             >>> tenant_info = TenantInfo(
@@ -218,10 +218,10 @@ class TenantInfo:
 
     def clear_patch_cache(self) -> None:
         """
-        清除所有缓存数据
+        Clear all cached data
 
-        在某些情况下可能需要清除缓存（如租户配置更新时），
-        此方法会清空 tenant_info_patch 中的所有数据。
+        In certain cases, it might be necessary to clear the cache (e.g., when tenant configuration is updated),
+        this method clears all data in tenant_info_patch.
 
         Examples:
             >>> tenant_info = TenantInfo(
@@ -238,17 +238,17 @@ class TenantInfo:
 
     def invalidate_patch(self, key: Optional[str] = None) -> bool:
         """
-        使缓存失效（删除特定 key 或全部）
+        Invalidate cache (delete specific key or all)
 
-        用于刷新或删除 tenant_info_patch 中的缓存对象。
-        当缓存的资源需要重建（如连接断开、配置变更）时调用此方法。
+        Used to refresh or delete cached objects in tenant_info_patch.
+        Call this method when cached resources need rebuilding (e.g., connection lost, configuration changed).
 
         Args:
-            key: 要删除的缓存键名。如果为 None，则清除所有缓存。
+            key: Cache key name to delete. If None, clears all cache.
 
         Returns:
-            bool: 如果指定了 key，返回该 key 是否存在并被删除；
-                  如果 key 为 None（清除全部），总是返回 True。
+            bool: If key is specified, returns whether the key existed and was deleted;
+                  if key is None (clear all), always returns True.
 
         Examples:
             >>> tenant_info = TenantInfo(
@@ -257,36 +257,36 @@ class TenantInfo:
             ...     origin_tenant_data={}
             ... )
             >>> tenant_info.set_patch_value(TenantPatchKey.MONGO_REAL_DATABASE, some_db_obj)
-            >>> # 删除特定缓存
+            >>> # Delete specific cache
             >>> tenant_info.invalidate_patch(TenantPatchKey.MONGO_REAL_DATABASE)
             True
-            >>> # 清除所有缓存
+            >>> # Clear all cache
             >>> tenant_info.invalidate_patch()
             True
         """
         if key is None:
-            # 清除所有缓存
+            # Clear all cache
             self.tenant_info_patch.clear()
             return True
         else:
-            # 删除特定 key
+            # Delete specific key
             if key in self.tenant_info_patch:
                 del self.tenant_info_patch[key]
                 return True
             return False
 
-    # ==================== 序列化/反序列化方法 ====================
-    # 用于异步任务传递租户上下文到其他进程
+    # ==================== Serialization/Deserialization methods ====================
+    # Used to pass tenant context to other processes via asynchronous tasks
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        将 TenantInfo 转换为字典（用于序列化）
+        Convert TenantInfo to dictionary (for serialization)
 
-        注意：tenant_info_patch 不会被序列化，因为其中可能包含不可序列化的对象（如数据库连接）。
-        反序列化后 tenant_info_patch 会被初始化为空字典。
+        Note: tenant_info_patch will not be serialized because it may contain non-serializable objects (e.g., database connections).
+        After deserialization, tenant_info_patch will be initialized as an empty dictionary.
 
         Returns:
-            Dict[str, Any]: 包含 tenant_id、tenant_detail、origin_tenant_data 的字典
+            Dict[str, Any]: Dictionary containing tenant_id, tenant_detail, and origin_tenant_data
         """
         return {
             'tenant_id': self.tenant_id,
@@ -296,14 +296,14 @@ class TenantInfo:
 
     def to_json(self) -> str:
         """
-        将 TenantInfo 序列化为 JSON 字符串
+        Serialize TenantInfo into a JSON string
 
-        用于异步任务传递租户上下文到其他进程。
+        Used to pass tenant context to other processes via asynchronous tasks.
 
-        注意：tenant_info_patch 不会被序列化。
+        Note: tenant_info_patch will not be serialized.
 
         Returns:
-            str: JSON 字符串
+            str: JSON string
 
         Examples:
             >>> tenant_info = TenantInfo(
@@ -318,34 +318,34 @@ class TenantInfo:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TenantInfo':
         """
-        从字典创建 TenantInfo 实例
+        Create TenantInfo instance from dictionary
 
         Args:
-            data: 包含 tenant_id、tenant_detail、origin_tenant_data 的字典
+            data: Dictionary containing tenant_id, tenant_detail, and origin_tenant_data
 
         Returns:
-            TenantInfo: 新创建的实例（tenant_info_patch 为空字典）
+            TenantInfo: Newly created instance (tenant_info_patch initialized as empty dictionary)
         """
         tenant_detail_data = data.get('tenant_detail', {})
         return cls(
             tenant_id=data['tenant_id'],
             tenant_detail=TenantDetail.from_dict(tenant_detail_data),
             origin_tenant_data=data.get('origin_tenant_data', {}),
-            # tenant_info_patch 不从序列化数据恢复，初始化为空
+            # tenant_info_patch is not restored from serialized data, initialized as empty
         )
 
     @classmethod
     def from_json(cls, json_str: str) -> 'TenantInfo':
         """
-        从 JSON 字符串反序列化创建 TenantInfo 实例
+        Deserialize TenantInfo instance from JSON string
 
-        用于异步任务从其他进程接收租户上下文。
+        Used to receive tenant context from other processes via asynchronous tasks.
 
         Args:
-            json_str: JSON 字符串
+            json_str: JSON string
 
         Returns:
-            TenantInfo: 新创建的实例（tenant_info_patch 为空字典）
+            TenantInfo: Newly created instance (tenant_info_patch initialized as empty dictionary)
 
         Examples:
             >>> json_str = '{"tenant_id": "t1234567890abcdef", ...}'

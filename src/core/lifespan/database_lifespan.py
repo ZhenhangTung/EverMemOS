@@ -1,5 +1,5 @@
 """
-数据库生命周期提供者实现
+Database lifecycle provider implementation
 """
 
 from fastapi import FastAPI
@@ -16,71 +16,71 @@ logger = get_logger(__name__)
 
 # @component(name="database_lifespan_provider")
 class DatabaseLifespanProvider(LifespanProvider):
-    """数据库生命周期提供者"""
+    """Database lifecycle provider"""
 
     def __init__(self, name: str = "database", order: int = 10):
         """
-        初始化数据库生命周期提供者
+        Initialize the database lifecycle provider
 
         Args:
-            name (str): 提供者名称
-            order (int): 执行顺序，数据库通常需要优先启动
+            name (str): Provider name
+            order (int): Execution order, database usually needs to start first
         """
         super().__init__(name, order)
         self._db_provider = None
 
     async def startup(self, app: FastAPI) -> Tuple[Any, Any, Any]:
         """
-        启动数据库连接
+        Start database connection
 
         Args:
-            app (FastAPI): FastAPI应用实例
+            app (FastAPI): FastAPI application instance
 
         Returns:
             Tuple[Any, Any, Any]: (connection_pool, checkpointer, db_provider)
         """
-        logger.info("正在初始化数据库连接...")
+        logger.info("Initializing database connection...")
 
         try:
-            # 获取数据库连接提供者
+            # Get database connection provider
             self._db_provider = get_bean_by_type(DatabaseConnectionProvider)
 
-            # 获取连接池和检查点保存器
+            # Get connection pool and checkpointer
             pool, checkpointer = (
                 await self._db_provider.get_connection_and_checkpointer()
             )
 
-            # 将连接池和checkpointer存储到app.state中，供业务逻辑使用
+            # Store connection pool and checkpointer in app.state for business logic usage
             app.state.connection_pool = pool
             app.state.checkpointer = checkpointer
             app.state.db_provider = self._db_provider
 
-            logger.info("数据库连接初始化完成")
+            logger.info("Database connection initialization completed")
 
-            # 返回连接信息
+            # Return connection information
             return pool, checkpointer, self._db_provider
 
         except Exception as e:
-            logger.error("数据库初始化过程中出错: %s", str(e))
+            logger.error("Error during database initialization: %s", str(e))
             raise
 
     async def shutdown(self, app: FastAPI) -> None:
         """
-        关闭数据库连接
+        Close database connection
 
         Args:
-            app (FastAPI): FastAPI应用实例
+            app (FastAPI): FastAPI application instance
         """
-        logger.info("正在关闭数据库连接...")
+        logger.info("Closing database connection...")
 
         if self._db_provider:
             try:
                 await self._db_provider.close()
-                logger.info("数据库连接关闭完成")
+                logger.info("Database connection closed successfully")
             except Exception as e:
-                logger.error("关闭数据库连接时出错: %s", str(e))
+                logger.error("Error while closing database connection: %s", str(e))
 
-        # 清理app.state中的数据库相关属性
+        # Clean up database-related attributes in app.state
         for attr in ['connection_pool', 'checkpointer', 'db_provider']:
             if hasattr(app.state, attr):
                 delattr(app.state, attr)

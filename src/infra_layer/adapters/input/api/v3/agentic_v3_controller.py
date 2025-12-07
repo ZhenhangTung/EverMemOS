@@ -1,8 +1,8 @@
 """
-Agentic Layer V3 控制器
+Agentic Layer V3 Controller
 
-提供专门用于处理群聊记忆的 RESTful API 路由
-直接接收简单直接的消息格式，逐条处理并存储
+Provides RESTful API routes dedicated to handling group chat memory.
+Directly receives simple, straightforward message formats, processes them one by one, and stores them.
 """
 
 import logging
@@ -34,23 +34,23 @@ logger = logging.getLogger(__name__)
 @controller("agentic_v3_controller", primary=True)
 class AgenticV3Controller(BaseController):
     """
-    Agentic Layer V3 API 控制器
+    Agentic Layer V3 API Controller
 
-    提供专门用于群聊记忆的接口：
-    - memorize: 存储单条消息记忆
-    - retrieve_lightweight: 轻量级检索（Embedding + BM25 + RRF）
+    Provides dedicated interfaces for group chat memory:
+    - memorize: Store a single message as memory
+    - retrieve_lightweight: Lightweight retrieval (Embedding + BM25 + RRF)
     """
 
     def __init__(self, conversation_meta_repository: ConversationMetaRawRepository):
-        """初始化控制器"""
+        """Initialize the controller"""
         super().__init__(
             prefix="/api/v3/agentic",
             tags=["Agentic Layer V3"],
-            default_auth="none",  # 根据实际需求调整认证策略
+            default_auth="none",  # Adjust authentication strategy based on actual needs
         )
         self.memory_manager = MemoryManager()
         self.conversation_meta_repository = conversation_meta_repository
-        # 获取 RedisProvider
+        # Get RedisProvider
         self.redis_provider = get_bean_by_type(RedisProvider)
         logger.info(
             "AgenticV3Controller initialized with MemoryManager and ConversationMetaRepository"
@@ -59,58 +59,58 @@ class AgenticV3Controller(BaseController):
     @post(
         "/memorize",
         response_model=Dict[str, Any],
-        summary="存储单条群聊消息记忆",
+        summary="Store a single group chat message as memory",
         description="""
-        接收简单直接的单条消息格式并存储为记忆
-        
-        ## 功能说明：
-        - 接收简单直接的单条消息数据（无需预转换）
-        - 将单条消息提取为记忆单元（memcells）
-        - 适用于实时消息处理场景
-        - 返回已保存的记忆列表
-        
-        ## 输入格式（简单直接）：
+        Receive a simple, direct single message format and store it as memory.
+
+        ## Functionality:
+        - Accepts simple, direct single message data (no pre-conversion required)
+        - Extracts a single message into memory units (memcells)
+        - Suitable for real-time message processing scenarios
+        - Returns a list of saved memories
+
+        ## Input Format (simple and direct):
         ```json
         {
           "group_id": "group_123",
-          "group_name": "项目讨论组",
+          "group_name": "Project Discussion Group",
           "message_id": "msg_001",
           "create_time": "2025-01-15T10:00:00+08:00",
           "sender": "user_001",
-          "sender_name": "张三",
-          "content": "今天讨论下新功能的技术方案",
+          "sender_name": "Zhang San",
+          "content": "Discuss the technical solution for the new feature today",
           "refer_list": ["msg_000"]
         }
         ```
-        
-        ## 字段说明：
-        - **group_id** (可选): 群组ID
-        - **group_name** (可选): 群组名称
-        - **message_id** (必需): 消息ID
-        - **create_time** (必需): 消息创建时间（ISO 8601格式）
-        - **sender** (必需): 发送者用户ID
-        - **sender_name** (可选): 发送者名称
-        - **content** (必需): 消息内容
-        - **refer_list** (可选): 引用的消息ID列表
-        
-        ## 与其他接口的区别：
-        - **V3 /memorize**: 简单直接的单条消息格式（本接口，推荐）
-        - **V2 /memorize**: 接收内部格式，需要外部转换
-        
-        ## 使用场景：
-        - 实时消息流处理
-        - 聊天机器人集成
-        - 消息队列消费
-        - 单条消息导入
+
+        ## Field Descriptions:
+        - **group_id** (Optional): Group ID
+        - **group_name** (Optional): Group name
+        - **message_id** (Required): Message ID
+        - **create_time** (Required): Message creation time (ISO 8601 format)
+        - **sender** (Required): Sender user ID
+        - **sender_name** (Optional): Sender name
+        - **content** (Required): Message content
+        - **refer_list** (Optional): List of referenced message IDs
+
+        ## Differences from Other Interfaces:
+        - **V3 /memorize**: Simple, direct single message format (this interface, recommended)
+        - **V2 /memorize**: Accepts internal format, requires external conversion
+
+        ## Use Cases:
+        - Real-time message stream processing
+        - Chatbot integration
+        - Message queue consumption
+        - Single message import
         """,
         responses={
             200: {
-                "description": "成功存储记忆数据",
+                "description": "Successfully stored memory data",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": "ok",
-                            "message": "记忆存储成功，共保存 1 条记忆",
+                            "message": "Memory stored successfully, 1 memory saved",
                             "result": {
                                 "saved_memories": [
                                     {
@@ -118,7 +118,7 @@ class AgenticV3Controller(BaseController):
                                         "user_id": "user_001",
                                         "group_id": "group_123",
                                         "timestamp": "2025-01-15T10:00:00",
-                                        "content": "用户讨论了新功能的技术方案",
+                                        "content": "User discussed the technical solution for the new feature",
                                     }
                                 ],
                                 "count": 1,
@@ -128,13 +128,13 @@ class AgenticV3Controller(BaseController):
                 },
             },
             400: {
-                "description": "请求参数错误",
+                "description": "Request parameter error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.INVALID_PARAMETER.value,
-                            "message": "数据格式错误：缺少必需字段 message_id",
+                            "message": "Data format error: Required field message_id is missing",
                             "timestamp": "2025-01-15T10:30:00+00:00",
                             "path": "/api/v3/agentic/memorize",
                         }
@@ -142,13 +142,13 @@ class AgenticV3Controller(BaseController):
                 },
             },
             500: {
-                "description": "服务器内部错误",
+                "description": "Internal server error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.SYSTEM_ERROR.value,
-                            "message": "存储记忆失败，请稍后重试",
+                            "message": "Failed to store memory, please try again later",
                             "timestamp": "2025-01-15T10:30:00+00:00",
                             "path": "/api/v3/agentic/memorize",
                         }
@@ -161,91 +161,89 @@ class AgenticV3Controller(BaseController):
         self, fastapi_request: FastAPIRequest
     ) -> Dict[str, Any]:
         """
-        存储单条消息记忆数据
+        Store a single message as memory data.
 
-        接收简单直接的单条消息格式，通过 group_chat_converter 转换并存储
+        Receives a simple, direct single message format, converts it via group_chat_converter, and stores it.
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 记忆存储响应，包含已保存的记忆列表
+            Dict[str, Any]: Memory storage response containing a list of saved memories
 
         Raises:
-            HTTPException: 当请求处理失败时
+            HTTPException: When request processing fails
         """
         try:
-            # 1. 从请求中获取 JSON body（简单直接的格式）
+            # 1. Get JSON body from request (simple, direct format)
             message_data = await fastapi_request.json()
-            logger.info("收到 V3 memorize 请求（单条消息）")
+            logger.info("Received V3 memorize request (single message)")
 
-            # 3. 使用 group_chat_converter 转换为内部格式
-            logger.info("开始转换简单消息格式到内部格式")
+            # 3. Use group_chat_converter to convert to internal format
+            logger.info(
+                "Starting conversion from simple message format to internal format"
+            )
             memorize_input = convert_simple_message_to_memorize_input(message_data)
 
-            # 提取元信息用于日志
+            # Extract metadata for logging
             group_name = memorize_input.get("group_name")
             group_id = memorize_input.get("group_id")
 
-            logger.info("转换完成: group_id=%s, group_name=%s", group_id, group_name)
+            logger.info(
+                "Conversion completed: group_id=%s, group_name=%s", group_id, group_name
+            )
 
-            # 4. 转换为 MemorizeRequest 对象并调用 memory_manager
-            logger.info("开始处理记忆请求")
+            # 4. Convert to MemorizeRequest object and call memory_manager
+            logger.info("Starting to process memory request")
             memorize_request = await handle_conversation_format(memorize_input)
             request_id = await self.memory_manager.memorize(memorize_request)
 
-            # 5. 返回统一格式的响应
+            # 5. Return unified response format
             if request_id:
-                # 检测到边界，已提交到 Worker 队列异步处理
-                logger.info("记忆请求已提交: request_id=%s", request_id)
+                # Boundary detected, submitted to Worker queue for asynchronous processing
+                logger.info("Memory request submitted: request_id=%s", request_id)
                 return {
                     "status": ErrorStatus.OK.value,
                     "message": "Memory extraction submitted",
-                    "result": {
-                        "request_id": request_id,
-                        "status_info": "processing",
-                    },
+                    "result": {"request_id": request_id, "status_info": "processing"},
                 }
             else:
-                # 未检测到边界，消息已累积
-                logger.info("消息已累积，等待边界检测")
+                # No boundary detected, message accumulated
+                logger.info("Message accumulated, awaiting boundary detection")
             return {
                 "status": ErrorStatus.OK.value,
-                    "message": "Message queued, awaiting boundary detection",
-                "result": {
-                        "request_id": None,
-                        "status_info": "accumulated",
-                },
+                "message": "Message queued, awaiting boundary detection",
+                "result": {"request_id": None, "status_info": "accumulated"},
             }
 
         except ValueError as e:
-            logger.error("V3 memorize 请求参数错误: %s", e)
+            logger.error("V3 memorize request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
         except HTTPException:
-            # 重新抛出 HTTPException
+            # Re-raise HTTPException
             raise
         except Exception as e:
-            logger.error("V3 memorize 请求处理失败: %s", e, exc_info=True)
+            logger.error("V3 memorize request processing failed: %s", e, exc_info=True)
             raise HTTPException(
-                status_code=500, detail="存储记忆失败，请稍后重试"
+                status_code=500, detail="Failed to store memory, please try again later"
             ) from e
 
     @post(
         "/retrieve_lightweight",
         response_model=Dict[str, Any],
-        summary="轻量级记忆检索（Embedding + BM25 + RRF）",
+        summary="Lightweight memory retrieval (Embedding + BM25 + RRF)",
         description="""
-        轻量级记忆检索接口，使用 Embedding + BM25 + RRF 融合策略
-        
-        ## 功能说明：
-        - 并行执行向量检索和关键词检索
-        - 使用 RRF（Reciprocal Rank Fusion）融合结果
-        - 速度快，适合实时场景
-        
-        ## 输入格式：
+        Lightweight memory retrieval interface using Embedding + BM25 + RRF fusion strategy.
+
+        ## Functionality:
+        - Execute vector retrieval and keyword retrieval in parallel
+        - Use RRF (Reciprocal Rank Fusion) to merge results
+        - Fast, suitable for real-time scenarios
+
+        ## Input Format:
         ```json
         {
-          "query": "北京旅游美食",
+          "query": "Beijing travel food",
           "user_id": "default",
           "group_id": "assistant",
           "time_range_days": 365,
@@ -254,33 +252,33 @@ class AgenticV3Controller(BaseController):
           "data_source": "episode",
         }
         ```
-        
-        ## 字段说明：
-        - **query** (必需): 用户查询
-        - **user_id** (可选): 用户ID（用于过滤）
-        - **group_id** (可选): 群组ID（用于过滤）
-        - **time_range_days** (可选): 时间范围天数（默认365天）
-        - **top_k** (可选): 返回结果数量（默认20）
-        - **retrieval_mode** (可选): 检索模式
-          * "rrf": RRF 融合（默认）
-          * "embedding": 纯向量检索
-          * "bm25": 纯关键词检索
-        - **data_source** (可选): 数据源
-          * "episode": 从 MemCell.episode 检索（默认）
-          * "event_log": 从 event_log.atomic_fact 检索
-          * "foresight": 从前瞻检索
-          * "profile": 仅需 user_id + group_id 的档案检索（query 可空）
-        - **current_time** (可选): 当前时间，YYYY-MM-DD格式，用于过滤有效期内的前瞻（仅 data_source=foresight 时有效）
-        - **radius** (可选): COSINE 相似度阈值，范围 [-1, 1]，默认 0.6
-          * 只返回相似度 >= radius 的结果
-          * 影响向量检索部分（embedding/rrf 模式）的结果质量
-          * 对前瞻和情景记忆有效（foresight/episode），事件日志使用 L2 距离暂不支持
-        
-        ## 返回格式：
+
+        ## Field Descriptions:
+        - **query** (Required): User query
+        - **user_id** (Optional): User ID (for filtering)
+        - **group_id** (Optional): Group ID (for filtering)
+        - **time_range_days** (Optional): Time range in days (default 365 days)
+        - **top_k** (Optional): Number of results to return (default 20)
+        - **retrieval_mode** (Optional): Retrieval mode
+          * "rrf": RRF fusion (default)
+          * "embedding": Pure vector retrieval
+          * "bm25": Pure keyword retrieval
+        - **data_source** (Optional): Data source
+          * "episode": Retrieve from MemCell.episode (default)
+          * "event_log": Retrieve from event_log.atomic_fact
+          * "foresight": Retrieve from foresight
+          * "profile": Profile retrieval requiring only user_id + group_id (query can be empty)
+        - **current_time** (Optional): Current time, YYYY-MM-DD format, used to filter valid foresight within period (only effective when data_source=foresight)
+        - **radius** (Optional): COSINE similarity threshold, range [-1, 1], default 0.6
+          * Only return results with similarity >= radius
+          * Affects result quality of vector retrieval part (embedding/rrf mode)
+          * Effective for foresight and episodic memory (foresight/episode), event log uses L2 distance and does not support currently
+
+        ## Return Format:
         ```json
         {
           "status": "ok",
-          "message": "检索成功，找到 10 条记忆",
+          "message": "Retrieval successful, found 10 memories",
           "result": {
             "memories": [...],
             "count": 10,
@@ -300,16 +298,16 @@ class AgenticV3Controller(BaseController):
         self, fastapi_request: FastAPIRequest
     ) -> Dict[str, Any]:
         """
-        轻量级记忆检索（Embedding + BM25 + RRF 融合）
+        Lightweight memory retrieval (Embedding + BM25 + RRF fusion)
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 检索结果响应
+            Dict[str, Any]: Retrieval result response
         """
         try:
-            # 1. 解析请求参数
+            # 1. Parse request parameters
             request_data = await fastapi_request.json()
             query = request_data.get("query")
             user_id = request_data.get("user_id")
@@ -318,31 +316,33 @@ class AgenticV3Controller(BaseController):
             top_k = request_data.get("top_k", 20)
             retrieval_mode = request_data.get("retrieval_mode", "rrf")
             data_source = request_data.get("data_source", "episode")
-            current_time_str = request_data.get("current_time")  # YYYY-MM-DD格式
-            radius = request_data.get("radius")  # COSINE 相似度阈值（可选）
+            current_time_str = request_data.get("current_time")  # YYYY-MM-DD format
+            radius = request_data.get(
+                "radius"
+            )  # COSINE similarity threshold (optional)
 
             if not query and data_source != "profile":
-                raise ValueError("缺少必需参数：query")
-            
-            # 验证 data_source 参数（兼容旧参数名 memcell）
+                raise ValueError("Missing required parameter: query")
+
+            # Validate data_source parameter (compatible with old parameter name memcell)
             if data_source == "memcell":
                 data_source = "episode"
-            
-            # 验证 data_source 是有效值
+
+            # Validate data_source is a valid value
             VALID_DATA_SOURCES = {"episode", "event_log", "foresight", "profile"}
             if data_source not in VALID_DATA_SOURCES:
                 raise ValueError(
-                    f"无效的 data_source: '{data_source}'，"
-                    f"有效值: {', '.join(sorted(VALID_DATA_SOURCES))}"
+                    f"Invalid data_source: '{data_source}', "
+                    f"valid values: {', '.join(sorted(VALID_DATA_SOURCES))}"
                 )
-            
+
             if data_source == "profile":
                 if not user_id or not group_id:
                     raise ValueError(
-                        "data_source=profile 时必须同时提供 user_id 和 group_id"
+                        "user_id and group_id must be provided when data_source=profile"
                     )
 
-            # 解析 current_time
+            # Parse current_time
             from datetime import datetime
 
             current_time = None
@@ -351,16 +351,16 @@ class AgenticV3Controller(BaseController):
                     current_time = datetime.strptime(current_time_str, "%Y-%m-%d")
                 except ValueError as e:
                     raise ValueError(
-                        f"current_time 格式错误，应为 YYYY-MM-DD: {e}"
+                        f"current_time format error, should be YYYY-MM-DD: {e}"
                     ) from e
 
             logger.info(
-                f"收到 lightweight 检索请求: query={query}, group_id={group_id}, "
+                f"Received lightweight retrieval request: query={query}, group_id={group_id}, "
                 f"mode={retrieval_mode}, source={data_source}"
                 f"current_time={current_time_str}, top_k={top_k}"
             )
 
-            # 2. 调用 memory_manager 的 lightweight 检索
+            # 2. Call memory_manager's lightweight retrieval
             result = await self.memory_manager.retrieve_lightweight(
                 query=query,
                 user_id=user_id,
@@ -373,47 +373,53 @@ class AgenticV3Controller(BaseController):
                 radius=radius,
             )
 
-            # 3. 返回统一格式
+            # 3. Return unified format
             return {
                 "status": ErrorStatus.OK.value,
-                "message": f"检索成功，找到 {result['count']} 条记忆",
+                "message": f"Retrieval successful, found {result['count']} memories",
                 "result": result,
             }
 
         except ValueError as e:
-            logger.error("V3 retrieve_lightweight 请求参数错误: %s", e)
+            logger.error("V3 retrieve_lightweight request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
         except HTTPException:
             raise
         except Exception as e:
-            logger.error("V3 retrieve_lightweight 请求处理失败: %s", e, exc_info=True)
-            raise HTTPException(status_code=500, detail="检索失败，请稍后重试") from e
+            logger.error(
+                "V3 retrieve_lightweight request processing failed: %s",
+                e,
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500, detail="Retrieval failed, please try again later"
+            ) from e
 
     @post(
         "/retrieve_agentic",
         response_model=Dict[str, Any],
-        summary="Agentic 记忆检索（LLM 引导的多轮检索）",
+        summary="Agentic Memory Retrieval (LLM-guided multi-round retrieval)",
         description="""
-        Agentic 记忆检索接口，使用 LLM 引导的多轮智能检索
-        
-        ## 功能说明：
-        - 使用 LLM 判断检索充分性
-        - 自动进行多轮检索和查询改进
-        - 使用 Rerank 提升结果质量
-        - 适合需要深度理解的复杂查询
-        
-        ## 检索流程：
-        1. Round 1: RRF 混合检索（Embedding + BM25）
-        2. Rerank 优化结果
-        3. LLM 判断是否充分
-        4. 如果不充分：生成多个改进查询
-        5. Round 2: 多查询并行检索
-        6. 融合并 Rerank 返回最终结果
-        
-        ## 输入格式：
+        Agentic memory retrieval interface using LLM-guided multi-round intelligent retrieval.
+
+        ## Functionality:
+        - Use LLM to determine retrieval sufficiency
+        - Automatically perform multi-round retrieval and query refinement
+        - Use Rerank to improve result quality
+        - Suitable for complex queries requiring deep understanding
+
+        ## Retrieval Process:
+        1. Round 1: RRF hybrid retrieval (Embedding + BM25)
+        2. Rerank to optimize results
+        3. LLM determines if sufficient
+        4. If insufficient: generate multiple refined queries
+        5. Round 2: Parallel retrieval with multiple queries
+        6. Merge and Rerank to return final results
+
+        ## Input Format:
         ```json
         {
-          "query": "用户喜欢吃什么？",
+          "query": "What does the user like to eat?",
           "user_id": "default",
           "group_id": "assistant",
           "time_range_days": 365,
@@ -425,23 +431,23 @@ class AgenticV3Controller(BaseController):
           }
         }
         ```
-        
-        ## 字段说明：
-        - **query** (必需): 用户查询
-        - **user_id** (可选): 用户ID（用于过滤）
-        - **group_id** (可选): 群组ID（用于过滤）
-        - **time_range_days** (可选): 时间范围天数（默认365天）
-        - **top_k** (可选): 返回结果数量（默认20）
-        - **llm_config** (可选): LLM 配置
-          * api_key: LLM API Key（可选，默认使用环境变量）
-          * base_url: LLM API 地址（可选，默认 OpenRouter）
-          * model: LLM 模型（可选，默认 gpt-4o-mini）
-        
-        ## 返回格式：
+
+        ## Field Descriptions:
+        - **query** (Required): User query
+        - **user_id** (Optional): User ID (for filtering)
+        - **group_id** (Optional): Group ID (for filtering)
+        - **time_range_days** (Optional): Time range in days (default 365 days)
+        - **top_k** (Optional): Number of results to return (default 20)
+        - **llm_config** (Optional): LLM configuration
+          * api_key: LLM API Key (optional, default from environment variable)
+          * base_url: LLM API address (optional, default OpenRouter)
+          * model: LLM model (optional, default gpt-4o-mini)
+
+        ## Return Format:
         ```json
         {
           "status": "ok",
-          "message": "Agentic 检索成功，找到 15 条记忆",
+          "message": "Agentic retrieval successful, found 15 memories",
           "result": {
             "memories": [...],
             "count": 15,
@@ -450,8 +456,8 @@ class AgenticV3Controller(BaseController):
               "is_multi_round": true,
               "round1_count": 20,
               "is_sufficient": false,
-              "reasoning": "需要更多关于饮食偏好的具体信息",
-              "refined_queries": ["用户最喜欢的菜系？", "用户不喜欢吃什么？"],
+              "reasoning": "Need more specific information about dietary preferences",
+              "refined_queries": ["What cuisines does the user like most?", "What does the user dislike eating?"],
               "round2_count": 40,
               "final_count": 15,
               "total_latency_ms": 2345.67
@@ -459,31 +465,31 @@ class AgenticV3Controller(BaseController):
           }
         }
         ```
-        
-        ## 使用场景：
-        - 复杂问题回答
-        - 深度信息挖掘
-        - 多维度记忆检索
-        - 智能对话系统
-        
-        ## 注意事项：
-        - 需要配置 LLM API Key
-        - 检索耗时较长（通常 2-5 秒）
-        - 会产生 LLM API 调用费用
+
+        ## Use Cases:
+        - Answering complex questions
+        - Deep information mining
+        - Multi-dimensional memory retrieval
+        - Intelligent dialogue systems
+
+        ## Notes:
+        - Requires LLM API Key configuration
+        - Retrieval takes longer (typically 2-5 seconds)
+        - Will incur LLM API call costs
         """,
     )
     async def retrieve_agentic(self, fastapi_request: FastAPIRequest) -> Dict[str, Any]:
         """
-        Agentic 记忆检索（LLM 引导的多轮智能检索）
+        Agentic memory retrieval (LLM-guided multi-round intelligent retrieval)
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 检索结果响应
+            Dict[str, Any]: Retrieval result response
         """
         try:
-            # 1. 解析请求参数
+            # 1. Parse request parameters
             request_data = await fastapi_request.json()
             query = request_data.get("query")
             user_id = request_data.get("user_id")
@@ -493,27 +499,27 @@ class AgenticV3Controller(BaseController):
             llm_config = request_data.get("llm_config", {})
 
             if not query:
-                raise ValueError("缺少必需参数：query")
+                raise ValueError("Missing required parameter: query")
 
             logger.info(
-                f"收到 agentic 检索请求: query={query}, group_id={group_id}, top_k={top_k}"
+                f"Received agentic retrieval request: query={query}, group_id={group_id}, top_k={top_k}"
             )
 
-            # 2. 创建 LLM Provider
+            # 2. Create LLM Provider
             from memory_layer.llm.llm_provider import LLMProvider
             import os
 
-            # 从请求或环境变量获取配置
+            # Get configuration from request or environment variables
             api_key = llm_config.get("api_key") or os.getenv("LLM_API_KEY")
             base_url = llm_config.get("base_url") or os.getenv("LLM_BASE_URL")
             model = llm_config.get("model") or os.getenv("LLM_MODEL")
 
             if not api_key:
                 raise ValueError(
-                    "缺少 LLM API Key，请在 llm_config.api_key 中提供或设置环境变量 OPENROUTER_API_KEY/OPENAI_API_KEY"
+                    "LLM API Key is missing. Please provide it in llm_config.api_key or set environment variable OPENROUTER_API_KEY/OPENAI_API_KEY"
                 )
 
-            # 创建 LLM Provider（使用 OpenAI 兼容接口）
+            # Create LLM Provider (using OpenAI compatible interface)
             llm_provider = LLMProvider(
                 provider_type="openai",
                 api_key=api_key,
@@ -523,9 +529,9 @@ class AgenticV3Controller(BaseController):
                 max_tokens=2048,
             )
 
-            logger.info(f"使用 LLM: {model} @ {base_url}")
+            logger.info(f"Using LLM: {model} @ {base_url}")
 
-            # 3. 调用 memory_manager 的 agentic 检索
+            # 3. Call memory_manager's agentic retrieval
             result = await self.memory_manager.retrieve_agentic(
                 query=query,
                 user_id=user_id,
@@ -533,62 +539,65 @@ class AgenticV3Controller(BaseController):
                 time_range_days=time_range_days,
                 top_k=top_k,
                 llm_provider=llm_provider,
-                agentic_config=None,  # 使用默认配置
+                agentic_config=None,  # Use default configuration
             )
 
-            # 4. 返回统一格式
+            # 4. Return unified format
             return {
                 "status": ErrorStatus.OK.value,
-                "message": f"Agentic 检索成功，找到 {result['count']} 条记忆",
+                "message": f"Agentic retrieval successful, found {result['count']} memories",
                 "result": result,
             }
 
         except ValueError as e:
-            logger.error("V3 retrieve_agentic 请求参数错误: %s", e)
+            logger.error("V3 retrieve_agentic request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
         except HTTPException:
             raise
         except Exception as e:
-            logger.error("V3 retrieve_agentic 请求处理失败: %s", e, exc_info=True)
+            logger.error(
+                "V3 retrieve_agentic request processing failed: %s", e, exc_info=True
+            )
             raise HTTPException(
-                status_code=500, detail="Agentic 检索失败，请稍后重试"
+                status_code=500,
+                detail="Agentic retrieval failed, please try again later",
             ) from e
 
     @post(
         "/conversation-meta",
         response_model=Dict[str, Any],
-        summary="保存对话元数据",
+        summary="Save conversation metadata",
         description="""
-        保存对话的元数据信息，包括场景、参与者、标签等
+        Save metadata information of conversations, including scene, participants, tags, etc.
         """,
     )
     async def save_conversation_meta(
         self, fastapi_request: FastAPIRequest
     ) -> Dict[str, Any]:
         """
-        保存对话元数据
+        Save conversation metadata
 
-        接收 ConversationMetaRequest 格式的数据，转换为 ConversationMeta ODM 模型并保存到 MongoDB
+        Receives ConversationMetaRequest formatted data, converts it to ConversationMeta ODM model, and saves to MongoDB
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 保存响应，包含已保存的元数据信息
+            Dict[str, Any]: Save response containing saved metadata information
 
         Raises:
-            HTTPException: 当请求处理失败时
+            HTTPException: When request processing fails
         """
         try:
-            # 1. 从请求中获取 JSON body
+            # 1. Get JSON body from request
             request_data = await fastapi_request.json()
             logger.info(
-                "收到 V3 conversation-meta 保存请求: group_id=%s",
+                "Received V3 conversation-meta save request: group_id=%s",
                 request_data.get("group_id"),
             )
 
-            # 2. 解析为 ConversationMetaRequest
-            # 处理 user_details 的转换
+            # 2. Parse into ConversationMetaRequest
+            # Handle conversion of user_details
             user_details_data = request_data.get("user_details", {})
             user_details = {}
             for user_id, detail_data in user_details_data.items():
@@ -612,11 +621,11 @@ class AgenticV3Controller(BaseController):
             )
 
             logger.info(
-                "解析 ConversationMetaRequest 成功: group_id=%s",
+                "Parsed ConversationMetaRequest successfully: group_id=%s",
                 conversation_meta_request.group_id,
             )
 
-            # 3. 转换为 ConversationMeta ODM 模型
+            # 3. Convert to ConversationMeta ODM model
             user_details_model = {}
             for user_id, detail in conversation_meta_request.user_details.items():
                 user_details_model[user_id] = UserDetailModel(
@@ -636,8 +645,8 @@ class AgenticV3Controller(BaseController):
                 tags=conversation_meta_request.tags,
             )
 
-            # 4. 使用 upsert 方式保存（如果 group_id 已存在则更新）
-            logger.info("开始保存对话元数据到 MongoDB")
+            # 4. Save using upsert (update if group_id already exists)
+            logger.info("Starting to save conversation metadata to MongoDB")
             saved_meta = await self.conversation_meta_repository.upsert_by_group_id(
                 group_id=conversation_meta.group_id,
                 conversation_data={
@@ -654,18 +663,20 @@ class AgenticV3Controller(BaseController):
             )
 
             if not saved_meta:
-                raise HTTPException(status_code=500, detail="保存对话元数据失败")
+                raise HTTPException(
+                    status_code=500, detail="Failed to save conversation metadata"
+                )
 
             logger.info(
-                "保存对话元数据成功: id=%s, group_id=%s",
+                "Saved conversation metadata successfully: id=%s, group_id=%s",
                 saved_meta.id,
                 saved_meta.group_id,
             )
 
-            # 5. 返回成功响应
+            # 5. Return success response
             return {
                 "status": ErrorStatus.OK.value,
-                "message": "对话元数据保存成功",
+                "message": "Conversation metadata saved successfully",
                 "result": {
                     "id": str(saved_meta.id),
                     "group_id": saved_meta.group_id,
@@ -686,18 +697,21 @@ class AgenticV3Controller(BaseController):
             }
 
         except KeyError as e:
-            logger.error("V3 conversation-meta 请求缺少必需字段: %s", e)
+            logger.error("V3 conversation-meta request missing required field: %s", e)
             raise HTTPException(
-                status_code=400, detail=f"缺少必需字段: {str(e)}"
+                status_code=400, detail=f"Missing required field: {str(e)}"
             ) from e
         except ValueError as e:
-            logger.error("V3 conversation-meta 请求参数错误: %s", e)
+            logger.error("V3 conversation-meta request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
         except HTTPException:
-            # 重新抛出 HTTPException
+            # Re-raise HTTPException
             raise
         except Exception as e:
-            logger.error("V3 conversation-meta 请求处理失败: %s", e, exc_info=True)
+            logger.error(
+                "V3 conversation-meta request processing failed: %s", e, exc_info=True
+            )
             raise HTTPException(
-                status_code=500, detail="保存对话元数据失败，请稍后重试"
+                status_code=500,
+                detail="Failed to save conversation metadata, please try again later",
             ) from e

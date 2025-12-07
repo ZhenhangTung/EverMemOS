@@ -1,17 +1,17 @@
 """
-同步 MongoDB 数据到 Milvus
+Sync MongoDB data to Milvus
 
-主入口脚本，根据 Collection 名称调用相应的同步实现。
-支持命令行参数配置批量大小、处理限制和时间范围。
+Main entry script that calls the corresponding sync implementation based on Collection name.
+Supports command-line arguments for batch size, processing limits, and time range.
 
-运行方式（推荐通过 bootstrap 运行，自动加载应用上下文与依赖注入）：
+Usage (recommended to run via bootstrap, which automatically loads application context and dependencies):
   python src/bootstrap.py src/devops_scripts/data_fix/milvus_sync_docs.py --collection-name episodic_memory --batch-size 500
 
-参数：
-  --collection-name, -c  Milvus Collection 名称（必需），如: episodic_memory
-  --batch-size, -b       批处理大小（默认 500）
-  --limit, -l            限制处理的文档数量（默认全部）
-  --days, -d             只处理过去 N 天创建的文档（默认全部）
+Arguments:
+  --collection-name, -c  Milvus Collection name (required), e.g.: episodic_memory
+  --batch-size, -b       Batch size (default 500)
+  --limit, -l            Limit the number of documents to process (default: all)
+  --days, -d             Only process documents created in the past N days (default: all)
 """
 
 import argparse
@@ -28,24 +28,24 @@ async def run(
     collection_name: str, batch_size: int, limit_: int | None, days: int | None
 ) -> None:
     """
-    同步 MongoDB 数据到 Milvus 指定 Collection。
+    Sync MongoDB data to the specified Milvus Collection.
 
-    根据 Collection 名称路由到具体的同步实现。
+    Routes to the specific sync implementation based on the Collection name.
 
     Args:
-        collection_name: Milvus Collection 名称，如: episodic_memory
-        batch_size: 批处理大小，默认 500
-        limit_: 限制处理的文档数量，None 表示处理全部
-        days: 只处理过去 N 天创建的文档，None 表示处理全部
+        collection_name: Milvus Collection name, e.g.: episodic_memory
+        batch_size: Batch size, default 500
+        limit_: Limit the number of documents to process, None means process all
+        days: Only process documents created in the past N days, None means process all
 
     Raises:
-        ValueError: 当 Collection 名称不支持时
-        Exception: 当同步过程中发生错误时
+        ValueError: If the Collection name is not supported
+        Exception: If an error occurs during synchronization
     """
     try:
-        logger.info("开始同步到 Milvus Collection: %s", collection_name)
+        logger.info("Starting sync to Milvus Collection: %s", collection_name)
 
-        # 根据 Collection 名称路由到具体实现
+        # Route to specific implementation based on Collection name
         if collection_name == "episodic_memory":
             from devops_scripts.data_fix.milvus_sync_episodic_memory_docs import (
                 sync_episodic_memory_docs,
@@ -55,41 +55,41 @@ async def run(
                 batch_size=batch_size, limit=limit_, days=days
             )
         else:
-            raise ValueError(f"不支持的 Collection 类型: {collection_name}")
+            raise ValueError(f"Unsupported Collection type: {collection_name}")
 
     except Exception as exc:  # noqa: BLE001
-        logger.error("同步文档失败: %s", exc)
+        logger.error("Failed to sync documents: %s", exc)
         traceback.print_exc()
         raise
 
 
 def main(argv: list[str] | None = None) -> int:
     """
-    命令行入口函数。
+    Command-line entry function.
 
-    解析命令行参数并调用同步函数。
+    Parses command-line arguments and calls the sync function.
 
     Args:
-        argv: 命令行参数列表，None 表示使用 sys.argv
+        argv: List of command-line arguments, None means use sys.argv
 
     Returns:
-        int: 退出码，0 表示成功
+        int: Exit code, 0 indicates success
 
     Examples:
-        # 同步所有 episodic_memory 文档
+        # Sync all episodic_memory documents
         python milvus_sync_docs.py --collection-name episodic_memory
 
-        # 只同步最近 7 天的文档，批量大小 1000
+        # Sync only documents from the last 7 days, with batch size 1000
         python milvus_sync_docs.py --collection-name episodic_memory --batch-size 1000 --days 7
 
-        # 限制只处理 10000 条文档
+        # Limit processing to 10,000 documents
         python milvus_sync_docs.py --collection-name episodic_memory --limit 10000
     """
     parser = argparse.ArgumentParser(
-        description="同步 MongoDB 数据到 Milvus",
+        description="Sync MongoDB data to Milvus",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例:
+Examples:
   %(prog)s --collection-name episodic_memory
   %(prog)s --collection-name episodic_memory --batch-size 1000 --days 7
   %(prog)s --collection-name episodic_memory --limit 10000
@@ -100,25 +100,29 @@ def main(argv: list[str] | None = None) -> int:
         "--collection-name",
         "-c",
         required=True,
-        help="Milvus Collection 名称，如: episodic_memory",
+        help="Milvus Collection name, e.g.: episodic_memory",
     )
     parser.add_argument(
-        "--batch-size", "-b", type=int, default=500, help="批处理大小，默认 500"
+        "--batch-size", "-b", type=int, default=500, help="Batch size, default 500"
     )
     parser.add_argument(
-        "--limit", "-l", type=int, default=None, help="限制处理的文档数量，默认全部"
+        "--limit",
+        "-l",
+        type=int,
+        default=None,
+        help="Limit the number of documents to process, default: all",
     )
     parser.add_argument(
         "--days",
         "-d",
         type=int,
         default=None,
-        help="只处理过去 N 天创建的文档，默认全部",
+        help="Only process documents created in the past N days, default: all",
     )
 
     args = parser.parse_args(argv)
 
-    # 运行异步同步任务
+    # Run async sync task
     asyncio.run(run(args.collection_name, args.batch_size, args.limit, args.days))
     return 0
 

@@ -1,7 +1,7 @@
 """
-Milvus 客户端工厂
+Milvus Client Factory
 
-基于环境变量提供 Milvus 客户端连接功能。
+Provides Milvus client connection functionality based on environment variables.
 """
 
 import os
@@ -18,21 +18,21 @@ logger = get_logger(__name__)
 
 def get_milvus_config(prefix: str = "") -> dict:
     """
-    基于环境变量获取 Milvus 配置
+    Get Milvus configuration from environment variables
 
     Args:
-        prefix: 环境变量前缀，例如 prefix="A" 时，将读取 "A_MILVUS_HOST" 等
-               如果不提供，则读取 "MILVUS_HOST" 等
+        prefix: Environment variable prefix, e.g., prefix="A" reads "A_MILVUS_HOST"
+               If not provided, reads "MILVUS_HOST" etc.
 
-    环境变量：
-    - {PREFIX_}MILVUS_HOST: Milvus 主机，默认 localhost
-    - {PREFIX_}MILVUS_PORT: Milvus 端口，默认 19530
-    - {PREFIX_}MILVUS_USER: 用户名（可选）
-    - {PREFIX_}MILVUS_PASSWORD: 密码（可选）
-    - {PREFIX_}MILVUS_DB_NAME: 数据库名称（可选）
+    Environment variables:
+    - {PREFIX_}MILVUS_HOST: Milvus host, default localhost
+    - {PREFIX_}MILVUS_PORT: Milvus port, default 19530
+    - {PREFIX_}MILVUS_USER: Username (optional)
+    - {PREFIX_}MILVUS_PASSWORD: Password (optional)
+    - {PREFIX_}MILVUS_DB_NAME: Database name (optional)
 
     Returns:
-        dict: 配置字典
+        dict: Configuration dictionary
     """
 
     def _env(name: str, default: Optional[str] = None) -> str:
@@ -53,10 +53,10 @@ def get_milvus_config(prefix: str = "") -> dict:
         "db_name": _env("MILVUS_DB_NAME"),
     }
 
-    logger.info("获取 Milvus 配置 [prefix=%s]:", prefix or "default")
+    logger.info("Getting Milvus config [prefix=%s]:", prefix or "default")
     logger.info("  URI: %s", config["uri"])
-    logger.info("  认证: %s", "Basic" if config["user"] else "无")
-    logger.info("  数据库: %s", config["db_name"] or "默认")
+    logger.info("  Auth: %s", "Basic" if config["user"] else "None")
+    logger.info("  Database: %s", config["db_name"] or "default")
 
     return config
 
@@ -64,13 +64,13 @@ def get_milvus_config(prefix: str = "") -> dict:
 @component(name="milvus_client_factory", primary=True)
 class MilvusClientFactory:
     """
-    Milvus 客户端工厂
+    Milvus Client Factory
 
-    提供基于配置的 Milvus 客户端缓存和管理功能
+    Provides Milvus client caching and management functionality based on configuration
     """
 
     def __init__(self):
-        """初始化 Milvus 客户端工厂"""
+        """Initialize Milvus client factory"""
         self._clients: Dict[str, MilvusClient] = {}
         self._lock = asyncio.Lock()
         self._default_config = None
@@ -80,18 +80,18 @@ class MilvusClientFactory:
         self, uri: str, user: str = "", password: str = "", db_name: str = "", **kwargs
     ) -> MilvusClient:
         """
-        获取 Milvus 客户端实例
+        Get Milvus client instance
 
         Args:
-            uri: Milvus 连接地址，如 "http://localhost:19530"
-            user: 用户名（可选）
-            password: 密码（可选）
-            db_name: 数据库名称（可选）
-            alias: 连接别名，默认为 "default"
-            **kwargs: 其他连接参数
+            uri: Milvus connection address, e.g., "http://localhost:19530"
+            user: Username (optional)
+            password: Password (optional)
+            db_name: Database name (optional)
+            alias: Connection alias, default "default"
+            **kwargs: Other connection parameters
 
         Returns:
-            MilvusClient: Milvus 客户端实例
+            MilvusClient: Milvus client instance
         """
         alias = kwargs.get("alias", None)
 
@@ -99,20 +99,20 @@ class MilvusClientFactory:
             uri=uri, user=user, password=password, db_name=db_name, **kwargs
         )
 
-        # 缓存客户端
+        # Cache client
         self._clients[alias] = client
-        logger.info("Milvus 客户端已创建并缓存: %s (alias=%s)", uri, alias)
+        logger.info("Milvus client created and cached: %s (alias=%s)", uri, alias)
 
         return client
 
     def get_default_client(self) -> MilvusClient:
         """
-        获取基于环境变量配置的默认 Milvus 客户端实例
+        Get default Milvus client instance based on environment variable configuration
 
         Returns:
-            MilvusClient: Milvus 客户端实例
+            MilvusClient: Milvus client instance
         """
-        # 获取或创建默认配置
+        # Get or create default config
         if self._default_config is None:
             self._default_config = get_milvus_config()
 
@@ -122,44 +122,44 @@ class MilvusClientFactory:
             user=config["user"],
             password=config["password"],
             db_name=config["db_name"],
-            alias="default",  # 默认客户端使用 "default" 作为缓存键
+            alias="default",  # Default client uses "default" as cache key
         )
 
     def get_named_client(self, name: str) -> MilvusClient:
         """
-        按名称获取 Milvus 客户端
+        Get Milvus client by name
 
-        约定：name 作为环境变量前缀，从 "{name}_MILVUS_XXX" 读取配置。
-        例如 name="A" 时，将尝试读取 "A_MILVUS_HOST"、"A_MILVUS_PORT" 等。
+        Convention: name is used as environment variable prefix, reading config from "{name}_MILVUS_XXX".
+        For example, name="A" reads "A_MILVUS_HOST", "A_MILVUS_PORT", etc.
 
         Args:
-            name: 前缀名称（即环境变量前缀）
+            name: Prefix name (environment variable prefix)
 
         Returns:
-            MilvusClient: Milvus 客户端实例
+            MilvusClient: Milvus client instance
         """
         if name.lower() == "default":
             return self.get_default_client()
 
-        # 获取带前缀的配置
+        # Get config with prefix
         config = get_milvus_config(prefix=name)
-        logger.info("📋 加载命名 Milvus 配置[name=%s]: %s", name, config["uri"])
+        logger.info("📋 Loading named Milvus config [name=%s]: %s", name, config["uri"])
 
         return self.get_client(
             uri=config["uri"],
             user=config["user"],
             password=config["password"],
             db_name=config["db_name"],
-            alias=name,  # 使用 name 作为缓存键
+            alias=name,  # Use name as cache key
         )
 
     def close_all_clients(self):
-        """关闭所有客户端连接"""
+        """Close all client connections"""
         for _, client in self._clients.items():
             try:
                 client.close()
             except Exception as e:
-                logger.error("关闭 Milvus 客户端时出错: %s", e)
+                logger.error("Error closing Milvus client: %s", e)
 
         self._clients.clear()
-        logger.info("所有 Milvus 客户端已关闭")
+        logger.info("All Milvus clients closed")

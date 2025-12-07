@@ -1,7 +1,7 @@
 """
-健康检查控制器
+Health check controller
 
-提供系统健康状态检查接口
+Provides system health status check interface
 """
 
 from datetime import datetime
@@ -16,40 +16,42 @@ logger = get_logger(__name__)
 @component(name="healthController")
 class HealthController(BaseController):
     """
-    健康检查控制器
+    Health check controller
 
-    提供系统健康状态检查功能
+    Provides system health status check functionality
     """
 
     def __init__(self):
         super().__init__(
-            prefix="/health", tags=["Health"], default_auth="none"  # 健康检查不需要认证
+            prefix="/health",
+            tags=["Health"],
+            default_auth="none",  # Health check does not require authentication
         )
 
-    @get("", summary="健康检查", description="检查系统健康状态")
+    @get("", summary="Health check", description="Check system health status")
     def health_check(self) -> Dict[str, Any]:
         """
-        健康检查接口
+        Health check interface
 
         Returns:
-            Dict[str, Any]: 健康状态信息
+            Dict[str, Any]: Health status information
 
         Raises:
-            HTTPException: 当系统不健康时抛出500错误
+            HTTPException: Throws 500 error when system is unhealthy
         """
         try:
-            # 记录健康检查请求
-            logger.debug("健康检查请求")
+            # Log health check request
+            logger.debug("Health check request")
 
-            # 返回简单的健康状态
+            # Return simple health status
             return {
                 "status": "healthy",
                 "timestamp": datetime.now().isoformat(),
-                "message": "系统运行正常",
+                "message": "System running normally",
             }
         except Exception as e:
-            logger.error(f"健康检查失败: {str(e)}")
-            # 出现异常时抛出500错误
+            logger.error(f"Health check failed: {str(e)}")
+            # Throw 500 error when exception occurs
             from fastapi import HTTPException
 
             raise HTTPException(
@@ -57,6 +59,6 @@ class HealthController(BaseController):
                 detail={
                     "status": "unhealthy",
                     "timestamp": datetime.now().isoformat(),
-                    "message": f"系统检查异常: {str(e)}",
+                    "message": f"System check exception: {str(e)}",
                 },
             )

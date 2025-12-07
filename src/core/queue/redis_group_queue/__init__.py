@@ -1,7 +1,7 @@
 """
-Redis分组队列模块
+Redis group queue module
 
-提供基于Redis的分组队列管理功能，支持排序、超时、总数限制等特性。
+Provides Redis-based group queue management functions, supporting features such as sorting, timeout, and total limit.
 """
 
 from .redis_group_queue_item import RedisGroupQueueItem

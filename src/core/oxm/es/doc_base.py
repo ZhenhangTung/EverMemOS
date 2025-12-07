@@ -11,49 +11,51 @@ from elasticsearch import AsyncElasticsearch
 
 
 class DocBase(AsyncDocument):
-    """Elasticsearch文档基类"""
+    """Elasticsearch document base class"""
 
     @classmethod
     def get_connection(cls) -> AsyncElasticsearch:
         """
-        获取连接
+        Get connection
         """
         return cls._get_connection()
 
     @classmethod
     def get_index_name(cls) -> str:
         """
-        获取索引名称（别名）
+        Get index name (alias)
 
         Returns:
-            str: 索引别名
+            str: Index alias
 
         Raises:
-            ValueError: 如果文档类没有正确配置索引
+            ValueError: If the document class does not have correct index configuration
         """
         if hasattr(cls, '_index') and hasattr(cls._index, '_name'):
             return cls._index._name
-        raise ValueError(f"文档类 {cls.__name__} 没有正确的索引配置")
+        raise ValueError(
+            f"Document class {cls.__name__} does not have correct index configuration"
+        )
 
 
 class AliasSupportDoc(DocBase):
-    """支持别名模式的文档类，增强了日期字段的时区处理"""
+    """Document class supporting alias pattern, enhanced with timezone handling for date fields"""
 
     class CustomMeta:
-        # 指定用于自动填充 meta.id 的字段名（如：MongoDB 主键字段），未设置则不启用
+        # Specify the field name used to automatically populate meta.id (e.g., MongoDB primary key field), not enabled if not set
         id_source_field: typing.Optional[str] = None
-        # 缓存Date类型字段名的集合，用于快速判断（动态设置，不需要预先定义）
+        # Cache set of Date-type field names for quick checking (dynamically set, no need to predefine)
         # date_fields: typing.Optional[Set[str]] = None
 
     @classmethod
     def _init_date_fields_cache(cls) -> Set[str]:
         """
-        初始化Date字段缓存，收集类中所有Date类型的字段名
+        Initialize Date field cache, collect all Date-type field names in the class
 
         Returns:
-            Date类型字段名的集合
+            Set of Date-type field names
         """
-        # 从 CustomMeta 中获取缓存的 date_fields
+        # Get cached date_fields from CustomMeta
         custom_meta = getattr(cls, 'CustomMeta', None)
         if custom_meta is not None:
             existing_cache = getattr(custom_meta, 'date_fields', None)
@@ -61,7 +63,7 @@ class AliasSupportDoc(DocBase):
                 return existing_cache
 
         date_fields = set()
-        # 遍历类的所有属性，找出Date类型的字段
+        # Iterate through all class attributes to find Date-type fields
         for attr_name in dir(cls):
             if attr_name.startswith('_'):
                 continue
@@ -70,10 +72,10 @@ class AliasSupportDoc(DocBase):
                 if isinstance(attr_value, e_field.Date):
                     date_fields.add(attr_name)
             except (AttributeError, TypeError):
-                # 忽略无法获取或不是字段的属性
+                # Ignore attributes that cannot be accessed or are not fields
                 continue
 
-        # 动态设置到 CustomMeta 中
+        # Dynamically set to CustomMeta
         if custom_meta is not None:
             setattr(custom_meta, 'date_fields', date_fields)
 
@@ -81,47 +83,47 @@ class AliasSupportDoc(DocBase):
 
     def _process_date_field(self, field_name: str, field_value: Any) -> Any:
         """
-        处理日期字段，确保有时区信息
+        Process date field to ensure timezone information is present
 
         Args:
-            field_name: 字段名
-            field_value: 字段值
+            field_name: Field name
+            field_value: Field value
 
         Returns:
-            处理后的字段值
+            Processed field value
         """
-        # 使用缓存的Date字段集合进行快速判断
-        # 通过调用_init_date_fields_cache确保获得非None的Set[str]
+        # Use cached Date field set for quick checking
+        # Ensure non-None Set[str] by calling _init_date_fields_cache
         date_fields = self.__class__._init_date_fields_cache()
         if field_name in date_fields and isinstance(field_value, datetime):
             return to_timezone(field_value)
         return field_value
 
     def __setattr__(self, name: str, value: Any) -> None:
-        """重写字段设置方法，对日期字段进行时区处理"""
-        # 对日期字段进行时区处理
+        """Override field setting method to apply timezone processing for date fields"""
+        # Apply timezone processing for date fields
         processed_value = self._process_date_field(name, value)
 
-        # 调用父类的__setattr__
+        # Call parent class __setattr__
         super().__setattr__(name, processed_value)
 
     def __init__(self, meta: Dict[str, Any] = None, **kwargs: Any):
-        """重写构造函数：仅基于显式 ID_SOURCE_FIELD 设置 meta.id，缺失即报错"""
+        """Override constructor: set meta.id strictly based on explicit ID_SOURCE_FIELD, raise error if missing"""
 
-        # 初始化Date字段缓存（首次调用时会真正初始化，之后直接使用缓存）
+        # Initialize Date field cache (will initialize on first call, then use cache)
         self.__class__._init_date_fields_cache()
 
         raw_kwargs = dict(kwargs)
 
-        # 处理kwargs中的日期字段
+        # Process date fields in kwargs
         processed_kwargs = {}
         for field_name, field_value in raw_kwargs.items():
             processed_kwargs[field_name] = self._process_date_field(
                 field_name, field_value
             )
 
-        # 基于 ID_SOURCE_FIELD 严格设置 meta.id（无启发式），并兼容从ES构造（meta带_id）
-        # 从 CustomMeta 中获取 id_source_field 配置
+        # Strictly set meta.id based on ID_SOURCE_FIELD (no heuristics), and compatible with ES construction (meta with _id)
+        # Get id_source_field configuration from CustomMeta
         custom_meta_class = getattr(self.__class__, 'CustomMeta', None)
 
         id_source_field = (
@@ -130,7 +132,7 @@ class AliasSupportDoc(DocBase):
             else None
         )
         merged_meta: Dict[str, Any] = {} if meta is None else dict(meta)
-        # 提取已提供的meta id（来自ES加载场景）
+        # Extract provided meta id (from ES loading scenario)
         given_meta_id = None
         if "id" in merged_meta and merged_meta["id"] not in (None, ""):
             given_meta_id = merged_meta["id"]
@@ -140,18 +142,18 @@ class AliasSupportDoc(DocBase):
             given_meta_id = merged_meta["_id"]
 
         if given_meta_id is not None:
-            # 如果显式提供了meta id，则与ID_SOURCE_FIELD（若存在）进行一致性校验
+            # If meta id is explicitly provided, validate consistency with ID_SOURCE_FIELD (if exists)
             if id_source_field and id_source_field in processed_kwargs:
                 source_value = processed_kwargs[id_source_field]
                 if source_value not in (None, "") and source_value != given_meta_id:
                     raise ValueError(
                         "meta.id conflicts with value from ID_SOURCE_FIELD"
                     )
-            # 规整meta字段
+            # Normalize meta fields
             merged_meta["id"] = given_meta_id
             merged_meta["_id"] = given_meta_id
         elif id_source_field:
-            # 未提供meta id，则要求从ID_SOURCE_FIELD获取
+            # If meta id is not provided, require it from ID_SOURCE_FIELD
             if id_source_field not in processed_kwargs or processed_kwargs[
                 id_source_field
             ] in (None, ""):
@@ -162,7 +164,7 @@ class AliasSupportDoc(DocBase):
             merged_meta["id"] = source_value
             merged_meta["_id"] = source_value
 
-        # 调用父类构造函数
+        # Call parent constructor
         super().__init__(merged_meta or None, **processed_kwargs)
 
     @classmethod
@@ -178,20 +180,20 @@ class AliasSupportDoc(DocBase):
 
 def AliasDoc(doc_name: str, number_of_shards: int = 2) -> Type[AsyncDocument]:
     """
-    创建支持别名模式的ES文档类
+    Create an ES document class supporting alias pattern
 
-    自动处理日期字段的时区：
-    - 对于int类型的时间戳，不进行处理
-    - 对于datetime对象，如果没有时区信息，会自动添加系统当前时区
-    - 确保所有日期字段都有时区信息，避免时区相关的问题
+    Automatically handle timezone for date fields:
+    - For int timestamps, no processing
+    - For datetime objects without timezone, automatically add current system timezone
+    - Ensure all date fields have timezone information to avoid timezone-related issues
 
     Args:
-        doc_name: 文档名称
-        build_analyzers: 可选的分析器列表
-        number_of_shards: 分片数量
+        doc_name: Document name
+        build_analyzers: Optional list of analyzers
+        number_of_shards: Number of shards
 
     Returns:
-        增强的文档类
+        Enhanced document class
     """
 
     if get_index_ns():

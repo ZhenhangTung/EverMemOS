@@ -1,22 +1,22 @@
 """
-性能分析中间件
+Performance Profiling Middleware
 
-为 HTTP 请求提供性能分析功能，基于 pyinstrument 库。
+Provides performance profiling functionality for HTTP requests based on the pyinstrument library.
 
-功能特性：
-1. URL 参数触发：在请求 URL 添加 ?profile=true 即可启用性能分析
-2. HTML 报告：返回可视化的性能分析 HTML 报告
-3. 环境变量控制：通过 PROFILING_ENABLED 环境变量启用/禁用
-4. 优雅降级：未安装 pyinstrument 时自动禁用，不影响正常请求
+Features:
+1. URL parameter trigger: enable profiling by adding ?profile=true to the request URL
+2. HTML report: returns a visual performance analysis HTML report
+3. Environment variable control: enable/disable via the PROFILING_ENABLED environment variable
+4. Graceful degradation: automatically disabled if pyinstrument is not installed, without affecting normal requests
 
-环境变量：
-- PROFILING_ENABLED: 是否启用性能分析功能（默认: false）
-- PROFILING: 同 PROFILING_ENABLED（备用环境变量名）
+Environment Variables:
+- PROFILING_ENABLED: whether to enable profiling (default: false)
+- PROFILING: same as PROFILING_ENABLED (alternative environment variable name)
 
-使用方法：
-1. 设置环境变量: export PROFILING_ENABLED=true
-2. 安装依赖: uv add pyinstrument
-3. 访问接口时添加参数: http://localhost:8000/api/endpoint?profile=true
+Usage:
+1. Set environment variable: export PROFILING_ENABLED=true
+2. Install dependency: uv add pyinstrument
+3. Add parameter when accessing endpoint: http://localhost:8000/api/endpoint?profile=true
 """
 
 import os
@@ -35,62 +35,64 @@ logger = get_logger(__name__)
 
 class ProfileMiddleware(BaseHTTPMiddleware):
     """
-    性能分析中间件
+    Performance profiling middleware
 
-    当请求 URL 包含 ?profile=true 参数时，启用性能分析并返回 HTML 格式的分析报告
+    Enables performance profiling when the request URL contains the ?profile=true parameter and returns an HTML-formatted analysis report
     """
 
     def __init__(self, app: ASGIApp):
         """
-        初始化性能分析中间件
+        Initialize the performance profiling middleware
 
         Args:
-            app: ASGI 应用实例
+            app: ASGI application instance
         """
         super().__init__(app)
 
-        # 从环境变量读取是否启用性能分析
+        # Read from environment variable whether profiling is enabled
         profiling_env = os.getenv(
             'PROFILING_ENABLED', os.getenv('PROFILING', 'true')
         ).lower()
         self._profiling_enabled = profiling_env in ('true', '1', 'yes')
 
-        # 检查 pyinstrument 是否可用
+        # Check if pyinstrument is available
         self._profiler_available = False
         if self._profiling_enabled:
             try:
                 import pyinstrument
 
                 self._profiler_available = True
-                logger.info("✅ 性能分析中间件已启用")
+                logger.info("✅ Performance profiling middleware enabled")
                 logger.info(
-                    "提示: 在请求 URL 中添加 ?profile=true 参数即可启用性能分析"
+                    "Tip: Add ?profile=true parameter to the request URL to enable profiling"
                 )
             except ImportError:
-                logger.warning("⚠️ 未安装 pyinstrument，性能分析功能将被禁用")
-                logger.warning("请执行: uv add pyinstrument")
+                logger.warning(
+                    "⚠️ pyinstrument not installed, profiling feature will be disabled"
+                )
+                logger.warning("Please run: uv add pyinstrument")
                 self._profiling_enabled = False
         else:
             logger.debug(
-                "性能分析功能未启用 (设置环境变量 PROFILING_ENABLED=true 以启用)"
+                "Performance profiling is not enabled (set environment variable PROFILING_ENABLED=true to enable)"
             )
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
-        处理 HTTP 请求并在需要时进行性能分析
+        Handle HTTP requests and perform performance profiling when needed
 
         Args:
-            request: FastAPI 请求对象
-            call_next: 下一个中间件或路由处理器
+            request: FastAPI request object
+            call_next: next middleware or route handler
 
         Returns:
-            Response: 响应对象（正常响应或性能分析报告）
+            Response: response object (normal response or profiling report)
         """
-        # 如果功能未启用，直接通过
+        # If feature is not enabled, pass through directly
         if not self._profiling_enabled or not self._profiler_available:
             return await call_next(request)
 
-        # 检查是否需要进行性能分析
+        # Check if profiling is required
         profiling = request.query_params.get("profile", "").lower() in (
             "true",
             "1",
@@ -98,40 +100,40 @@ class ProfileMiddleware(BaseHTTPMiddleware):
         )
 
         if not profiling:
-            # 不需要性能分析，正常处理请求
+            # No profiling needed, process request normally
             return await call_next(request)
 
-        # 需要性能分析
+        # Profiling is needed
         try:
-            # 动态导入（虽然已经检查过可用性，但为了类型安全还是在使用时导入）
+            # Dynamic import (although availability has been checked, import when used for type safety)
             from pyinstrument import Profiler
 
-            # 创建并启动 profiler
+            # Create and start profiler
             profiler = Profiler()
             profiler.start()
 
-            logger.info("性能分析已启动: %s %s", request.method, request.url.path)
+            logger.info("Profiling started: %s %s", request.method, request.url.path)
 
             try:
-                # 执行请求（注意：原始响应会被丢弃，用 profiler 报告替换）
+                # Execute request (note: original response will be discarded and replaced with profiler report)
                 await call_next(request)
             except Exception as e:
-                # 即使请求失败，也要停止 profiler 并返回性能分析报告
-                logger.error("性能分析期间请求失败: %s", str(e))
-                # 继续生成性能分析报告
+                # Even if the request fails, stop profiler and return profiling report
+                logger.error("Request failed during profiling: %s", str(e))
+                # Continue generating profiling report
 
-            # 停止 profiler
+            # Stop profiler
             profiler.stop()
 
-            # 生成 HTML 报告
+            # Generate HTML report
             html_output = profiler.output_html()
 
-            logger.info("性能分析已完成: %s %s", request.method, request.url.path)
+            logger.info("Profiling completed: %s %s", request.method, request.url.path)
 
-            # 返回 HTML 格式的性能分析报告
+            # Return HTML-formatted profiling report
             return HTMLResponse(content=html_output, status_code=200)
 
         except Exception as e:
-            logger.error("性能分析过程中发生错误: %s", str(e))
-            # 性能分析失败时，重新执行正常请求
+            logger.error("Error occurred during profiling: %s", str(e))
+            # If profiling fails, re-execute normal request
             return await call_next(request)

@@ -1,8 +1,8 @@
 """
-Kafka Consumer 工厂
+Kafka Consumer Factory
 
-基于 kafka_topic、group_id、server 提供 AIOKafkaConsumer 缓存和管理功能。
-支持 force_new 逻辑创建全新的 consumer 实例。
+Provides AIOKafkaConsumer caching and management functionality based on kafka_topic, group_id, and server.
+Supports force_new logic to create brand new consumer instances.
 """
 
 import asyncio
@@ -27,50 +27,50 @@ logger = get_logger(__name__)
 
 def get_ca_file_path(ca_file_path: str) -> Optional[str]:
     """
-    获取 CA 证书文件的完整路径
+    Get the full path of the CA certificate file
 
-    基于 CURRENT_DIR + /config/kafka/ca/ 构造路径
+    Construct the path based on CURRENT_DIR + /config/kafka/ca/
 
     Returns:
-        Optional[str]: CA 证书文件路径，如果不存在则返回 None
+        Optional[str]: CA certificate file path, returns None if it does not exist
     """
-    # CURRENT_DIR 指向 src 目录，向上一级到项目根目录，再进入 config 目录
+    # CURRENT_DIR points to the src directory, go up one level to the project root, then into the config directory
     ca_full_path = CURRENT_DIR / "config" / ca_file_path
 
     if ca_full_path.exists():
-        logger.info("使用默认 CA 证书文件: %s", ca_full_path)
+        logger.info("Using default CA certificate file: %s", ca_full_path)
         return str(ca_full_path)
     else:
-        logger.warning("默认 CA 证书文件不存在: %s", ca_full_path)
+        logger.warning("Default CA certificate file does not exist: %s", ca_full_path)
         return None
 
 
 def get_default_kafka_config(env_prefix: str = "") -> Dict[str, Any]:
     """
-    基于环境变量获取默认的 Kafka 配置
+    Get default Kafka configuration based on environment variables
 
     Args:
-        env_prefix: 环境变量前缀，用于区分不同配置（如 "PRODUCER_" 或 ""）
-                   前缀会拼接在 KAFKA_ 前面，例如 "PRODUCER_" + "KAFKA_SERVERS" = "PRODUCER_KAFKA_SERVERS"
+        env_prefix: Environment variable prefix to distinguish different configurations (e.g., "PRODUCER_" or "")
+                   The prefix is prepended to KAFKA_, for example, "PRODUCER_" + "KAFKA_SERVERS" = "PRODUCER_KAFKA_SERVERS"
 
-    环境变量（以 prefix=PRODUCER_ 为例）：
-    - {prefix}KAFKA_SERVERS: Kafka 服务器列表，逗号分隔
-    - {prefix}KAFKA_TOPIC: Kafka 主题
-    - {prefix}KAFKA_GROUP_ID: Consumer 组 ID
-    - {prefix}MAX_POLL_INTERVAL_MS: 最大轮询间隔（毫秒）
-    - {prefix}SESSION_TIMEOUT_MS: 会话超时时间（毫秒）
-    - {prefix}HEARTBEAT_INTERVAL_MS: 心跳间隔（毫秒）
-    - {prefix}CA_FILE_PATH: CA证书文件路径
+    Environment variables (using prefix=PRODUCER_ as an example):
+    - {prefix}KAFKA_SERVERS: Kafka server list, comma-separated
+    - {prefix}KAFKA_TOPIC: Kafka topic
+    - {prefix}KAFKA_GROUP_ID: Consumer group ID
+    - {prefix}MAX_POLL_INTERVAL_MS: Maximum poll interval (milliseconds)
+    - {prefix}SESSION_TIMEOUT_MS: Session timeout (milliseconds)
+    - {prefix}HEARTBEAT_INTERVAL_MS: Heartbeat interval (milliseconds)
+    - {prefix}CA_FILE_PATH: CA certificate file path
 
     Returns:
-        Dict[str, Any]: 配置字典
+        Dict[str, Any]: Configuration dictionary
     """
 
     def get_env(key: str, default: str = "") -> str:
-        """获取带前缀的环境变量"""
+        """Get environment variable with prefix"""
         return os.getenv(f"{env_prefix}{key}", default)
 
-    # 获取环境变量，提供默认值
+    # Get environment variables with default values
     kafka_servers_str = get_env("KAFKA_SERVERS", "")
     kafka_servers = [server.strip() for server in kafka_servers_str.split(",")]
 
@@ -80,7 +80,7 @@ def get_default_kafka_config(env_prefix: str = "") -> Dict[str, Any]:
     session_timeout_ms = int(get_env("SESSION_TIMEOUT_MS", "10000"))
     heartbeat_interval_ms = int(get_env("HEARTBEAT_INTERVAL_MS", "3000"))
 
-    # 处理CA证书路径
+    # Handle CA certificate path
     ca_file_path = None
     ca_file_env = get_env("CA_FILE_PATH")
     if ca_file_env:
@@ -99,14 +99,14 @@ def get_default_kafka_config(env_prefix: str = "") -> Dict[str, Any]:
     }
 
     prefix_info = f" (prefix: {env_prefix})" if env_prefix else ""
-    logger.info("获取默认 Kafka 配置%s:", prefix_info)
-    logger.info("  服务器: %s", kafka_servers)
-    logger.info("  主题: %s", kafka_topic)
-    logger.info("  组ID: %s", kafka_group_id)
-    logger.info("  最大轮询间隔: %s ms", max_poll_interval_ms)
-    logger.info("  会话超时: %s ms", session_timeout_ms)
-    logger.info("  心跳间隔: %s ms", heartbeat_interval_ms)
-    logger.info("  CA证书: %s", ca_file_path or "无")
+    logger.info("Get default Kafka configuration%s:", prefix_info)
+    logger.info("  Servers: %s", kafka_servers)
+    logger.info("  Topic: %s", kafka_topic)
+    logger.info("  Group ID: %s", kafka_group_id)
+    logger.info("  Max poll interval: %s ms", max_poll_interval_ms)
+    logger.info("  Session timeout: %s ms", session_timeout_ms)
+    logger.info("  Heartbeat interval: %s ms", heartbeat_interval_ms)
+    logger.info("  CA certificate: %s", ca_file_path or "None")
 
     return config
 
@@ -115,16 +115,16 @@ def get_cache_key(
     kafka_servers: List[str], kafka_topic: str, kafka_group_id: str
 ) -> str:
     """
-    生成缓存键
-    基于 servers、topic、group_id 生成唯一标识
+    Generate cache key
+    Create a unique identifier based on servers, topic, and group_id
 
     Args:
-        kafka_servers: Kafka服务器列表
-        kafka_topic: Kafka主题
-        kafka_group_id: Consumer组ID
+        kafka_servers: Kafka server list
+        kafka_topic: Kafka topic
+        kafka_group_id: Consumer group ID
 
     Returns:
-        str: 缓存键
+        str: Cache key
     """
     servers_str = ",".join(sorted(kafka_servers))
     key_content = f"{servers_str}:{kafka_topic}:{kafka_group_id}"
@@ -133,24 +133,24 @@ def get_cache_key(
 
 def get_consumer_name(kafka_topic: str, kafka_group_id: str) -> str:
     """
-    获取 consumer 名称
+    Get consumer name
 
     Args:
-        kafka_topic: Kafka主题
-        kafka_group_id: Consumer组ID
+        kafka_topic: Kafka topic
+        kafka_group_id: Consumer group ID
 
     Returns:
-        str: Consumer名称
+        str: Consumer name
     """
-    # 使用短横线连接多个topic名称，避免名称过长
+    # Use hyphens to join multiple topic names to avoid overly long names
     topic_str = "-".join(topic.strip() for topic in kafka_topic.split(","))
     return f"{topic_str}.{kafka_group_id}"
 
 
 def bson_json_decode(value: bytes | None) -> Any:
     """
-    BSON/JSON 解码器
-    优先尝试 BSON 解码，失败时尝试 JSON 解码
+    BSON/JSON decoder
+    Attempt BSON decoding first, fall back to JSON decoding if it fails
     """
     if not value or value == b"null":
         return value
@@ -160,22 +160,22 @@ def bson_json_decode(value: bytes | None) -> Any:
         try:
             return json.loads(value.decode("utf-8"))
         except Exception as e:
-            logger.error("json解析错误: %s", e)
+            logger.error("JSON parsing error: %s", e)
             return value
 
 
 @component(name="kafka_consumer_factory", primary=True)
 class KafkaConsumerFactory:
     """
-    Kafka Consumer 工厂
-    ### AIOKafkaConsumer是有状态的，因此不能在多个地方使用同一个实例 ###
+    Kafka Consumer Factory
+    ### AIOKafkaConsumer is stateful, so the same instance cannot be used in multiple places ###
 
-    提供基于配置的 AIOKafkaConsumer 缓存和管理功能
-    支持 force_new 参数创建全新的 consumer 实例
+    Provides caching and management of AIOKafkaConsumer instances based on configuration
+    Supports the force_new parameter to create completely new consumer instances
     """
 
     def __init__(self):
-        """初始化 Kafka Consumer 工厂"""
+        """Initialize Kafka Consumer Factory"""
         self._consumers: Dict[str, AIOKafkaConsumer] = {}
         self._lock = asyncio.Lock()
         logger.info("KafkaConsumerFactory initialized")
@@ -193,23 +193,23 @@ class KafkaConsumerFactory:
         enable_auto_commit: bool = True,
     ) -> AIOKafkaConsumer:
         """
-        创建 AIOKafkaConsumer 实例
+        Create an AIOKafkaConsumer instance
 
         Args:
-            kafka_servers: Kafka服务器列表
-            kafka_topic: Kafka主题
-            kafka_group_id: Consumer组ID
-            ca_file_path: CA证书文件路径
-            max_poll_interval_ms: 最大轮询间隔（毫秒）
-            session_timeout_ms: 会话超时时间（毫秒）
-            heartbeat_interval_ms: 心跳间隔（毫秒）
-            auto_offset_reset: 自动偏移重置策略
-            enable_auto_commit: 是否启用自动提交
+            kafka_servers: Kafka server list
+            kafka_topic: Kafka topic
+            kafka_group_id: Consumer group ID
+            ca_file_path: CA certificate file path
+            max_poll_interval_ms: Maximum poll interval (milliseconds)
+            session_timeout_ms: Session timeout (milliseconds)
+            heartbeat_interval_ms: Heartbeat interval (milliseconds)
+            auto_offset_reset: Auto offset reset strategy
+            enable_auto_commit: Whether to enable auto commit
 
         Returns:
-            AIOKafkaConsumer 实例
+            AIOKafkaConsumer instance
         """
-        # 创建 SSL 上下文
+        # Create SSL context
         ssl_context = None
         if ca_file_path:
             config_provider = get_bean_by_type(ConfigProvider)
@@ -217,12 +217,12 @@ class KafkaConsumerFactory:
             ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
             ssl_context.load_verify_locations(cadata=ca_file_content)
 
-        # 处理可能的多个topic（逗号分隔）
+        # Handle multiple topics (comma-separated)
         topics = [topic.strip() for topic in kafka_topic.split(",")]
 
-        # 创建 AIOKafkaConsumer
+        # Create AIOKafkaConsumer
         consumer = AIOKafkaConsumer(
-            *topics,  # 解包topics列表作为独立参数
+            *topics,  # Unpack topics list as individual arguments
             bootstrap_servers=kafka_servers,
             group_id=kafka_group_id,
             auto_offset_reset=auto_offset_reset,
@@ -249,23 +249,23 @@ class KafkaConsumerFactory:
         **kwargs,
     ) -> AIOKafkaConsumer:
         """
-        获取 AIOKafkaConsumer 实例
+        Get an AIOKafkaConsumer instance
 
         Args:
-            kafka_servers: Kafka服务器列表
-            kafka_topic: Kafka主题
-            kafka_group_id: Consumer组ID
-            force_new: 是否强制创建新实例，默认 False
-            **kwargs: 其他配置参数
+            kafka_servers: Kafka server list
+            kafka_topic: Kafka topic
+            kafka_group_id: Consumer group ID
+            force_new: Whether to force creation of a new instance, default is False
+            **kwargs: Additional configuration parameters
 
         Returns:
-            AIOKafkaConsumer 实例
+            AIOKafkaConsumer instance
         """
         cache_key = get_cache_key(kafka_servers, kafka_topic, kafka_group_id)
         consumer_name = get_consumer_name(kafka_topic, kafka_group_id)
 
         async with self._lock:
-            # 如果强制创建新实例，或者缓存中不存在
+            # If forcing creation of a new instance, or it's not in cache
             if force_new or cache_key not in self._consumers:
                 logger.info(
                     "Creating new consumer for %s (force_new=%s)",
@@ -273,7 +273,7 @@ class KafkaConsumerFactory:
                     force_new,
                 )
 
-                # 如果是强制创建新实例，先清理旧实例
+                # If forcing creation of a new instance, clean up the old one first
                 if force_new and cache_key in self._consumers:
                     old_consumer = self._consumers[cache_key]
                     try:
@@ -281,7 +281,7 @@ class KafkaConsumerFactory:
                     except Exception as e:
                         logger.error("Error stopping old consumer: %s", e)
 
-                # 创建新的 consumer 实例
+                # Create a new consumer instance
                 consumer = await self.create_consumer(
                     kafka_servers=kafka_servers,
                     kafka_topic=kafka_topic,
@@ -305,18 +305,18 @@ class KafkaConsumerFactory:
         self, force_new: bool = False, env_prefix: str = ""
     ) -> AIOKafkaConsumer:
         """
-        获取基于环境变量配置的默认 AIOKafkaConsumer 实例
+        Get the default AIOKafkaConsumer instance based on environment variable configuration
 
         Args:
-            force_new: 是否强制创建新实例，默认 False
-            env_prefix: 环境变量前缀，默认为 ""（兼容旧配置）
-                       例如 env_prefix="CUSTOM_" 会读取 CUSTOM_KAFKA_SERVERS 等
+            force_new: Whether to force creation of a new instance, default is False
+            env_prefix: Environment variable prefix, default is "" (compatible with old configurations)
+                       For example, env_prefix="CUSTOM_" will read CUSTOM_KAFKA_SERVERS, etc.
 
         Returns:
-            AIOKafkaConsumer 实例
+            AIOKafkaConsumer instance
         """
-        # 每次都基于当前 env_prefix 获取配置，不使用缓存
-        # 因为不同前缀可能对应不同的配置
+        # Always get configuration based on current env_prefix, do not use cache
+        # Because different prefixes may correspond to different configurations
         config = get_default_kafka_config(env_prefix=env_prefix)
 
         return await self.get_consumer(
@@ -336,15 +336,15 @@ class KafkaConsumerFactory:
         self, kafka_servers: List[str], kafka_topic: str, kafka_group_id: str
     ) -> bool:
         """
-        移除指定的 consumer
+        Remove the specified consumer
 
         Args:
-            kafka_servers: Kafka服务器列表
-            kafka_topic: Kafka主题
-            kafka_group_id: Consumer组ID
+            kafka_servers: Kafka server list
+            kafka_topic: Kafka topic
+            kafka_group_id: Consumer group ID
 
         Returns:
-            bool: 是否成功移除
+            bool: Whether the removal was successful
         """
         cache_key = get_cache_key(kafka_servers, kafka_topic, kafka_group_id)
         consumer_name = get_consumer_name(kafka_topic, kafka_group_id)
@@ -365,7 +365,7 @@ class KafkaConsumerFactory:
                 return False
 
     async def clear_all_consumers(self) -> None:
-        """清理所有缓存的 consumer"""
+        """Clear all cached consumers"""
         async with self._lock:
             for cache_key, consumer in self._consumers.items():
                 try:
@@ -380,23 +380,23 @@ class KafkaConsumerFactory:
         self, offset_datetime: str, consumer: AIOKafkaConsumer
     ) -> bool:
         """
-        基于时间格式调整 Kafka Consumer 的 offset
+        Adjust Kafka Consumer's offset based on time format
 
         Args:
-            offset_datetime: 时间字符串，格式为 "2025-09-23 15:21:12"
-            consumer: AIOKafkaConsumer 实例
+            offset_datetime: Time string, format "2025-09-23 15:21:12"
+            consumer: AIOKafkaConsumer instance
 
         Returns:
-            bool: 是否成功调整 offset
+            bool: Whether the offset adjustment was successful
 
         Raises:
-            ValueError: 时间格式不正确
-            RuntimeError: Consumer 未启动或调整 offset 失败
+            ValueError: Incorrect time format
+            RuntimeError: Consumer not started or offset adjustment failed
         """
         try:
-            # 解析时间字符串为带时区的 datetime 对象
+            # Parse time string into timezone-aware datetime object
             target_dt = from_iso_format(offset_datetime)
-            # 转换为毫秒级时间戳（Kafka 使用毫秒级时间戳）
+            # Convert to millisecond timestamp (Kafka uses millisecond timestamps)
             target_timestamp_ms = int(to_timestamp(target_dt) * 1000)
 
             logger.info(
@@ -405,9 +405,9 @@ class KafkaConsumerFactory:
                 target_timestamp_ms,
             )
 
-            # 检查 consumer 是否已启动并获取分区分配
+            # Check if consumer is started and get partition assignment
             try:
-                # 尝试获取分区分配，如果 consumer 未启动会抛出异常
+                # Attempt to get partition assignment, will raise exception if consumer not started
                 partitions = consumer.assignment()
                 if not partitions:
                     raise RuntimeError(
@@ -418,17 +418,17 @@ class KafkaConsumerFactory:
                     "Consumer must be started before seeking to timestamp"
                 ) from e
 
-            # 为每个分区构建时间戳映射
+            # Build timestamp map for each partition
             timestamp_map = {partition: target_timestamp_ms for partition in partitions}
 
-            # 使用 offsets_for_times 获取对应时间戳的 offset
+            # Use offsets_for_times to get the offset at the corresponding timestamp
             offset_map = await consumer.offsets_for_times(timestamp_map)
 
-            # 统计各topic的处理情况
+            # Track processing statistics per topic
             topic_stats = {}
             seek_count = 0
 
-            # 处理每个分区
+            # Process each partition
             for partition in partitions:
                 topic_name = partition.topic
                 if topic_name not in topic_stats:
@@ -439,11 +439,11 @@ class KafkaConsumerFactory:
                     }
                 topic_stats[topic_name]['total_partitions'] += 1
 
-                # 获取该分区的offset信息
+                # Get offset information for this partition
                 offset_info = offset_map.get(partition) if offset_map else None
 
                 if offset_info is not None:
-                    # 找到了对应时间戳的offset
+                    # Found offset at the specified timestamp
                     target_offset = offset_info.offset
                     consumer.seek(partition, target_offset)
                     seek_count += 1
@@ -456,7 +456,7 @@ class KafkaConsumerFactory:
                         target_timestamp_ms,
                     )
                 else:
-                    # 没有找到对应时间戳的offset，使用最新offset
+                    # No offset found at the specified timestamp, use latest offset
                     logger.warning(
                         "No offset found for partition %s (topic: %s) at timestamp %d, using latest offset",
                         partition,
@@ -464,7 +464,7 @@ class KafkaConsumerFactory:
                         target_timestamp_ms,
                     )
 
-                    # 获取该分区的最新offset
+                    # Get the latest offset for this partition
                     latest_offset_map = await consumer.end_offsets([partition])
                     latest_offset = latest_offset_map[partition]
                     consumer.seek(partition, latest_offset)
@@ -477,7 +477,7 @@ class KafkaConsumerFactory:
                         latest_offset,
                     )
 
-            # 记录各topic的处理统计
+            # Log processing statistics per topic
             for topic_name, stats in topic_stats.items():
                 logger.info(
                     "Topic '%s': %d partitions total, %d found timestamp offsets, %d used latest offsets",

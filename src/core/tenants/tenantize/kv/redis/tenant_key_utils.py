@@ -1,7 +1,7 @@
 """
-Redis 租户键工具函数模块
+Redis tenant key utility functions module
 
-提供 Redis 键名的租户隔离功能，通过在 key 前拼接租户 ID 实现多租户数据隔离。
+Provides tenant isolation for Redis key names by prepending the tenant ID to achieve multi-tenant data isolation.
 """
 
 from typing import Optional
@@ -11,33 +11,33 @@ from core.tenants.tenant_contextvar import get_current_tenant_id
 
 def patch_redis_tenant_key(key: str) -> str:
     """
-    为 Redis 键名添加租户前缀
+    Add tenant prefix to Redis key name
 
-    从当前上下文中获取租户 ID，并将其拼接到 key 前面，实现多租户数据隔离。
-    如果当前没有设置租户信息，则返回原始 key。
+    Retrieve the tenant ID from the current context and prepend it to the key to achieve multi-tenant data isolation.
+    If no tenant information is set in the current context, return the original key.
 
-    格式：{tenant_id}:{key}
+    Format: {tenant_id}:{key}
 
     Args:
-        key: 原始的 Redis 键名
+        key: Original Redis key name
 
     Returns:
-        str: 带租户前缀的 Redis 键名，如果无租户则返回原始键名
+        str: Redis key name with tenant prefix; if no tenant, return the original key
 
     Examples:
-        >>> # 假设当前租户 ID 为 "tenant_001"
+        >>> # Assume current tenant ID is "tenant_001"
         >>> patch_redis_tenant_key("conversation_data:group_123")
         'tenant_001:conversation_data:group_123'
 
-        >>> # 如果没有设置租户
+        >>> # If no tenant is set
         >>> patch_redis_tenant_key("conversation_data:group_123")
         'conversation_data:group_123'
     """
     tenant_id: Optional[str] = get_current_tenant_id()
 
     if tenant_id:
-        # 有租户 ID 时，拼接租户前缀
+        # When tenant ID exists, concatenate tenant prefix
         return f"{tenant_id}:{key}"
 
-    # 没有租户 ID 时，返回原始 key
+    # When no tenant ID exists, return the original key
     return key

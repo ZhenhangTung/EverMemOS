@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Memsys Backend 管理脚本
-提供命令行工具来管理后端应用
+Memsys Backend Management Script
+Provides command-line tools to manage the backend application
 """
 
 import asyncio
@@ -16,31 +16,31 @@ import typer
 from typer import Typer
 
 
-# 创建 Typer 应用
-cli = Typer(help="Memsys Backend 管理工具")
+# Create Typer application
+cli = Typer(help="Memsys Backend Management Tool")
 
-# 全局变量存储应用状态
+# Global variable to store application state
 _app_state = None
 _initialized = False
 
 
 def setup_environment_and_app(env_file: str = ".env"):
     """
-    设置环境和应用
+    Set up environment and application
 
     Args:
-        env_file: 环境变量文件名
+        env_file: Environment variable file name
     """
     global _initialized
     if _initialized:
         return
 
-    # 添加src目录到Python路径
+    # Add src directory to Python path
     from import_parent_dir import add_parent_path
 
     add_parent_path(0)
 
-    # 加载环境变量
+    # Load environment variables
     from common_utils.load_env import setup_environment
 
     setup_environment(load_env_file_name=env_file, check_env_var="GEMINI_API_KEY")
@@ -53,13 +53,13 @@ def setup_environment_and_app(env_file: str = ".env"):
 
 def with_app_context(func: Callable) -> Callable:
     """
-    装饰器：为命令提供FastAPI应用上下文
+    Decorator: Provide FastAPI application context for commands
 
     Args:
-        func: 被装饰的异步函数
+        func: The decorated asynchronous function
 
     Returns:
-        装饰后的函数
+        The decorated function
     """
 
     @wraps(func)
@@ -68,16 +68,16 @@ def with_app_context(func: Callable) -> Callable:
 
         from app import app
 
-        # 创建应用上下文
+        # Create application context
         async with app.router.lifespan_context(app):
-            # 设置应用状态
+            # Set application state
             _app_state = app.state
             try:
-                # 执行被装饰的函数
+                # Execute the decorated function
                 result = await func(*args, **kwargs)
                 return result
             finally:
-                # 清理应用状态
+                # Clean up application state
                 _app_state = None
 
     return wrapper
@@ -85,13 +85,13 @@ def with_app_context(func: Callable) -> Callable:
 
 def with_full_context_decorator(func: Callable) -> Callable:
     """
-    装饰器：使用 ContextManager.run_with_full_context 提供完整上下文
+    Decorator: Use ContextManager.run_with_full_context to provide full context
 
     Args:
-        func: 被装饰的异步函数
+        func: The decorated asynchronous function
 
     Returns:
-        装饰后的函数
+        The decorated function
     """
 
     @wraps(func)
@@ -102,21 +102,21 @@ def with_full_context_decorator(func: Callable) -> Callable:
         from core.di.utils import get_bean_by_type
         from core.context.context_manager import ContextManager
 
-        # 创建应用上下文
+        # Create application context
         async with app.router.lifespan_context(app):
-            # 设置应用状态
+            # Set application state
             _app_state = app.state
             try:
-                # 获取 ContextManager 实例
+                # Get ContextManager instance
                 context_manager = get_bean_by_type(ContextManager)
 
-                # 使用 run_with_full_context 执行函数
+                # Execute function using run_with_full_context
                 result = await context_manager.run_with_full_context(
                     func, *args, auto_commit=True, auto_inherit_user=True, **kwargs
                 )
                 return result
             finally:
-                # 清理应用状态
+                # Clean up application state
                 _app_state = None
 
     return wrapper
@@ -124,13 +124,13 @@ def with_full_context_decorator(func: Callable) -> Callable:
 
 def is_cli_command(func: Callable) -> Callable:
     """
-    装饰器：标记CLI命令函数
+    Decorator: Mark CLI command functions
 
     Args:
-        func: 被装饰的函数
+        func: The decorated function
 
     Returns:
-        装饰后的函数
+        The decorated function
     """
     func._is_cli_command = True
     return func
@@ -138,11 +138,13 @@ def is_cli_command(func: Callable) -> Callable:
 
 @cli.command()
 def shell(
-    debug: bool = typer.Option(False, "--debug", help="启用调试模式"),
-    env_file: str = typer.Option(".env", "--env-file", help="指定要加载的环境变量文件"),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug mode"),
+    env_file: str = typer.Option(
+        ".env", "--env-file", help="Specify the environment variable file to load"
+    ),
 ):
     """
-    启动交互式shell，提供应用上下文访问
+    Start an interactive shell with access to application context
     """
     setup_environment_and_app(env_file)
 
@@ -151,24 +153,24 @@ def shell(
     logger = get_logger(__name__)
 
     if debug:
-        logger.info("调试模式已启用")
+        logger.info("Debug mode enabled")
 
-    logger.info("使用环境文件: %s", env_file)
+    logger.info("Using environment file: %s", env_file)
 
     banner = """
     ========================================
     Memsys Backend Shell
     
-    可用变量:
-    - app: FastAPI应用实例
-    - app_state: 应用状态（如果可用）
-    - graphs: LangGraph实例（如果可用）
-    - logger: 日志记录器
+    Available variables:
+    - app: FastAPI application instance
+    - app_state: Application state (if available)
+    - graphs: LangGraph instances (if available)
+    - logger: Logger instance
     
-    示例用法:
+    Example usage:
     >>> logger.info("Hello from shell!")
-    >>> app.routes  # 查看所有路由
-    >>> graphs  # 查看可用的图实例
+    >>> app.routes  # View all routes
+    >>> graphs  # View available graph instances
     ========================================
     """
 
@@ -181,76 +183,80 @@ def shell(
 
 @cli.command()
 def list_commands(
-    show_all: bool = typer.Option(False, "--all", help="显示所有命令"),
-    env_file: str = typer.Option(".env", "--env-file", help="指定要加载的环境变量文件"),
+    show_all: bool = typer.Option(False, "--all", help="Show all commands"),
+    env_file: str = typer.Option(
+        ".env", "--env-file", help="Specify the environment variable file to load"
+    ),
 ):
     """
-    列出所有可用的CLI命令
+    List all available CLI commands
     """
 
     if show_all:
-        # 显示所有命令，包括隐藏的
+        # Show all commands including hidden ones
         commands = cli.registered_commands
     else:
-        # 只显示可见命令
+        # Show only visible commands
         commands = [cmd for cmd in cli.registered_commands if not cmd.hidden]
 
-    typer.echo("可用的命令:")
+    typer.echo("Available commands:")
     for cmd in commands:
-        help_text = cmd.help if cmd.help else "无描述"
+        help_text = cmd.help if cmd.help else "No description"
         typer.echo(f"  {cmd.name:<20} {help_text}"),
 
-    typer.echo(f"\n使用环境文件: {env_file}")
+    typer.echo(f"\nUsing environment file: {env_file}")
 
 
 @cli.command()
 def tenant_init(
-    env_file: str = typer.Option(".env", "--env-file", help="指定要加载的环境变量文件")
+    env_file: str = typer.Option(
+        ".env", "--env-file", help="Specify the environment variable file to load"
+    )
 ):
     """
-    初始化特定租户的 MongoDB 和 Milvus 数据库
+    Initialize MongoDB and Milvus databases for a specific tenant
 
-    租户ID通过环境变量 TENANT_SINGLE_TENANT_ID 指定。
-    数据库连接配置从默认环境变量获取。
+    Tenant ID is specified via environment variable TENANT_SINGLE_TENANT_ID.
+    Database connection configurations are obtained from default environment variables.
 
-    示例:
-        # 设置租户ID环境变量
+    Examples:
+        # Set tenant ID environment variable
         export TENANT_SINGLE_TENANT_ID=tenant_001
 
-        # 执行初始化
+        # Run initialization
         python src/manage.py tenant-init
 
-        # 使用自定义环境文件
+        # Use custom environment file
         python src/manage.py tenant-init --env-file .env.production
     """
 
-    # 先设置环境和应用
+    # First set up environment and application
     setup_environment_and_app(env_file)
 
     from core.observation.logger import get_logger
 
     logger = get_logger(__name__)
 
-    # 导入租户初始化模块
+    # Import tenant initialization module
     from core.tenants.init_tenant_all import run_tenant_init
 
     try:
-        # 执行租户初始化（从环境变量读取租户ID）
+        # Execute tenant initialization (read tenant ID from environment variable)
         success = asyncio.run(run_tenant_init())
 
-        # 根据结果设置退出码
+        # Set exit code based on result
         if success:
-            logger.info("✅ 所有数据库初始化成功")
+            logger.info("✅ All database initializations succeeded")
             raise typer.Exit(0)
         else:
-            logger.error("❌ 部分或全部数据库初始化失败")
+            logger.error("❌ Partial or complete database initialization failed")
             raise typer.Exit(1)
     except ValueError as e:
-        # 捕获租户ID未设置的错误
-        logger.error("❌ 错误: %s", str(e))
+        # Catch error when tenant ID is not set
+        logger.error("❌ Error: %s", str(e))
         raise typer.Exit(1)
 
 
 if __name__ == '__main__':
-    # 运行CLI
+    # Run CLI
     cli()

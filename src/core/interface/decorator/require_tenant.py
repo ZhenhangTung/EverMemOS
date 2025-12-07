@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-租户上下文检查装饰器
+Tenant context check decorator
 
-用于要求接口必须携带有效的租户上下文（X-Organization-Id 和 X-Space-Id）。
+Ensures that the API request carries a valid tenant context (X-Organization-Id and X-Space-Id).
 """
 
 from functools import wraps
@@ -15,37 +15,37 @@ from core.tenants.tenant_contextvar import get_current_tenant_id
 
 def require_tenant(func: Callable) -> Callable:
     """
-    要求租户上下文装饰器
+    Require tenant context decorator
 
-    用于装饰 Controller 的接口方法，确保请求携带了有效的租户上下文。
-    如果没有租户上下文，返回 400 错误。
+    Used to decorate controller interface methods to ensure the request carries a valid tenant context.
+    If the tenant context is missing, returns a 400 error.
 
-    使用示例：
+    Example usage:
         @post("/init-db")
         @require_tenant
         async def init_tenant_database(self) -> TenantInitResponse:
             tenant_id = get_current_tenant_id()
-            # tenant_id 一定不为 None
+            # tenant_id is guaranteed to be non-None
             ...
 
     Args:
-        func: 被装饰的异步函数
+        func: The decorated asynchronous function
 
     Returns:
-        Callable: 包装后的函数
+        Callable: The wrapped function
     """
 
     @wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # 检查租户上下文
+        # Check tenant context
         tenant_id = get_current_tenant_id()
         if not tenant_id:
             raise HTTPException(
                 status_code=400,
-                detail="缺少租户上下文，请确保请求携带了 X-Organization-Id 和 X-Space-Id",
+                detail="Missing tenant context. Please ensure the request includes X-Organization-Id and X-Space-Id",
             )
 
-        # 调用原函数
+        # Call the original function
         return await func(*args, **kwargs)
 
     return wrapper

@@ -9,14 +9,14 @@ logger = get_logger(__name__)
 
 
 class GroupProfileDataProcessor:
-    """数据处理器 - 封装数据验证、转换、映射逻辑"""
+    """Data processor - encapsulates data validation, transformation, and mapping logic"""
 
     def __init__(self, conversation_source: str = "original"):
         """
-        初始化数据处理器
+        Initialize the data processor
 
         Args:
-            conversation_source: 对话来源，"original" 或 "episode"
+            conversation_source: conversation source, "original" or "episode"
         """
         self.conversation_source = conversation_source
 
@@ -28,30 +28,30 @@ class GroupProfileDataProcessor:
         memcell_list: Optional[List] = None,
     ) -> List[str]:
         """
-        验证并过滤 memcell_ids（用于验证 LLM 新输出的 evidences）
+        Validate and filter memcell_ids (used to validate newly output evidences from LLM)
 
-        验证规则：
-        1. memcell_id 必须在 valid_ids 中（存在性检查）
-        2. 如果指定了 user_id，还要检查 user 是否在 memcell.participants 中
+        Validation rules:
+        1. memcell_id must be in valid_ids (existence check)
+        2. If user_id is specified, also check whether the user is in memcell.participants
 
         Args:
-            memcell_ids: 需要验证的 memcell_ids（LLM 新输出的）
-            valid_ids: 有效的 memcell_ids 集合（从当前 memcell_list 构建）
-            user_id: 可选，如果提供则验证用户是否在 participants 中（用于 roles）
-            memcell_list: 可选，user_id 提供时必须传入
+            memcell_ids: memcell_ids to be validated (newly output by LLM)
+            valid_ids: set of valid memcell_ids (constructed from current memcell_list)
+            user_id: optional, if provided, verify whether the user is in participants (used for roles)
+            memcell_list: optional, must be provided when user_id is provided
 
         Returns:
-            过滤后的有效 memcell_ids
+            Filtered valid memcell_ids
         """
         if not memcell_ids:
             return []
 
-        # 第一步：验证存在性
+        # Step 1: Validate existence
         valid_memcell_ids = [mid for mid in memcell_ids if mid in valid_ids]
         invalid_memcell_ids = [mid for mid in memcell_ids if mid not in valid_ids]
 
         if invalid_memcell_ids:
-            # 显示前5个无效ID作为示例
+            # Show first 5 invalid IDs as examples
             sample_size = min(5, len(invalid_memcell_ids))
             sample_ids = invalid_memcell_ids[:sample_size]
             if len(invalid_memcell_ids) > sample_size:
@@ -64,7 +64,7 @@ class GroupProfileDataProcessor:
                     f"[validate_and_filter_memcell_ids] Filtered {len(invalid_memcell_ids)} non-existent memcell_ids: {invalid_memcell_ids}"
                 )
 
-        # 第二步：如果需要，验证 participants
+        # Step 2: If needed, validate participants
         if user_id is not None:
             if memcell_list is None:
                 logger.error(
@@ -72,7 +72,7 @@ class GroupProfileDataProcessor:
                 )
                 return valid_memcell_ids
 
-            # 构建 memcell 参与者映射
+            # Build memcell participants mapping
             memcell_participants = {}
             for memcell in memcell_list:
                 if hasattr(memcell, 'event_id'):
@@ -84,12 +84,12 @@ class GroupProfileDataProcessor:
                     )
                     memcell_participants[memcell_id] = participants
 
-            # 过滤：只保留用户参与的 memcell
+            # Filter: keep only memcells where the user participated
             participant_valid = []
             participant_invalid = []
 
             for memcell_id in valid_memcell_ids:
-                # 理论上 memcell_id 一定在 memcell_participants 中，使用 get 兜底
+                # In theory, memcell_id must be in memcell_participants, use get as fallback
                 participants = memcell_participants.get(memcell_id, set())
                 if user_id in participants:
                     participant_valid.append(memcell_id)
@@ -118,40 +118,40 @@ class GroupProfileDataProcessor:
         max_count: int = 50,
     ) -> List[str]:
         """
-        合并历史和新的 memcell_ids。保持历史顺序不变，只对新的 memcell_ids 按时间戳排序。
+        Merge historical and new memcell_ids. Keep historical order unchanged, sort only new memcell_ids by timestamp.
 
         Args:
-            historical: 历史 memcell_ids（不做验证，保持原有顺序）
-            new: 新的 memcell_ids（需要验证，会按时间戳排序）
-            valid_ids: 当前有效的 memcell_ids 集合（只用于验证新的 memcell_ids）
-            memcell_list: 当前的 memcell 列表（用于获取时间戳进行排序）
-            user_id: 可选，如果提供则验证用户是否在 participants 中（用于 roles）
-            max_count: 最大保留数量
+            historical: historical memcell_ids (no validation, keep original order)
+            new: new memcell_ids (need validation, will be sorted by timestamp)
+            valid_ids: set of currently valid memcell_ids (used only to validate new memcell_ids)
+            memcell_list: current memcell list (used to get timestamps for sorting)
+            user_id: optional, if provided, verify whether the user is in participants (used for roles)
+            max_count: maximum number to retain
 
         Returns:
-            合并、去重后的 memcell_ids（历史顺序不变，新的按时间排序追加，最多 max_count 个）
+            Merged and deduplicated memcell_ids (historical order unchanged, new ones appended in time order, up to max_count)
         """
         from common_utils.datetime_utils import get_now_with_timezone
         from ..group_profile_memory_extractor import convert_to_datetime
 
         historical = historical or []
 
-        # 历史的 memcell_ids 直接保留，不做验证（因为对应的 memcell 不在当前输入中）
-        # 只验证新的 memcell_ids（包括存在性和可选的 participants 检查）
+        # Historical memcell_ids are kept directly without validation (since corresponding memcells are not in current input)
+        # Only validate new memcell_ids (including existence and optional participants check)
         valid_new = self.validate_and_filter_memcell_ids(
             new, valid_ids, user_id=user_id, memcell_list=memcell_list
         )
 
-        # 构建 memcell_id 到 timestamp 的映射（用于对新的 memcell_ids 排序）
+        # Build mapping from memcell_id to timestamp (used to sort new memcell_ids)
         memcell_id_to_timestamp = {}
         for memcell in memcell_list:
             if hasattr(memcell, 'event_id') and hasattr(memcell, 'timestamp'):
-                # 转换为字符串以匹配 LLM 输出的格式
+                # Convert to string to match LLM output format
                 memcell_id = str(memcell.event_id)
                 timestamp = convert_to_datetime(memcell.timestamp)
                 memcell_id_to_timestamp[memcell_id] = timestamp
 
-        # 对新的 memcell_ids 按时间戳排序（旧的在前，新的在后）
+        # Sort new memcell_ids by timestamp (older first, newer last)
         valid_new_sorted = sorted(
             valid_new,
             key=lambda mid: memcell_id_to_timestamp.get(
@@ -159,16 +159,16 @@ class GroupProfileDataProcessor:
             ),
         )
 
-        # 合并：保持历史顺序，追加新的（去重）
-        seen = set(historical)  # 历史中已存在的 ID
-        merged = list(historical)  # 保持历史顺序
+        # Merge: keep historical order, append new ones (deduplicated)
+        seen = set(historical)  # IDs already present in history
+        merged = list(historical)  # Keep historical order
 
         for mid in valid_new_sorted:
             if mid not in seen:
                 merged.append(mid)
                 seen.add(mid)
 
-        # 限制数量（保留最新的，即列表后面的）
+        # Limit count (keep the latest, i.e., those at the end of the list)
         if len(merged) > max_count:
             logger.debug(
                 f"[merge_memcell_ids] Limiting from {len(merged)} to {max_count} memcell_ids "
@@ -184,16 +184,16 @@ class GroupProfileDataProcessor:
         existing_roles: Optional[Dict[str, List[Dict[str, str]]]] = None,
     ) -> Dict[str, Dict[str, str]]:
         """
-        获取综合的speaker映射，结合当前memcell和历史roles信息
+        Get comprehensive speaker mapping, combining current memcell and historical roles information
 
         Args:
-            memcell_list: 当前的memcell列表
-            existing_roles: 历史roles信息，格式为 role -> [{"user_id": "xxx", "user_name": "xxx"}]
+            memcell_list: current memcell list
+            existing_roles: historical roles information, format: role -> [{"user_id": "xxx", "user_name": "xxx"}]
 
         Returns:
-            speaker_id -> {"user_id": speaker_id, "user_name": speaker_name} 的映射
+            mapping from speaker_id -> {"user_id": speaker_id, "user_name": speaker_name}
         """
-        # 1. 从当前memcell构建映射
+        # 1. Build mapping from current memcells
         current_mapping = {}
         for memcell in memcell_list:
             if hasattr(memcell, 'original_data') and memcell.original_data:
@@ -206,7 +206,7 @@ class GroupProfileDataProcessor:
                             "user_name": speaker_name,
                         }
 
-        # 2. 从历史roles中提取speaker映射信息
+        # 2. Extract speaker mapping from historical roles
         historical_mapping = {}
         if existing_roles:
             for role, users in existing_roles.items():
@@ -223,7 +223,7 @@ class GroupProfileDataProcessor:
                             "user_name": user_name,
                         }
 
-        # 3. 合并映射：当前优先，历史补充
+        # 3. Merge mappings: current takes precedence, historical supplements
         comprehensive_mapping = current_mapping.copy()
         for speaker_id, info in historical_mapping.items():
             if speaker_id not in comprehensive_mapping:
@@ -256,7 +256,7 @@ class GroupProfileDataProcessor:
 
             if not content:
                 continue
-            # 不再包含时间戳，避免 LLM 混淆
+            # No longer include timestamps to avoid confusing LLM
             lines.append(f"{speaker}: {content}")
         return "\n".join(lines)
 
@@ -271,27 +271,27 @@ class GroupProfileDataProcessor:
         all_conversation_text = []
 
         for memcell in memcell_list:
-            # 确保 memcell_id 是字符串（处理 MongoDB ObjectId）
+            # Ensure memcell_id is a string (handle MongoDB ObjectId)
             raw_id = getattr(memcell, 'event_id', f'unknown_{id(memcell)}')
             memcell_id = str(raw_id)
 
             if self.conversation_source == "original":
-                # 方式1：只用original_data（当前方式）
+                # Method 1: use only original_data (current method)
                 conversation_text = self.get_conversation_text(memcell.original_data)
-                # 使用更明显的分隔符，避免与时间戳的方括号混淆
+                # Use more distinct delimiters to avoid confusion with timestamp brackets
                 annotated_text = (
                     f"=== MEMCELL_ID: {memcell_id} ===\n{conversation_text}"
                 )
                 all_conversation_text.append(annotated_text)
 
             elif self.conversation_source == "episode":
-                # 方式2：只用episode字段
+                # Method 2: use only episode field
                 episode_text = self.get_episode_text(memcell)
                 if episode_text:
                     annotated_text = f"=== MEMCELL_ID: {memcell_id} ===\n{episode_text}"
                     all_conversation_text.append(annotated_text)
                 else:
-                    # 如果没有episode，回退到original_data
+                    # If no episode, fall back to original_data
                     logger.warning(
                         f"No episode found for memcell {memcell_id}, using original_data as fallback"
                     )
@@ -326,7 +326,7 @@ class GroupProfileDataProcessor:
         for memory in old_memory_list:
             if memory.memory_type == MemoryType.GROUP_PROFILE:
                 existing_topics = getattr(memory, "topics", [])
-                # 确保不为 None
+                # Ensure not None
                 if existing_topics is None:
                     existing_topics = []
 
@@ -347,15 +347,15 @@ class GroupProfileDataProcessor:
 
                 # Roles already include evidences and confidence in new format
                 existing_roles = getattr(memory, "roles", {})
-                # 确保不为 None
+                # Ensure not None
                 if existing_roles is None:
                     existing_roles = {}
 
                 return {
-                    "topics": topics_list,  # 包含 evidences 和 confidence
+                    "topics": topics_list,  # includes evidences and confidence
                     "summary": getattr(memory, "summary", ""),
                     "subject": getattr(memory, "subject", ""),
-                    "roles": existing_roles,  # 包含 evidences 和 confidence
+                    "roles": existing_roles,  # includes evidences and confidence
                 }
         return None
 

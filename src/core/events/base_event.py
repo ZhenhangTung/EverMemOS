@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-事件基类模块
+Base event module
 
-提供事件的基础抽象类，支持 JSON 和 BSON 序列化/反序列化。
-所有业务事件都应该继承此基类。
+Provides the base abstract class for events, supporting JSON and BSON serialization/deserialization.
+All business events should inherit from this base class.
 """
 
 import json
@@ -23,20 +23,20 @@ T = TypeVar('T', bound='BaseEvent')
 @dataclass
 class BaseEvent(ABC):
     """
-    事件基类
+    Base event class
 
-    所有业务事件都应该继承此类。子类需要定义自己的业务字段，
-    并可选择性地重写 `event_type` 方法来自定义事件类型名称。
+    All business events should inherit from this class. Subclasses need to define their own business fields,
+    and can optionally override the `event_type` method to customize the event type name.
 
-    基类提供以下功能：
-    - 自动生成事件ID (event_id)
-    - 自动记录事件创建时间 (created_at)
-    - JSON 序列化/反序列化
-    - BSON 序列化/反序列化
+    The base class provides the following features:
+    - Automatically generates event ID (event_id)
+    - Automatically records event creation time (created_at)
+    - JSON serialization/deserialization
+    - BSON serialization/deserialization
 
     Attributes:
-        event_id: 事件唯一标识符，自动生成
-        created_at: 事件创建时间（ISO 格式字符串），自动生成
+        event_id: Unique identifier for the event, automatically generated
+        created_at: Event creation time (ISO format string), automatically generated
 
     Example:
         >>> @dataclass
@@ -50,7 +50,7 @@ class BaseEvent(ABC):
         >>> restored = UserCreatedEvent.from_json_str(json_str)
     """
 
-    # 基类字段，使用 field 提供默认值工厂
+    # Base class fields, using field to provide default factories
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: str = field(
         default_factory=lambda: to_iso_format(get_now_with_timezone())
@@ -59,26 +59,26 @@ class BaseEvent(ABC):
     @classmethod
     def event_type(cls) -> str:
         """
-        获取事件类型名称
+        Get the event type name
 
-        默认返回类名。子类可重写此方法来自定义事件类型名称。
+        Returns the class name by default. Subclasses can override this method to customize the event type name.
 
         Returns:
-            str: 事件类型名称
+            str: Event type name
         """
         return cls.__name__
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        将对象转换为可序列化的字典
+        Convert object to a serializable dictionary
 
-        注意：会自动添加 `_event_type` 字段，用于反序列化时确定具体的事件类型。
+        Note: Automatically adds the `_event_type` field, used during deserialization to determine the specific event type.
 
         Returns:
-            Dict[str, Any]: 对象的字典表示
+            Dict[str, Any]: Dictionary representation of the object
         """
         data = asdict(self)
-        # 添加事件类型字段，用于反序列化时识别
+        # Add event type field for identifying the event type during deserialization
         data['_event_type'] = self.event_type()
         return data
 
@@ -86,80 +86,80 @@ class BaseEvent(ABC):
     @abstractmethod
     def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
         """
-        从字典创建对象实例
+        Create an object instance from a dictionary
 
-        子类必须实现此方法，以支持反序列化。
+        Subclasses must implement this method to support deserialization.
 
         Args:
-            data: 包含事件数据的字典
+            data: Dictionary containing event data
 
         Returns:
-            事件对象实例
+            Event object instance
 
         Raises:
-            KeyError: 缺少必要字段
-            TypeError: 字段类型不正确
+            KeyError: Missing required fields
+            TypeError: Incorrect field types
         """
         pass
 
     def to_json_str(self) -> str:
         """
-        将对象序列化为 JSON 字符串
+        Serialize object to JSON string
 
         Returns:
-            str: JSON 字符串
+            str: JSON string
         """
         return json.dumps(self.to_dict(), ensure_ascii=False)
 
     def to_bson_bytes(self) -> bytes:
         """
-        将对象序列化为 BSON 字节数据
+        Serialize object to BSON bytes
 
         Returns:
-            bytes: BSON 字节数据
+            bytes: BSON byte data
         """
         return bson.encode(self.to_dict())
 
     @classmethod
     def from_json_str(cls: Type[T], json_str: str) -> T:
         """
-        从 JSON 字符串反序列化创建对象实例
+        Deserialize object instance from JSON string
 
         Args:
-            json_str: JSON 字符串
+            json_str: JSON string
 
         Returns:
-            事件对象实例
+            Event object instance
 
         Raises:
-            ValueError: JSON 格式错误或数据无效
+            ValueError: Invalid JSON format or data
         """
         try:
             data = json.loads(json_str)
             return cls.from_dict(data)
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            raise ValueError(f"无效的 JSON 数据: {e}") from e
+            raise ValueError(f"Invalid JSON data: {e}") from e
 
     @classmethod
     def from_bson_bytes(cls: Type[T], bson_bytes: bytes) -> T:
         """
-        从 BSON 字节数据反序列化创建对象实例
+        Deserialize object instance from BSON bytes
 
         Args:
-            bson_bytes: BSON 字节数据
+            bson_bytes: BSON byte data
 
         Returns:
-            事件对象实例
+            Event object instance
 
         Raises:
-            ValueError: BSON 格式错误或数据无效
+            ValueError: Invalid BSON format or data
         """
         try:
             data = bson.decode(bson_bytes)
             return cls.from_dict(data)
         except Exception as e:
-            raise ValueError(f"无效的 BSON 数据: {e}") from e
+            raise ValueError(f"Invalid BSON data: {e}") from e
 
     def __repr__(self) -> str:
-        """返回对象的字符串表示"""
+        """Return string representation of the object"""
         return f"{self.__class__.__name__}(event_id={self.event_id!r}, created_at={self.created_at!r})"

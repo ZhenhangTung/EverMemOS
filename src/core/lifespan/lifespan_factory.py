@@ -1,7 +1,7 @@
 """
-生命周期工厂
+Lifecycle factory
 
-提供动态获取和创建生命周期的工厂方法
+Provides factory methods for dynamically obtaining and creating lifecycles.
 """
 
 from typing import List
@@ -18,15 +18,15 @@ logger = get_logger(__name__)
 
 class AppReadyListener(ABC):
     """
-    应用就绪监听器协议
+    Application ready listener protocol
 
-    实现此协议的组件会在所有 lifespan providers 启动完成后被调用。
-    这是一个解耦的钩子机制，通过 DI 容器自动发现和调用所有监听器。
+    Components implementing this protocol will be called after all lifespan providers have started.
+    This is a decoupled hook mechanism that automatically discovers and invokes all listeners via the DI container.
 
-    使用方式：
-        1. 创建一个类实现 on_app_ready() 方法
-        2. 使用 @component 装饰器注册到 DI 容器
-        3. lifespan 会自动发现并调用
+    Usage:
+        1. Create a class implementing the on_app_ready() method
+        2. Register it into the DI container using the @component decorator
+        3. Lifespan will automatically discover and invoke it
 
     Example:
         >>> from core.di.decorators import component
@@ -35,69 +35,77 @@ class AppReadyListener(ABC):
         >>> @component(name="my_app_ready_listener")
         >>> class MyAppReadyListener(AppReadyListener):
         ...     def on_app_ready(self) -> None:
-        ...         print("应用已就绪，执行我的逻辑")
+        ...         print("Application is ready, executing my logic")
     """
 
     @abstractmethod
     def on_app_ready(self) -> None:
-        """应用就绪时调用"""
+        """Called when the application is ready"""
         ...
 
 
 def create_lifespan_with_providers(providers: list[LifespanProvider]):
     """
-    创建包含多个提供者的生命周期管理器
+    Create a lifecycle manager containing multiple providers
 
     Args:
-        providers (list[LifespanProvider]): 生命周期提供者列表
+        providers (list[LifespanProvider]): List of lifecycle providers
 
     Returns:
-        callable: FastAPI生命周期上下文管理器
+        callable: FastAPI lifecycle context manager
     """
-    # 按order排序
+    # Sort by order
     sorted_providers = sorted(providers, key=lambda x: x.order)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        """FastAPI生命周期上下文管理器"""
+        """FastAPI lifecycle context manager"""
         lifespan_data = {}
 
         try:
-            # 启动所有提供者
+            # Start all providers
             for provider in sorted_providers:
                 logger.info(
-                    "启动生命周期提供者: %s (order=%d)", provider.name, provider.order
+                    "Starting lifecycle provider: %s (order=%d)",
+                    provider.name,
+                    provider.order,
                 )
                 result = await provider.startup(app)
                 if result is not None:
                     lifespan_data[provider.name] = result
-                logger.info("生命周期提供者启动完成: %s", provider.name)
+                logger.info("Lifecycle provider started: %s", provider.name)
 
-            # 将数据存储到app.state，方便获取
+            # Store data in app.state for easy access
             app.state.lifespan_data = lifespan_data
 
-            # 通过 DI 获取所有应用就绪监听器并调用（解耦设计）
+            # Get all application ready listeners via DI and invoke them (decoupled design)
             listeners = get_beans_by_type(AppReadyListener)
             for listener in listeners:
                 try:
                     listener.on_app_ready()
                 except Exception as e:
                     logger.error(
-                        "应用就绪监听器执行失败: %s - %s", type(listener).__name__, e
+                        "Application ready listener execution failed: %s - %s",
+                        type(listener).__name__,
+                        e,
                     )
 
-            yield  # 应用运行期间
+            yield  # During application runtime
 
         finally:
-            # 按逆序关闭所有提供者
+            # Shut down all providers in reverse order
             for provider in reversed(sorted_providers):
                 try:
-                    logger.info("关闭生命周期提供者: %s", provider.name)
+                    logger.info("Shutting down lifecycle provider: %s", provider.name)
                     await provider.shutdown(app)
-                    logger.info("生命周期提供者关闭完成: %s", provider.name)
+                    logger.info(
+                        "Lifecycle provider shutdown completed: %s", provider.name
+                    )
                 except Exception as e:
                     logger.error(
-                        "关闭生命周期提供者失败: %s - %s", provider.name, str(e)
+                        "Failed to shut down lifecycle provider: %s - %s",
+                        provider.name,
+                        str(e),
                     )
 
     return lifespan
@@ -105,29 +113,29 @@ def create_lifespan_with_providers(providers: list[LifespanProvider]):
 
 @component(name="lifespan_factory")
 class LifespanFactory:
-    """生命周期工厂"""
+    """Lifecycle factory"""
 
     def create_auto_lifespan(self):
         """
-        自动创建包含所有已注册提供者的生命周期
+        Automatically create a lifecycle containing all registered providers
 
         Returns:
-            callable: FastAPI生命周期上下文管理器
+            callable: FastAPI lifecycle context manager
         """
         providers = get_beans_by_type(LifespanProvider)
-        # 按order排序
+        # Sort by order
         sorted_providers = sorted(providers, key=lambda x: x.order)
         return create_lifespan_with_providers(sorted_providers)
 
     def create_lifespan_with_names(self, provider_names: List[str]):
         """
-        根据提供者名称创建生命周期
+        Create a lifecycle based on provider names
 
         Args:
-            provider_names (List[str]): 提供者名称列表
+            provider_names (List[str]): List of provider names
 
         Returns:
-            callable: FastAPI生命周期上下文管理器
+            callable: FastAPI lifecycle context manager
         """
         providers = []
         for name in provider_names:
@@ -135,33 +143,33 @@ class LifespanFactory:
             if isinstance(provider, LifespanProvider):
                 providers.append(provider)
 
-        # 按order排序
+        # Sort by order
         sorted_providers = sorted(providers, key=lambda x: x.order)
         return create_lifespan_with_providers(sorted_providers)
 
     def create_lifespan_with_orders(self, orders: List[int]):
         """
-        根据order值创建生命周期
+        Create a lifecycle based on order values
 
         Args:
-            orders (List[int]): order值列表
+            orders (List[int]): List of order values
 
         Returns:
-            callable: FastAPI生命周期上下文管理器
+            callable: FastAPI lifecycle context manager
         """
         all_providers = get_beans_by_type(LifespanProvider)
         filtered_providers = [p for p in all_providers if p.order in orders]
 
-        # 按order排序
+        # Sort by order
         sorted_providers = sorted(filtered_providers, key=lambda x: x.order)
         return create_lifespan_with_providers(sorted_providers)
 
     def list_available_providers(self) -> List[LifespanProvider]:
         """
-        列出所有可用的生命周期提供者
+        List all available lifecycle providers
 
         Returns:
-            List[LifespanProvider]: 提供者列表（按order排序）
+            List[LifespanProvider]: List of providers (sorted by order)
         """
         providers = get_beans_by_type(LifespanProvider)
         return sorted(providers, key=lambda x: x.order)

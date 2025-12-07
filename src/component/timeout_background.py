@@ -1,16 +1,16 @@
 """
-超时转后台执行装饰器
+Timeout to background execution decorator
 
-用于 endpoint，当业务逻辑执行超时时，自动转为后台执行并返回 202 响应。
-与 AppLogicMiddleware 配合使用。
+Used for endpoints. When business logic execution times out, automatically switches to background execution and returns a 202 response.
+Works with AppLogicMiddleware.
 
-依赖 AppLogicProvider：
-- 使用 get_current_request_id() 获取 request_id
-- 使用 on_request_complete() 作为后台完成回调
+Depends on AppLogicProvider:
+- Uses get_current_request_id() to get request_id
+- Uses on_request_complete() as the background completion callback
 
-后台模式配置：
-- 默认开启后台模式（超时自动转后台）
-- 可通过 request params 传入 sync_mode=true 来关闭后台模式（同步等待执行完成）
+Background mode configuration:
+- Background mode is enabled by default (automatically switches to background on timeout)
+- Can disable background mode by passing sync_mode=true in request params (synchronously wait for execution to complete)
 """
 
 from typing import Any, Callable, Coroutine, TypeVar, ParamSpec, Union, Optional
@@ -30,40 +30,43 @@ logger = get_logger(__name__)
 P = ParamSpec("P")
 T = TypeVar("T")
 
-# 默认阻塞等待超时时间（秒）
+# Default blocking wait timeout (seconds)
 DEFAULT_BLOCKING_TIMEOUT = 5.0
 
-# 同步模式参数名（用于关闭后台模式）
+# Sync mode parameter name (used to disable background mode)
 SYNC_MODE_PARAM = "sync_mode"
 
 
 def is_background_mode_enabled(request: Optional[Request] = None) -> bool:
     """
-    检查是否启用后台模式
+    Check if background mode is enabled
 
-    默认开启后台模式。可通过以下方式关闭：
-    - request params 中传入 sync_mode=true
+    Background mode is enabled by default. Can be disabled via:
+    - Passing sync_mode=true in request params
 
     Args:
-        request: FastAPI 请求对象，如果为 None 则从 context 中获取
+        request: FastAPI request object, if None, get from context
 
     Returns:
-        bool: True 表示启用后台模式，False 表示关闭（同步执行）
+        bool: True means background mode is enabled, False means disabled (synchronous execution)
     """
     if request is None:
         request = get_current_request()
 
     if request is None:
-        # 没有请求上下文，默认开启后台模式
+        # No request context, enable background mode by default
         return True
 
-    # 检查 query params 中是否有 sync_mode=true
+    # Check if sync_mode=true is in query params
     sync_mode = request.query_params.get(SYNC_MODE_PARAM, "").lower()
     if sync_mode in ("true", "1", "yes"):
-        logger.debug("[BackgroundMode] 检测到 sync_mode=%s，关闭后台模式", sync_mode)
+        logger.debug(
+            "[BackgroundMode] Detected sync_mode=%s, background mode disabled",
+            sync_mode,
+        )
         return False
 
-    # 默认开启后台模式
+    # Enable background mode by default
     return True
 
 
@@ -75,39 +78,39 @@ def timeout_to_background(
     Callable[P, Coroutine[Any, Any, Union[T, JSONResponse]]],
 ]:
     """
-    超时转后台执行装饰器
+    Timeout to background execution decorator
 
-    当被装饰的 endpoint 执行超过指定时间时：
-    1. 返回 202 Accepted 响应给客户端
-    2. 业务逻辑在后台继续执行
-    3. 后台执行完成/失败时调用 AppLogicProvider.on_request_complete()
+    When the decorated endpoint execution exceeds the specified time:
+    1. Return 202 Accepted response to client
+    2. Business logic continues executing in the background
+    3. Call AppLogicProvider.on_request_complete() when background execution completes/fails
 
-    与 AppLogicMiddleware 配合：
-    - 正常完成（未超时）：middleware 的 on_request_complete 处理
-    - 超时转后台（返回 202）：装饰器调用 on_request_complete，middleware 跳过
+    Works with AppLogicMiddleware:
+    - Normal completion (no timeout): handled by middleware's on_request_complete
+    - Timeout and switch to background (return 202): decorator calls on_request_complete, middleware skips
 
-    后台模式配置：
-    - 默认开启后台模式（超时自动转后台）
-    - 可通过 request params 传入 sync_mode=true 来关闭后台模式（同步等待执行完成）
+    Background mode configuration:
+    - Background mode is enabled by default (automatically switches to background on timeout)
+    - Can disable background mode by passing sync_mode=true in request params (synchronously wait for completion)
 
-    使用示例:
+    Usage example:
     ```python
     @router.post("/memorize")
     @timeout_to_background(timeout=5.0)
     async def memorize(request: MemorizeRequest):
-        # 业务逻辑...
+        # Business logic...
         return {"status": "ok"}
 
-    # 客户端可通过 query params 关闭后台模式：
+    # Client can disable background mode via query params:
     # POST /memorize?sync_mode=true
     ```
 
     Args:
-        timeout: 阻塞等待的超时时间（秒），默认 5s
-        accepted_message: 202 响应的消息内容
+        timeout: Timeout for blocking wait (seconds), default 5s
+        accepted_message: Message content for 202 response
 
     Returns:
-        装饰器函数
+        Decorator function
     """
 
     def decorator(
@@ -116,48 +119,50 @@ def timeout_to_background(
 
         @wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> Union[T, JSONResponse]:
-            # 延迟导入避免循环依赖
+            # Delayed import to avoid circular dependency
             from component.app_logic_provider import AppLogicProvider
 
-            # 获取 AppLogicProvider 实例
+            # Get AppLogicProvider instance
             provider = get_bean_by_type(AppLogicProvider)
             request_id = provider.get_current_request_id()
             task_name = f"{func.__name__}_{request_id}"
 
-            # 检查是否启用后台模式
+            # Check if background mode is enabled
             background_enabled = is_background_mode_enabled()
 
             if not background_enabled:
-                # 同步模式：直接执行，不使用超时机制
+                # Sync mode: execute directly without timeout mechanism
                 logger.debug(
-                    "[TimeoutBackground] 任务 '%s' 使用同步模式执行", task_name
+                    "[TimeoutBackground] Task '%s' executing in sync mode", task_name
                 )
                 return await func(*args, **kwargs)
 
-            # 后台模式：创建任务并设置超时
+            # Background mode: create task and set timeout
             task = asyncio.create_task(func(*args, **kwargs))
 
             try:
-                # 先阻塞等待指定时间
+                # First block and wait for specified time
                 result = await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
                 logger.debug(
-                    "[TimeoutBackground] 任务 '%s' 在 %ss 内完成", task_name, timeout
+                    "[TimeoutBackground] Task '%s' completed within %ss",
+                    task_name,
+                    timeout,
                 )
-                # 正常完成，不调用 on_request_complete，让 middleware 处理
+                # Normal completion, do not call on_request_complete, let middleware handle
                 return result
 
             except asyncio.TimeoutError:
-                # 超时未完成，转为后台执行
+                # Timeout not completed, switch to background execution
                 logger.info(
-                    "[TimeoutBackground] 任务 '%s' 超时(%ss)，转为后台执行",
+                    "[TimeoutBackground] Task '%s' timed out (%ss), switching to background execution",
                     task_name,
                     timeout,
                 )
 
-                # 创建后台任务继续执行
+                # Create background task to continue execution
                 asyncio.create_task(_run_background_task(task, task_name, provider))
 
-                # 返回 202 Accepted
+                # Return 202 Accepted
                 return JSONResponse(
                     status_code=202,
                     content={"message": accepted_message, "request_id": request_id},
@@ -171,25 +176,31 @@ def timeout_to_background(
 async def _run_background_task(
     task: asyncio.Task,
     task_name: str,
-    provider: Any,  # AppLogicProvider，使用 Any 避免循环导入
+    provider: Any,  # AppLogicProvider, using Any to avoid circular import
 ) -> None:
     """
-    后台任务执行器
+    Background task executor
 
     Args:
-        task: 要等待的 asyncio.Task
-        task_name: 任务名称（用于日志）
-        provider: AppLogicProvider 实例
+        task: The asyncio.Task to wait for
+        task_name: Task name (for logging)
+        provider: AppLogicProvider instance
     """
     try:
         await task
-        logger.info("[TimeoutBackground] 后台任务 '%s' 完成", task_name)
-        # 调用 provider 的 on_request_complete
+        logger.info("[TimeoutBackground] Background task '%s' completed", task_name)
+        # Call provider's on_request_complete
         await _call_on_request_complete(provider, http_code=200, error_message=None)
     except asyncio.CancelledError:
-        logger.warning("[TimeoutBackground] 后台任务 '%s' 被取消", task_name)
+        logger.warning(
+            "[TimeoutBackground] Background task '%s' was cancelled", task_name
+        )
     except Exception as e:
-        logger.error("[TimeoutBackground] 后台任务 '%s' 执行失败: %s", task_name, e)
+        logger.error(
+            "[TimeoutBackground] Background task '%s' execution failed: %s",
+            task_name,
+            e,
+        )
         traceback.print_exc()
         await _call_on_request_complete(provider, http_code=500, error_message=str(e))
 
@@ -198,16 +209,16 @@ async def _call_on_request_complete(
     provider: Any, http_code: int, error_message: Optional[str]
 ) -> None:
     """
-    调用 provider 的 on_request_complete
+    Call provider's on_request_complete
 
-    从 context 中获取 request。
+    Get request from context.
     """
     try:
         request = provider.get_current_request()
 
         if request is None:
             logger.warning(
-                "[TimeoutBackground] 无法获取 request，跳过 on_request_complete"
+                "[TimeoutBackground] Unable to get request, skipping on_request_complete"
             )
             return
 
@@ -215,4 +226,6 @@ async def _call_on_request_complete(
             request=request, http_code=http_code, error_message=error_message
         )
     except Exception as e:
-        logger.warning("[TimeoutBackground] on_request_complete 回调执行失败: %s", e)
+        logger.warning(
+            "[TimeoutBackground] on_request_complete callback execution failed: %s", e
+        )

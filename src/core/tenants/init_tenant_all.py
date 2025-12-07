@@ -1,22 +1,22 @@
 """
-租户数据库初始化模块
+Tenant database initialization module
 
-此模块用于初始化特定租户的 MongoDB、Milvus 和 Elasticsearch 数据库。
-通过环境变量 TENANT_SINGLE_TENANT_ID 指定租户ID：
-1. 创建租户信息并设置租户上下文
-2. 调用 MongoDB 的 lifespan startup 逻辑
-3. 调用 Milvus 的 lifespan startup 逻辑
-4. 调用 Elasticsearch 的 lifespan startup 逻辑
+This module is used to initialize MongoDB, Milvus, and Elasticsearch databases for a specific tenant.
+The tenant ID is specified via the environment variable TENANT_SINGLE_TENANT_ID:
+1. Create tenant information and set tenant context
+2. Invoke MongoDB lifespan startup logic
+3. Invoke Milvus lifespan startup logic
+4. Invoke Elasticsearch lifespan startup logic
 
-使用方式：
-    通过 manage.py 调用：
+Usage:
+    Called via manage.py:
     export TENANT_SINGLE_TENANT_ID=tenant_001
     python src/manage.py tenant-init
 
-注意：
-    - 必须设置环境变量 TENANT_SINGLE_TENANT_ID，否则会报错
-    - 数据库名称会根据租户ID自动生成（格式：{tenant_id}_memsys）
-    - 数据库连接配置从默认环境变量获取
+Note:
+    - Environment variable TENANT_SINGLE_TENANT_ID must be set, otherwise an error will be raised
+    - Database names are automatically generated based on the tenant ID (format: {tenant_id}_memsys)
+    - Database connection configurations are obtained from default environment variables
 """
 
 from core.observation.logger import get_logger
@@ -30,23 +30,23 @@ logger = get_logger(__name__)
 
 async def init_mongodb() -> bool:
     """
-    初始化租户的 MongoDB 数据库
+    Initialize tenant's MongoDB database
 
     Args:
-        tenant_info: 租户信息
+        tenant_info: Tenant information
 
     Returns:
-        是否初始化成功
+        Whether initialization was successful
     """
     logger.info("=" * 60)
-    logger.info("开始初始化租户的 MongoDB 数据库...")
+    logger.info("Starting initialization of tenant's MongoDB database...")
     logger.info("=" * 60)
 
     try:
-        # 创建 MongoDB lifespan provider
+        # Create MongoDB lifespan provider
         mongodb_provider = MongoDBLifespanProvider()
 
-        # 创建一个模拟的 FastAPI app 对象（只需要 state 属性）
+        # Create a mock FastAPI app object (only needs state attribute)
         class MockApp:
             class State:
                 pass
@@ -55,44 +55,44 @@ async def init_mongodb() -> bool:
 
         mock_app = MockApp()
 
-        # 调用 startup 逻辑
+        # Call startup logic
         await mongodb_provider.startup(mock_app)
 
         logger.info("=" * 60)
-        logger.info("✅ 租户的 MongoDB 数据库初始化成功")
+        logger.info("✅ Tenant's MongoDB database initialized successfully")
         logger.info("=" * 60)
 
-        # 关闭连接
+        # Close connections
         await mongodb_provider.shutdown(mock_app)
 
         return True
 
     except Exception as e:
         logger.error("=" * 60)
-        logger.error("❌ 租户的 MongoDB 数据库初始化失败: %s", e)
+        logger.error("❌ Failed to initialize tenant's MongoDB database: %s", e)
         logger.error("=" * 60)
         return False
 
 
 async def init_milvus() -> bool:
     """
-    初始化租户的 Milvus 数据库
+    Initialize tenant's Milvus database
 
     Args:
-        tenant_info: 租户信息
+        tenant_info: Tenant information
 
     Returns:
-        是否初始化成功
+        Whether initialization was successful
     """
     logger.info("=" * 60)
-    logger.info("开始初始化租户的 Milvus 数据库...")
+    logger.info("Starting initialization of tenant's Milvus database...")
     logger.info("=" * 60)
 
     try:
-        # 创建 Milvus lifespan provider
+        # Create Milvus lifespan provider
         milvus_provider = MilvusLifespanProvider()
 
-        # 创建一个模拟的 FastAPI app 对象（只需要 state 属性）
+        # Create a mock FastAPI app object (only needs state attribute)
         class MockApp:
             class State:
                 pass
@@ -101,41 +101,41 @@ async def init_milvus() -> bool:
 
         mock_app = MockApp()
 
-        # 调用 startup 逻辑
+        # Call startup logic
         await milvus_provider.startup(mock_app)
 
         logger.info("=" * 60)
-        logger.info("✅ 租户的 Milvus 数据库初始化成功")
+        logger.info("✅ Tenant's Milvus database initialized successfully")
         logger.info("=" * 60)
 
-        # 关闭连接
+        # Close connections
         await milvus_provider.shutdown(mock_app)
 
         return True
 
     except Exception as e:
         logger.error("=" * 60)
-        logger.error("❌ 租户的 Milvus 数据库初始化失败: %s", e)
+        logger.error("❌ Failed to initialize tenant's Milvus database: %s", e)
         logger.error("=" * 60)
         return False
 
 
 async def init_elasticsearch() -> bool:
     """
-    初始化租户的 Elasticsearch 数据库
+    Initialize tenant's Elasticsearch database
 
     Returns:
-        是否初始化成功
+        Whether initialization was successful
     """
     logger.info("=" * 60)
-    logger.info("开始初始化租户的 Elasticsearch 数据库...")
+    logger.info("Starting initialization of tenant's Elasticsearch database...")
     logger.info("=" * 60)
 
     try:
-        # 创建 Elasticsearch lifespan provider
+        # Create Elasticsearch lifespan provider
         es_provider = ElasticsearchLifespanProvider()
 
-        # 创建一个模拟的 FastAPI app 对象（只需要 state 属性）
+        # Create a mock FastAPI app object (only needs state attribute)
         class MockApp:
             class State:
                 pass
@@ -144,83 +144,83 @@ async def init_elasticsearch() -> bool:
 
         mock_app = MockApp()
 
-        # 调用 startup 逻辑
+        # Call startup logic
         await es_provider.startup(mock_app)
 
         logger.info("=" * 60)
-        logger.info("✅ 租户的 Elasticsearch 数据库初始化成功")
+        logger.info("✅ Tenant's Elasticsearch database initialized successfully")
         logger.info("=" * 60)
 
-        # 关闭连接
+        # Close connections
         await es_provider.shutdown(mock_app)
 
         return True
 
     except Exception as e:
         logger.error("=" * 60)
-        logger.error("❌ 租户的 Elasticsearch 数据库初始化失败: %s", e)
+        logger.error("❌ Failed to initialize tenant's Elasticsearch database: %s", e)
         logger.error("=" * 60)
         return False
 
 
 async def run_tenant_init() -> bool:
     """
-    执行租户数据库初始化
+    Execute tenant database initialization
 
-    从环境变量 TENANT_SINGLE_TENANT_ID 读取租户ID。
-    如果未设置该环境变量，则抛出错误。
+    Read tenant ID from environment variable TENANT_SINGLE_TENANT_ID.
+    If this environment variable is not set, raise an error.
 
     Returns:
-        是否全部初始化成功
+        Whether all initializations were successful
 
     Raises:
-        ValueError: 如果未设置 TENANT_SINGLE_TENANT_ID 环境变量
+        ValueError: If the TENANT_SINGLE_TENANT_ID environment variable is not set
 
     Examples:
         export TENANT_SINGLE_TENANT_ID=tenant_001
         python src/manage.py tenant-init
     """
     logger.info("*" * 60)
-    logger.info("租户数据库初始化工具")
+    logger.info("Tenant Database Initialization Tool")
     logger.info("*" * 60)
 
-    # 从配置中获取租户ID
+    # Get tenant ID from configuration
     tenant_config = get_tenant_config()
     tenant_id = tenant_config.single_tenant_id
 
-    # 如果没有配置租户ID，报错
+    # If tenant ID is not configured, raise error
     if not tenant_id:
         error_msg = (
-            "未设置租户ID！\n"
-            "请设置环境变量 TENANT_SINGLE_TENANT_ID，例如：\n"
+            "Tenant ID is not set!\n"
+            "Please set the environment variable TENANT_SINGLE_TENANT_ID, for example:\n"
             "  export TENANT_SINGLE_TENANT_ID=tenant_001\n"
             "  python src/manage.py tenant-init"
         )
         logger.error(error_msg)
-        raise ValueError("未设置环境变量 TENANT_SINGLE_TENANT_ID")
+        raise ValueError("Environment variable TENANT_SINGLE_TENANT_ID is not set")
 
-    logger.info("租户ID: %s", tenant_id)
+    logger.info("Tenant ID: %s", tenant_id)
     logger.info("*" * 60)
 
-    # 初始化 MongoDB
+    # Initialize MongoDB
     mongodb_success = await init_mongodb()
 
-    # 初始化 Milvus
+    # Initialize Milvus
     milvus_success = await init_milvus()
 
-    # 初始化 Elasticsearch
+    # Initialize Elasticsearch
     es_success = await init_elasticsearch()
 
-    # 输出总结
+    # Output summary
     logger.info("")
     logger.info("*" * 60)
-    logger.info("初始化结果总结")
+    logger.info("Initialization Result Summary")
     logger.info("*" * 60)
-    logger.info("租户ID: %s", tenant_id)
-    logger.info("MongoDB: %s", "✅ 成功" if mongodb_success else "❌ 失败")
-    logger.info("Milvus: %s", "✅ 成功" if milvus_success else "❌ 失败")
-    logger.info("Elasticsearch: %s", "✅ 成功" if es_success else "❌ 失败")
+    logger.info("Tenant ID: %s", tenant_id)
+    logger.info("MongoDB: %s", "✅ Success" if mongodb_success else "❌ Failure")
+    logger.info("Milvus: %s", "✅ Success" if milvus_success else "❌ Failure")
+    logger.info("Elasticsearch: %s", "✅ Success" if es_success else "❌ Failure")
     logger.info("*" * 60)
 
-    # 返回是否全部成功
+    # Return whether all were successful
     return mongodb_success and milvus_success and es_success

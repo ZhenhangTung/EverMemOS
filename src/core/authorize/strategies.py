@@ -6,35 +6,35 @@ import asyncio
 
 
 class DefaultAuthorizationStrategy(AuthorizationStrategy):
-    """默认授权策略"""
+    """Default authorization strategy"""
 
     async def check_permission(
         self, user_info: Optional[Dict[str, Any]], required_role: Role, **kwargs
     ) -> bool:
         """
-        默认的权限检查逻辑
+        Default permission check logic
 
         Args:
-            user_info: 用户信息
-            required_role: 需要的角色
-            **kwargs: 额外参数
+            user_info: User information
+            required_role: Required role
+            **kwargs: Additional parameters
 
         Returns:
-            bool: 是否有权限
+            bool: Whether the user has permission
         """
-        # 匿名用户只能访问匿名资源
+        # Anonymous users can only access anonymous resources
         if required_role == Role.ANONYMOUS:
             return True
 
-        # 如果没有用户信息，则拒绝访问
+        # Deny access if no user information is provided
         if not user_info:
             return False
 
-        # 检查用户角色
+        # Check user role
         user_role = user_info.get('role', Role.USER)
         user_role = Role(user_role)
 
-        # 角色权限检查
+        # Role-based permission check
         if required_role == Role.USER:
             return user_role in [Role.USER, Role.ADMIN]
         elif required_role == Role.ADMIN:
@@ -46,48 +46,48 @@ class DefaultAuthorizationStrategy(AuthorizationStrategy):
 
 
 class RoleBasedAuthorizationStrategy(AuthorizationStrategy):
-    """基于角色的授权策略"""
+    """Role-based authorization strategy"""
 
     def __init__(self):
-        # 定义角色层级关系
+        # Define role hierarchy
         self.role_hierarchy = {
             Role.ANONYMOUS: 0,
             Role.USER: 1,
             Role.ADMIN: 2,
-            Role.SIGNATURE: 1,  # SIGNATURE与USER同级，可以访问需要USER权限的资源
+            Role.SIGNATURE: 1,  # SIGNATURE has the same level as USER, can access resources requiring USER permission
         }
 
     async def check_permission(
         self, user_info: Optional[Dict[str, Any]], required_role: Role, **kwargs
     ) -> bool:
         """
-        基于角色的权限检查
+        Role-based permission check
 
         Args:
-            user_info: 用户信息
-            required_role: 需要的角色
-            **kwargs: 额外参数
+            user_info: User information
+            required_role: Required role
+            **kwargs: Additional parameters
 
         Returns:
-            bool: 是否有权限
+            bool: Whether the user has permission
         """
-        # 匿名用户只能访问匿名资源
+        # Anonymous users can only access anonymous resources
         if required_role == Role.ANONYMOUS:
             return True
 
-        # 如果没有用户信息，则拒绝访问
+        # Deny access if no user information is provided
         if not user_info:
             return False
 
-        # 获取用户角色
+        # Get user role
         user_role_str = user_info.get('role', Role.USER.value)
         try:
             user_role = Role(user_role_str)
         except ValueError:
-            # 如果角色无效，默认为USER
+            # If role is invalid, default to USER
             user_role = Role.USER
 
-        # 检查角色层级
+        # Check role hierarchy
         required_level = self.role_hierarchy.get(required_role, 0)
         user_level = self.role_hierarchy.get(user_role, 0)
 
@@ -95,14 +95,14 @@ class RoleBasedAuthorizationStrategy(AuthorizationStrategy):
 
 
 class CustomAuthorizationStrategy(AuthorizationStrategy):
-    """自定义授权策略，允许用户自定义检查逻辑"""
+    """Custom authorization strategy that allows users to define custom check logic"""
 
     def __init__(self, custom_check_func):
         """
-        初始化自定义策略
+        Initialize custom strategy
 
         Args:
-            custom_check_func: 自定义检查函数，接收user_info和required_role参数
+            custom_check_func: Custom check function that takes user_info and required_role as parameters
         """
         self.custom_check_func = custom_check_func
 
@@ -110,15 +110,15 @@ class CustomAuthorizationStrategy(AuthorizationStrategy):
         self, user_info: Optional[Dict[str, Any]], required_role: Role, **kwargs
     ) -> bool:
         """
-        使用自定义函数进行权限检查
+        Perform permission check using custom function
 
         Args:
-            user_info: 用户信息
-            required_role: 需要的角色
-            **kwargs: 额外参数
+            user_info: User information
+            required_role: Required role
+            **kwargs: Additional parameters
 
         Returns:
-            bool: 是否有权限
+            bool: Whether the user has permission
         """
         try:
             if asyncio.iscoroutinefunction(self.custom_check_func):
@@ -126,5 +126,5 @@ class CustomAuthorizationStrategy(AuthorizationStrategy):
             else:
                 return self.custom_check_func(user_info, required_role, **kwargs)
         except (ValueError, TypeError, AttributeError):
-            # 如果自定义检查失败，返回False
+            # Return False if custom check fails
             return False

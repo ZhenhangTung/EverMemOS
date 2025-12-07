@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-依赖注入设置模块
+Dependency injection setup module
 
-处理从 addon 中加载依赖注入扫描路径的入口函数
+Handles the entry function for loading dependency injection scan paths from addons
 """
 
 from core.di.scanner import ComponentScanner
@@ -15,64 +15,71 @@ logger = get_logger(__name__)
 
 def setup_dependency_injection(addons: list = None):
     """
-    设置依赖注入框架
+    Set up the dependency injection framework
 
-    从 addon 列表中提取 DI 扫描路径，并执行组件扫描和注册
+    Extract DI scan paths from the addon list and perform component scanning and registration
 
     Args:
-        addons (list, optional): addon 列表。如果为None，从 ADDONS_REGISTRY 中获取
+        addons (list, optional): List of addons. If None, fetch from ADDONS_REGISTRY
 
     Returns:
-        ComponentScanner: 配置好的组件扫描器
+        ComponentScanner: Configured component scanner
     """
-    logger.info("🚀 正在初始化依赖注入容器...")
+    logger.info("🚀 Initializing dependency injection container...")
 
-    # 导入以触发自动替换Bean排序策略（模块加载时执行）
+    # Import to trigger automatic replacement of Bean ordering strategy (executed during module loading)
     from core.addons.addonize import addon_bean_order_strategy  # noqa: F401
 
-    # 创建组件扫描器
+    # Create component scanner
     scanner = ComponentScanner()
 
-    # 如果没有提供 addons，从 ADDONS_REGISTRY 获取
+    # If addons not provided, get from ADDONS_REGISTRY
     if addons is None:
         addons = ADDONS_REGISTRY.get_all()
 
-    logger.info("  📦 从 %d 个 addon 中加载依赖注入扫描路径...", len(addons))
+    logger.info(
+        "  📦 Loading dependency injection scan paths from %d addons...", len(addons)
+    )
 
-    # 收集所有扫描路径并注册 scan_context
+    # Collect all scan paths and register scan_context
     total_paths = 0
     for addon in addons:
         if addon.has_di():
             addon_paths = addon.di.get_scan_paths()
             logger.debug(
-                "  📌 addon [%s] 贡献 %d 个扫描路径", addon.name, len(addon_paths)
+                "  📌 addon [%s] contributes %d scan paths",
+                addon.name,
+                len(addon_paths),
             )
 
-            # 为每个扫描路径注册 scan_context，标记 addon_tag
+            # Register scan_context for each scan path, marking addon_tag
             for path in addon_paths:
-                # 注册扫描上下文，标记来源 addon
+                # Register scan context, marking source addon
                 scanner.register_scan_context(path, {"addon_tag": addon.name})
-                # 添加扫描路径
+                # Add scan path
                 scanner.add_scan_path(path)
                 logger.debug("    + %s (addon_tag=%s)", path, addon.name)
                 total_paths += 1
 
     logger.info(scanner.context_registry.print_tree())
 
-    # 执行扫描和注册
+    # Perform scanning and registration
     scanner.scan()
-    logger.info("✅ 依赖注入设置完成，共扫描 %d 个路径", total_paths)
+    logger.info(
+        "✅ Dependency injection setup completed, scanned %d paths in total",
+        total_paths,
+    )
 
     return scanner
 
 
 def print_registered_beans():
-    """打印所有已注册的Bean"""
-    logger.info("\n📋 已注册的Bean列表:")
+    """Print all registered Beans"""
+    logger.info("\n📋 Registered Bean list:")
     logger.info("-" * 50)
 
     all_beans = get_beans()
     for name, bean in all_beans.items():
         logger.info("  • %s: %s", name, type(bean).__name__)
 
-    logger.info("\n📊 总计: %d 个Bean", len(all_beans))
+    logger.info("\n📊 Total: %d Beans", len(all_beans))

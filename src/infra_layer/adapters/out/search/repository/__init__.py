@@ -1,7 +1,7 @@
 """
 Memory Search Repositories
 
-导出所有记忆搜索仓库（Elasticsearch 和 Milvus）
+Export all memory search repositories (Elasticsearch and Milvus)
 """
 
 from infra_layer.adapters.out.search.repository.episodic_memory_es_repository import (
@@ -23,4 +23,3 @@ __all__ = [
     "ForesightMilvusRepository",
     "EventLogMilvusRepository",
 ]
-

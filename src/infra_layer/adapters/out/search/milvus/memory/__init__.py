@@ -1,7 +1,7 @@
 """
 Milvus Memory Collections
 
-导出所有记忆类型的 Collection 定义
+Export Collection definitions for all memory types
 """
 
 from infra_layer.adapters.out.search.milvus.memory.episodic_memory_collection import (
@@ -14,9 +14,4 @@ from infra_layer.adapters.out.search.milvus.memory.event_log_collection import (
     EventLogCollection,
 )
 
-__all__ = [
-    "EpisodicMemoryCollection",
-    "ForesightCollection",
-    "EventLogCollection",
-]
-
+__all__ = ["EpisodicMemoryCollection", "ForesightCollection", "EventLogCollection"]

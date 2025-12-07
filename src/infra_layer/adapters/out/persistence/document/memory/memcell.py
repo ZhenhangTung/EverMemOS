@@ -1,7 +1,7 @@
 """
-MemCell Beanie ODM 模型
+MemCell Beanie ODM model
 
-基于 Beanie ODM 的 MemCell 数据模型定义，支持 MongoDB 分片集群。
+MemCell data model definition based on Beanie ODM, supporting MongoDB sharded clusters.
 """
 
 from datetime import datetime
@@ -17,25 +17,27 @@ from core.oxm.mongo.audit_base import AuditBase
 
 
 class DataTypeEnum(str, Enum):
-    """数据类型枚举"""
+    """Data type enumeration"""
 
     CONVERSATION = "Conversation"
 
 
 class Message(BaseModel):
-    """消息结构"""
+    """Message structure"""
 
-    content: str = Field(..., description="消息文本内容")
-    files: Optional[List[str]] = Field(default=None, description="文件链接列表")
-    extend: Optional[Dict[str, str]] = Field(default=None, description="扩展字段")
+    content: str = Field(..., description="Message text content")
+    files: Optional[List[str]] = Field(default=None, description="List of file links")
+    extend: Optional[Dict[str, str]] = Field(
+        default=None, description="Extended fields"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "content": "今天的会议讨论了新功能的设计方案",
+                "content": "Today's meeting discussed the design plan for the new feature",
                 "files": ["https://example.com/design_doc.pdf"],
                 "extend": {
-                    "sender": "张三",
+                    "sender": "Zhang San",
                     "message_id": "msg_001",
                     "platform": "WeChat",
                 },
@@ -45,18 +47,21 @@ class Message(BaseModel):
 
 
 class RawData(BaseModel):
-    """原始数据结构"""
+    """Raw data structure"""
 
-    data_type: DataTypeEnum = Field(..., description="数据类型枚举")
-    messages: List[Message] = Field(..., min_length=1, description="消息列表")
-    meta: Optional[Dict[str, str]] = Field(default=None, description="元数据")
+    data_type: DataTypeEnum = Field(..., description="Data type enumeration")
+    messages: List[Message] = Field(..., min_length=1, description="List of messages")
+    meta: Optional[Dict[str, str]] = Field(default=None, description="Metadata")
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "data_type": "Conversation",
                 "messages": [
-                    {"content": "团队讨论新功能", "extend": {"sender": "张三"}}
+                    {
+                        "content": "Team discussed new feature",
+                        "extend": {"sender": "Zhang San"},
+                    }
                 ],
                 "meta": {"chat_id": "chat_12345", "platform": "WeChat"},
             }
@@ -66,71 +71,79 @@ class RawData(BaseModel):
 
 class MemCell(DocumentBase, AuditBase):
     """
-    MemCell 文档模型
+    MemCell document model
 
-    情景切分之后的结果存储模型，支持灵活扩展和高性能查询。
+    Storage model for scene segmentation results, supporting flexible extension and high-performance queries.
     """
 
-    # 核心字段（必填）
+    # Core fields (required)
     user_id: Optional[Indexed(str)] = Field(
-        None, description="用户ID，核心查询字段。群组记忆时为None，个人记忆时为用户ID"
+        None,
+        description="User ID, core query field. None for group memory, user ID for personal memory",
     )
-    timestamp: Indexed(datetime) = Field(..., description="发生时间，分片键")
-    summary: str = Field(..., min_length=1, description="记忆单元摘要")
+    timestamp: Indexed(datetime) = Field(..., description="Occurrence time, shard key")
+    summary: str = Field(..., min_length=1, description="Memory unit summary")
 
-    # 可选字段
+    # Optional fields
     group_id: Optional[Indexed(str)] = Field(
-        default=None, description="群组ID，为空表示私聊"
+        default=None, description="Group ID, empty means private chat"
     )
-    original_data: Optional[List] = Field(default=None, description="原始信息")
+    original_data: Optional[List] = Field(
+        default=None, description="Original information"
+    )
     participants: Optional[List[str]] = Field(
-        default=None, description="事件参与者名字"
+        default=None, description="Names of event participants"
     )
-    type: Optional[DataTypeEnum] = Field(default=None, description="情景类型")
+    type: Optional[DataTypeEnum] = Field(default=None, description="Scenario type")
 
-    subject: Optional[str] = Field(default=None, description="记忆单元主题")
+    subject: Optional[str] = Field(default=None, description="Memory unit subject")
 
-    keywords: Optional[List[str]] = Field(default=None, description="关键词")
+    keywords: Optional[List[str]] = Field(default=None, description="Keywords")
     linked_entities: Optional[List[str]] = Field(
-        default=None, description="关联的实体ID"
+        default=None, description="Associated entity IDs"
     )
 
-    # 可能已经不用了
-    episode: Optional[str] = Field(default=None, description="情景记忆")
-    foresight_memories: Optional[List] = Field(default=None, description="前瞻")
-    event_log: Optional[Dict] = Field(default=None, description="Event Log 原子事实")
-    extend: Optional[Dict] = Field(default=None, description="扩展字段")
+    # Possibly unused
+    episode: Optional[str] = Field(default=None, description="Scenario memory")
+    foresight_memories: Optional[List] = Field(default=None, description="Foresight")
+    event_log: Optional[Dict] = Field(
+        default=None, description="Event Log atomic facts"
+    )
+    extend: Optional[Dict] = Field(default=None, description="Extended fields")
 
     model_config = ConfigDict(
-        # 集合名称
+        # Collection name
         collection="memcells",
-        # 验证配置
+        # Validation configuration
         validate_assignment=True,
-        # JSON 序列化配置
+        # JSON serialization configuration
         json_encoders={datetime: lambda dt: dt.isoformat()},
-        # 示例数据
+        # Example data
         json_schema_extra={
             "example": {
                 "user_id": "user_12345",
                 "group_id": "group_67890",
                 "timestamp": "2024-12-01T10:30:00.000Z",
-                "summary": "团队讨论新功能设计方案，获得积极反馈",
+                "summary": "Team discussed new feature design plan and received positive feedback",
                 "original_data": [
                     {
                         "data_type": "Conversation",
                         "messages": [
                             {
-                                "content": "今天的会议讨论了新功能的设计方案",
+                                "content": "Today's meeting discussed the design plan for the new feature",
                                 "files": ["https://example.com/design_doc.pdf"],
-                                "extend": {"sender": "张三", "message_id": "msg_001"},
+                                "extend": {
+                                    "sender": "Zhang San",
+                                    "message_id": "msg_001",
+                                },
                             }
                         ],
                         "meta": {"chat_id": "chat_12345", "platform": "WeChat"},
                     }
                 ],
-                "participants": ["张三", "李四", "王五"],
+                "participants": ["Zhang San", "Li Si", "Wang Wu"],
                 "type": "Conversation",
-                "keywords": ["新功能", "设计方案", "会议"],
+                "keywords": ["New feature", "Design plan", "Meeting"],
                 "linked_entities": ["project_001", "feature_002"],
             }
         },
@@ -141,31 +154,31 @@ class MemCell(DocumentBase, AuditBase):
         return self.id
 
     class Settings:
-        """Beanie 设置"""
+        """Beanie settings"""
 
-        # 集合名称
+        # Collection name
         name = "memcells"
 
-        # 索引定义
+        # Index definitions
         indexes = [
-            # 2. 用户查询复合索引 - 核心查询模式
+            # 2. Composite index for user queries - core query pattern
             IndexModel(
                 [("user_id", ASCENDING), ("timestamp", DESCENDING)],
                 name="idx_user_timestamp",
             ),
-            # 3. 群组查询复合索引 - 群聊场景优化
+            # 3. Composite index for group queries - optimized for group chat scenarios
             IndexModel(
                 [("group_id", ASCENDING), ("timestamp", DESCENDING)],
                 name="idx_group_timestamp",
             ),
-            # 4. 时间范围查询索引（分片键，MongoDB自动创建）
-            # 注意：分片键索引会自动创建，无需手动定义
+            # 4. Index for time range queries (shard key, automatically created by MongoDB)
+            # Note: Shard key index is automatically created, no need to define manually
             # IndexModel([("timestamp", ASCENDING)], name="idx_timestamp"),
-            # 5. 参与者查询索引 - 多值字段索引
+            # 5. Index for participant queries - indexing multi-value field
             IndexModel(
                 [("participants", ASCENDING)], name="idx_participants", sparse=True
             ),
-            # 6. 用户类型查询复合索引 - 用户数据类型过滤场景优化
+            # 6. Composite index for user-type queries - optimized for user data type filtering
             IndexModel(
                 [
                     ("user_id", ASCENDING),
@@ -174,7 +187,7 @@ class MemCell(DocumentBase, AuditBase):
                 ],
                 name="idx_user_type_timestamp",
             ),
-            # 7. 群组类型查询复合索引 - 群组数据类型过滤场景优化
+            # 7. Composite index for group-type queries - optimized for group data type filtering
             IndexModel(
                 [
                     ('group_id', ASCENDING),
@@ -185,10 +198,10 @@ class MemCell(DocumentBase, AuditBase):
             ),
         ]
 
-        # 验证设置
+        # Validation settings
         validate_on_save = True
         use_state_management = True
 
 
-# 导出模型
+# Export models
 __all__ = ["MemCell", "RawData", "Message", "DataTypeEnum"]

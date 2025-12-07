@@ -1,8 +1,8 @@
 """
-租户感知的 Milvus Collection
+Tenant-aware Milvus Collection
 
-本模块通过继承 pymilvus.Collection 并覆盖 _get_connection 方法来实现租户感知能力。
-核心思路：根据租户上下文动态返回正确的连接 handler。
+This module implements tenant awareness by inheriting from pymilvus.Collection and overriding the _get_connection method.
+Core idea: Dynamically return the correct connection handler based on tenant context.
 """
 
 from typing import Optional
@@ -27,32 +27,32 @@ logger = get_logger(__name__)
 
 class TenantAwareCollection(Collection):
     """
-    租户感知的 Milvus Collection
+    Tenant-aware Milvus Collection
 
-    通过继承 pymilvus.Collection 并覆盖 _get_connection 方法来实现租户感知。
-    核心功能：根据当前租户上下文，自动选择并返回正确的 Milvus 连接。
+    Implements tenant awareness by inheriting from pymilvus.Collection and overriding the _get_connection method.
+    Core functionality: Automatically selects and returns the correct Milvus connection based on the current tenant context.
 
-    核心特性：
-    1. 租户隔离：不同租户使用不同的 Milvus 连接（通过 using 别名区分）
-    2. 连接复用：相同配置的租户共享同一个连接（通过 cache_key 缓存）
-    3. 自动注册：首次访问时自动注册租户连接
-    4. 后备连接：非租户模式或无租户上下文时使用默认连接
+    Key features:
+    1. Tenant isolation: Different tenants use different Milvus connections (distinguished by using alias)
+    2. Connection reuse: Tenants with the same configuration share the same connection (cached via cache_key)
+    3. Automatic registration: Automatically registers tenant connection upon first access
+    4. Fallback connection: Uses default connection when not in tenant mode or without tenant context
 
-    使用方式：
-        >>> # 在 MilvusCollectionBase 中使用
+    Usage:
+        >>> # Used in MilvusCollectionBase
         >>> class MyCollectionBase(MilvusCollectionBase):
         ...     def load_collection(self) -> Collection:
-        ...         # 使用 TenantAwareCollection 替代原来的 Collection
+        ...         # Use TenantAwareCollection instead of the original Collection
         ...         return TenantAwareCollection(
         ...             name=self.name,
-        ...             using="default",  # using 参数会被忽略，实际使用租户连接
+        ...             using="default",  # using parameter will be ignored, actual tenant-aware connection is used
         ...             schema=self._SCHEMA,
         ...         )
 
-    注意事项：
-    - 传入的 using 参数会被忽略，实际使用的是租户感知的连接别名
-    - 第一次访问时会自动注册连接（通过 MilvusClientFactory）
-    - 连接别名和配置会缓存在 tenant_info_patch 中，避免重复计算
+    Notes:
+    - The passed using parameter will be ignored; the actual tenant-aware connection alias is used
+    - Connection is automatically registered upon first access (via MilvusClientFactory)
+    - Connection alias and configuration are cached in tenant_info_patch to avoid redundant computation
     """
 
     def __init__(
@@ -63,129 +63,131 @@ class TenantAwareCollection(Collection):
         **kwargs,
     ):
         """
-        初始化租户感知的 Collection
+        Initialize tenant-aware Collection
 
         Args:
-            name: Collection 名称
-            schema: Collection schema（可选）
-            using: 连接别名（会被忽略，实际使用租户感知的连接）
-            **kwargs: 其他参数（传递给父类）
+            name: Collection name
+            schema: Collection schema (optional)
+            using: Connection alias (will be ignored, actual tenant-aware connection is used)
+            **kwargs: Other parameters (passed to parent class)
 
-        注意：
-            - using 参数会被租户感知的连接别名覆盖
-            - 第一次访问时会自动确保租户连接已注册
-            - _original_name 保存原始的 name 值，供 property 使用
+        Note:
+            - The using parameter will be overridden by the tenant-aware connection alias
+            - Ensures tenant connection is registered upon first access
+            - _original_name stores the original name value for property usage
         """
-        # 保存原始的 name（在调用父类 __init__ 之前）
-        # 这样如果需要实现租户感知的表名，可以将 _name 改为 property
+        # Save the original name (before calling parent class __init__)
+        # This allows _name to be implemented as a property if tenant-aware table names are needed
         self._original_name = name
         self._original_using = using
 
-        # 调用父类构造函数（使用租户感知的 using）
-        # 父类会设置 self._name = name
+        # Call parent constructor (using tenant-aware using)
+        # Parent class will set self._name = name
         super().__init__(name=name, schema=schema, using=using, **kwargs)
 
-        logger.debug("创建 TenantAwareCollection [name=%s, using=%s]", name, using)
+        logger.debug("Creating TenantAwareCollection [name=%s, using=%s]", name, using)
 
     def _get_connection(self):
         """
-        覆盖父类方法，返回租户感知的连接
+        Override parent method to return tenant-aware connection
 
-        这是核心方法：每次需要访问 Milvus 时都会调用此方法获取连接。
-        我们在这里根据租户上下文动态返回正确的连接 handler。
+        This is the core method: called every time a Milvus connection is needed.
+        Here we dynamically return the correct connection handler based on tenant context.
 
         Returns:
-            Milvus 连接 handler
+            Milvus connection handler
 
-        注意：
-            - 此方法会在每次操作时被调用（search、insert、query 等）
-            - 我们重新获取租户 using 以支持跨请求的连接切换
+        Note:
+            - This method is called on every operation (search, insert, query, etc.)
+            - We re-fetch tenant using to support connection switching across requests
         """
-        # 动态获取当前租户的连接别名（支持跨请求切换）
+        # Dynamically get current tenant's connection alias (supports switching across requests)
         tenant_using = self._get_tenant_aware_using()
 
-        # 确保连接已注册
+        # Ensure connection is registered
         self._ensure_connection_registered(tenant_using)
 
-        # 返回对应的连接 handler
+        # Return corresponding connection handler
         return connections._fetch_handler(tenant_using)
 
     @staticmethod
     def _get_tenant_aware_using() -> str:
         """
-        获取租户感知的连接别名
+        Get tenant-aware connection alias
 
-        根据配置和上下文决定返回哪个连接别名：
-        1. 如果启用非租户模式，返回 "default"
-        2. 如果启用租户模式，根据当前租户配置返回对应的连接别名
-        3. 如果租户模式下没有租户上下文，返回 "default"
+        Determines which connection alias to return based on configuration and context:
+        1. If non-tenant mode is enabled, return "default"
+        2. If tenant mode is enabled, return the corresponding connection alias based on current tenant configuration
+        3. If no tenant context exists under tenant mode, return "default"
 
         Returns:
-            str: pymilvus 连接别名（using）
+            str: pymilvus connection alias (using)
         """
 
         def compute_using() -> str:
-            """计算租户连接别名"""
-            # 从租户配置中获取 Milvus 配置
+            """Compute tenant connection alias"""
+            # Get Milvus configuration from tenant config
             milvus_config = get_tenant_milvus_config()
             if not milvus_config:
-                raise RuntimeError("租户缺少 Milvus 配置")
+                raise RuntimeError("Tenant missing Milvus configuration")
 
-            # 基于连接参数生成唯一的连接别名
+            # Generate unique connection alias based on connection parameters
             cache_key = get_milvus_connection_cache_key(milvus_config)
             return f"tenant_{cache_key}"
 
         return get_or_compute_tenant_cache(
             patch_key=TenantPatchKey.MILVUS_CONNECTION_CACHE_KEY,
             compute_func=compute_using,
-            fallback="default",  # 具体值，不需要延迟计算
-            cache_description="Milvus 连接别名",
+            fallback="default",  # Concrete value, no need for lazy evaluation
+            cache_description="Milvus connection alias",
         )
 
     @staticmethod
     def _ensure_connection_registered(using: str) -> None:
         """
-        确保指定的连接别名已注册
+        Ensure the specified connection alias is registered
 
-        如果连接尚未注册，会自动注册连接（通过 MilvusClientFactory）。
+        If the connection is not yet registered, it will be automatically registered (via MilvusClientFactory).
 
         Args:
-            using: 连接别名
+            using: Connection alias
 
-        注意：
-            - 对于 "default" 连接，假设已经在应用启动时注册
-            - 对于租户连接（tenant_*），如果未注册则自动注册
+        Note:
+            - For "default" connection, assume it's already registered at application startup
+            - For tenant connections (tenant_*), register automatically if not already registered
         """
-        # 检查连接是否已存在
+        # Check if connection already exists
         try:
             connections._fetch_handler(using)
-            # 连接已存在，直接返回
+            # Connection exists, return directly
             return
         except Exception:
-            # 连接不存在，需要注册
+            # Connection does not exist, needs registration
             pass
 
-        # 如果是默认连接，尝试从环境变量注册
+        # If it's the default connection, try to register from environment variables
         if using == "default":
-            logger.info("📋 注册默认 Milvus 连接")
+            logger.info("📋 Registering default Milvus connection")
             config = load_milvus_config_from_env()
             TenantAwareCollection._register_connection(config, using)
             return
 
-        # 租户连接：从租户配置注册
+        # Tenant connection: register from tenant configuration
         try:
             tenant_info = get_current_tenant()
             if not tenant_info:
-                raise RuntimeError("无法注册租户连接：未设置租户上下文")
+                raise RuntimeError(
+                    "Cannot register tenant connection: tenant context not set"
+                )
 
             milvus_config = get_tenant_milvus_config()
             if not milvus_config:
                 raise RuntimeError(
-                    f"无法注册租户连接：租户 {tenant_info.tenant_id} 缺少 Milvus 配置"
+                    f"Cannot register tenant connection: tenant {tenant_info.tenant_id} missing Milvus configuration"
                 )
 
             logger.info(
-                "📋 为租户 [%s] 注册 Milvus 连接 [using=%s]",
+                "📋 Registering Milvus connection for tenant [%s] [using=%s]",
                 tenant_info.tenant_id,
                 using,
             )
@@ -193,36 +195,38 @@ class TenantAwareCollection(Collection):
             TenantAwareCollection._register_connection(milvus_config, using)
 
         except Exception as e:
-            logger.error("注册租户连接失败 [using=%s]: %s", using, e)
+            logger.error(
+                "Failed to register tenant connection [using=%s]: %s", using, e
+            )
             raise
 
     @staticmethod
     def _register_connection(config: dict, using: str) -> None:
         """
-        注册 Milvus 连接
+        Register Milvus connection
 
         Args:
-            config: Milvus 连接配置
-            using: 连接别名
+            config: Milvus connection configuration
+            using: Connection alias
 
-        注意：
-            - 使用 MilvusClientFactory 来创建连接
-            - 这样可以复用现有的连接池管理逻辑
+        Note:
+            - Use MilvusClientFactory to create the connection
+            - This reuses existing connection pool management logic
         """
         try:
-            # 通过 MilvusClientFactory 创建连接
-            # 这样可以复用现有的连接池管理
+            # Create connection via MilvusClientFactory
+            # This reuses existing connection pool management
             factory = get_bean_by_type(MilvusClientFactory)
 
-            # 构建 URI
+            # Build URI
             host = config.get("host", "localhost")
             port = config.get("port", 19530)
             uri = (
                 f"{host}:{port}" if host.startswith("http") else f"http://{host}:{port}"
             )
 
-            # 创建客户端（这会自动注册连接）
-            # 注意：不传递 db_name，租户隔离通过 Collection 名称实现
+            # Create client (this automatically registers the connection)
+            # Note: Do not pass db_name, tenant isolation is achieved through Collection name
             factory.get_client(
                 uri=uri,
                 user=config.get("user", ""),
@@ -231,67 +235,72 @@ class TenantAwareCollection(Collection):
             )
 
             logger.info(
-                "✅ Milvus 连接已注册 [using=%s, host=%s, port=%s]", using, host, port
+                "✅ Milvus connection registered [using=%s, host=%s, port=%s]",
+                using,
+                host,
+                port,
             )
 
         except Exception as e:
-            logger.error("注册 Milvus 连接失败 [using=%s]: %s", using, e)
+            logger.error(
+                "Failed to register Milvus connection [using=%s]: %s", using, e
+            )
             raise
 
     # ============================================================
-    # 租户感知的表名支持（可选功能）
+    # Tenant-aware table name support (optional feature)
     # ============================================================
-    # 如果需要支持租户感知的表名，可以取消下面的 @property 注释。
-    # 这样不同租户会使用不同的表名，实现表级别的隔离。
+    # Uncomment the @property below if tenant-aware table names are needed.
+    # This way, different tenants will use different table names, achieving table-level isolation.
     #
-    # 注意：启用此功能后，需要确保：
-    # 1. 每个租户都有独立的表
-    # 2. 表名符合 Milvus 的命名规范
-    # 3. 考虑表名长度限制
+    # Note: After enabling this feature, ensure:
+    # 1. Each tenant has an independent table
+    # 2. Table names comply with Milvus naming conventions
+    # 3. Consider table name length limits
     #
     @property
     def _name(self) -> str:
         """
-        租户感知的表名
+        Tenant-aware table name
 
-        覆盖父类的 _name 属性，为表名添加租户标识。
+        Override parent class _name attribute to add tenant identifier to table name.
 
-        示例：
-            原始表名: "my_collection"
-            租户 A: "tenant_001_my_collection"
-            租户 B: "tenant_002_my_collection"
+        Example:
+            Original table name: "my_collection"
+            Tenant A: "tenant_001_my_collection"
+            Tenant B: "tenant_002_my_collection"
 
         Returns:
-            str: 租户感知的表名
+            str: Tenant-aware table name
         """
         return self.get_tenant_aware_name(self._original_name)
 
     @classmethod
     def get_tenant_aware_name(cls, original_name: str) -> str:
         """
-        获取租户感知的表名
+        Get tenant-aware table name
         """
         return get_tenant_aware_collection_name(original_name)
 
     @_name.setter
     def _name(self, value: str) -> None:
         """
-        设置表名（setter）
+        Set table name (setter)
 
-        pymilvus 的父类 Collection 可能会尝试设置 _name 属性。
-        我们在这里捕获设置操作，更新 _original_name。
+        The parent class Collection in pymilvus may attempt to set the _name attribute.
+        Here we capture the set operation and update _original_name.
 
         Args:
-            value: 要设置的表名
+            value: Table name to be set
         """
-        # 更新原始表名
-        # 注意：这里我们存储原始值，而不是租户感知的值
-        # 因为 getter 会自动添加租户前缀
+        # Update original table name
+        # Note: We store the original value, not the tenant-aware value
+        # Because the getter will automatically add the tenant prefix
         self._original_name = value
 
     @property
     def using(self) -> str:
         """
-        获取租户感知的连接别名
+        Get tenant-aware connection alias
         """
         return self._get_tenant_aware_using()

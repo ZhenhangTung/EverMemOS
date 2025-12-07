@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-事件监听器模块
+Event listener module
 
-提供事件监听器的抽象基类，支持声明式地注册要监听的事件类型。
-业务监听器应该继承此基类，并实现 `get_event_types` 和 `on_event` 方法。
+Provides an abstract base class for event listeners, supporting declarative registration of event types to listen for.
+Business listeners should inherit from this base class and implement the `get_event_types` and `on_event` methods.
 """
 
 from abc import ABC, abstractmethod
@@ -14,14 +14,14 @@ from core.events.base_event import BaseEvent
 
 class EventListener(ABC):
     """
-    事件监听器抽象基类
+    Abstract base class for event listeners
 
-    业务监听器应该继承此类，并实现以下方法：
-    - `get_event_types()`: 返回要监听的事件类型列表
-    - `on_event(event)`: 处理事件的具体逻辑（异步方法）
+    Business listeners should inherit from this class and implement the following methods:
+    - `get_event_types()`: Returns a list of event types to listen for
+    - `on_event(event)`: Handles the event-specific logic (asynchronous method)
 
-    监听器会被 ApplicationEventPublisher 自动发现和注册。
-    建议使用 @component 或 @service 装饰器将监听器注册到 DI 容器。
+    Listeners will be automatically discovered and registered by ApplicationEventPublisher.
+    It is recommended to use the @component or @service decorator to register the listener into the DI container.
 
     Example:
         >>> from core.di import component
@@ -41,13 +41,13 @@ class EventListener(ABC):
     @abstractmethod
     def get_event_types(self) -> List[Type[BaseEvent]]:
         """
-        获取要监听的事件类型列表
+        Get the list of event types to listen for
 
-        返回此监听器关心的事件类型列表。当这些类型的事件被发布时，
-        监听器的 `on_event` 方法会被调用。
+        Returns a list of event types that this listener is interested in. When events of these types are published,
+        the listener's `on_event` method will be called.
 
         Returns:
-            List[Type[BaseEvent]]: 要监听的事件类型列表
+            List[Type[BaseEvent]]: List of event types to listen for
 
         Example:
             >>> def get_event_types(self) -> List[Type[BaseEvent]]:
@@ -58,39 +58,39 @@ class EventListener(ABC):
     @abstractmethod
     async def on_event(self, event: BaseEvent) -> None:
         """
-        处理事件
+        Handle the event
 
-        当监听的事件被发布时，此方法会被异步调用。
-        实现此方法来处理具体的业务逻辑。
+        This method is called asynchronously when a listened event is published.
+        Implement this method to handle specific business logic.
 
-        注意：
-        - 此方法是异步的，可以执行 IO 操作
-        - 多个监听器会并发执行，互不阻塞
-        - 建议在此方法内部捕获异常，避免影响其他监听器
+        Note:
+        - This method is asynchronous and can perform IO operations
+        - Multiple listeners execute concurrently without blocking each other
+        - It is recommended to catch exceptions within this method to avoid affecting other listeners
 
         Args:
-            event: 接收到的事件对象
+            event: The received event object
         """
         pass
 
     def get_listener_name(self) -> str:
         """
-        获取监听器名称
+        Get the listener name
 
-        默认返回类名。子类可重写此方法来自定义名称。
+        Returns the class name by default. Subclasses can override this method to customize the name.
 
         Returns:
-            str: 监听器名称
+            str: Listener name
         """
         return self.__class__.__name__
 
     def get_event_type_set(self) -> Set[Type[BaseEvent]]:
         """
-        获取要监听的事件类型集合（内部使用）
+        Get the set of event types to listen for (for internal use)
 
-        返回事件类型的集合，用于快速查找。
+        Returns a set of event types for fast lookup.
 
         Returns:
-            Set[Type[BaseEvent]]: 事件类型集合
+            Set[Type[BaseEvent]]: Set of event types
         """
         return set(self.get_event_types())

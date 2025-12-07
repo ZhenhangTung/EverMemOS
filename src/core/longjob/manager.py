@@ -1,6 +1,6 @@
 """
 Long job manager implementation.
-长任务管理器实现。
+Long job manager implementation.
 """
 
 import asyncio
@@ -16,16 +16,16 @@ import os
 @service(name="long_job_manager", primary=True)
 class LongJobManager:
     """
-    长任务管理器
-    负责管理多个长任务的启动、停止、监控等功能
+    Long job manager
+    Responsible for managing multiple long-running tasks including starting, stopping, and monitoring functions
     """
 
     def __init__(self):
         """
-        初始化长任务管理器
-        从环境变量读取配置
+        Initialize the long job manager
+        Read configuration from environment variables
         """
-        # 从环境变量读取配置
+        # Read configuration from environment variables
         self.max_concurrent_jobs = int(os.getenv('LONGJOB_MAX_CONCURRENT_JOBS', '10'))
         self.auto_discover = (
             os.getenv('LONGJOB_AUTO_DISCOVER', 'true').lower() == 'true'
@@ -52,19 +52,19 @@ class LongJobManager:
 
         self.logger = logging.getLogger(__name__)
 
-        # 设置日志级别
+        # Set log level
         if hasattr(logging, self.log_level):
             self.logger.setLevel(getattr(logging, self.log_level))
 
-        # 任务存储
+        # Task storage
         self._jobs: Dict[str, LongJobInterface] = {}
         self._job_tasks: Dict[str, asyncio.Task] = {}
 
-        # 管理器状态
+        # Manager state
         self._is_shutdown = False
         self._shutdown_event = asyncio.Event()
 
-        # 统计信息
+        # Statistics
         self.stats = {
             'total_jobs_started': 0,
             'total_jobs_stopped': 0,
@@ -77,18 +77,18 @@ class LongJobManager:
             self.max_concurrent_jobs,
         )
 
-        # 自动发现标志
+        # Auto-discovery flag
         self._auto_discovered = False
 
     def _parse_job_list(self, job_list_str: str) -> List[str]:
         """
-        解析任务列表字符串
+        Parse job list string
 
         Args:
-            job_list_str: 逗号分隔的任务ID字符串
+            job_list_str: Comma-separated job ID string
 
         Returns:
-            List[str]: 任务ID列表
+            List[str]: List of job IDs
         """
         if not job_list_str:
             return []
@@ -96,13 +96,13 @@ class LongJobManager:
 
     def should_start_job(self, job_id: str) -> bool:
         """
-        判断是否应该启动指定的任务
+        Determine whether to start the specified job
 
         Args:
-            job_id: 任务ID
+            job_id: Job ID
 
         Returns:
-            bool: 是否应该启动
+            bool: Whether to start the job
         """
         if self.auto_start_mode == 'none':
             return False
@@ -117,13 +117,13 @@ class LongJobManager:
 
     async def add_job(self, job: LongJobInterface) -> bool:
         """
-        添加一个长任务到管理器
+        Add a long-running job to the manager
 
         Args:
-            job: 要添加的长任务实例
+            job: Long-running job instance to add
 
         Returns:
-            bool: 是否添加成功
+            bool: Whether the addition was successful
         """
         if self._is_shutdown:
             self.logger.warning(
@@ -149,10 +149,10 @@ class LongJobManager:
 
     async def discover_and_add_jobs(self) -> Dict[str, bool]:
         """
-        自动发现并添加所有 LongJobInterface 实现
+        Automatically discover and add all LongJobInterface implementations
 
         Returns:
-            Dict[str, bool]: 每个任务的添加结果
+            Dict[str, bool]: Addition results for each job
         """
         if self._auto_discovered:
             self.logger.info("Jobs already auto-discovered, skipping")
@@ -161,12 +161,12 @@ class LongJobManager:
         self.logger.info("Starting auto-discovery of LongJobInterface implementations")
 
         try:
-            # 从 DI 容器中获取所有 LongJobInterface 实现
+            # Get all LongJobInterface implementations from DI container
             job_implementations = get_beans_by_type(LongJobInterface)
 
             results = {}
             for job in job_implementations:
-                # 跳过 LongJobManager 自身
+                # Skip LongJobManager itself
                 if isinstance(job, LongJobManager):
                     continue
 
@@ -205,13 +205,13 @@ class LongJobManager:
         self, auto_discover: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
-        默认启动流程：自动发现并启动环境变量配置允许的长任务
+        Default startup process: automatically discover and start long-running jobs allowed by environment variable configuration
 
         Args:
-            auto_discover: 是否自动发现任务（None则使用环境变量设置）
+            auto_discover: Whether to automatically discover jobs (None uses environment variable setting)
 
         Returns:
-            Dict[str, Any]: 启动结果统计
+            Dict[str, Any]: Startup result statistics
         """
         if self.log_startup_details:
             config_info = {
@@ -238,7 +238,7 @@ class LongJobManager:
         }
 
         try:
-            # 自动发现任务
+            # Automatically discover jobs
             should_auto_discover = (
                 auto_discover if auto_discover is not None else self.auto_discover
             )
@@ -247,7 +247,7 @@ class LongJobManager:
                 results['discovered_jobs'] = discovered
                 results['total_discovered'] = len(discovered)
 
-            # 根据环境变量配置过滤要启动的任务
+            # Filter jobs to start based on environment variable configuration
             jobs_to_start = {}
             for job_id, job in self._jobs.items():
                 if self.should_start_job(job_id):
@@ -259,7 +259,7 @@ class LongJobManager:
 
             results['total_filtered'] = len(results['filtered_jobs'])
 
-            # 启动过滤后的任务
+            # Start filtered jobs
             if jobs_to_start:
                 started = {}
                 for job_id in jobs_to_start:
@@ -303,13 +303,13 @@ class LongJobManager:
 
     async def start_job(self, job_id: str) -> bool:
         """
-        启动指定的长任务
+        Start the specified long-running job
 
         Args:
-            job_id: 任务ID
+            job_id: Job ID
 
         Returns:
-            bool: 是否启动成功
+            bool: Whether the start was successful
         """
         if self._is_shutdown:
             self.logger.warning("Cannot start job %s: manager is shutting down", job_id)
@@ -326,7 +326,7 @@ class LongJobManager:
             return False
 
         try:
-            # 创建任务并启动
+            # Create task and start
             task = asyncio.create_task(self._run_job_with_monitoring(job))
             self._job_tasks[job_id] = task
 
@@ -345,15 +345,15 @@ class LongJobManager:
         self, job_id: str, timeout: float = 30.0, wait_for_current_task: bool = True
     ) -> bool:
         """
-        停止指定的长任务
+        Stop the specified long-running job
 
         Args:
-            job_id: 任务ID
-            timeout: 停止超时时间（秒）
-            wait_for_current_task: 是否等待当前任务完成
+            job_id: Job ID
+            timeout: Stop timeout in seconds
+            wait_for_current_task: Whether to wait for current task to complete
 
         Returns:
-            bool: 是否停止成功
+            bool: Whether the stop was successful
         """
         if job_id not in self._jobs:
             self.logger.error("Job %s not found in manager", job_id)
@@ -366,7 +366,7 @@ class LongJobManager:
             return True
 
         try:
-            # 停止任务（支持优雅停机）
+            # Stop job (supports graceful shutdown)
             if (
                 hasattr(job, 'shutdown')
                 and 'wait_for_current_task' in job.shutdown.__code__.co_varnames
@@ -375,12 +375,12 @@ class LongJobManager:
                     job.shutdown(
                         timeout=timeout, wait_for_current_task=wait_for_current_task
                     ),
-                    timeout=timeout + 5.0,  # 给一点额外时间
+                    timeout=timeout + 5.0,  # Allow some extra time
                 )
             else:
                 await asyncio.wait_for(job.shutdown(), timeout=timeout)
 
-            # 等待任务完成
+            # Wait for task to complete
             if job_id in self._job_tasks:
                 task = self._job_tasks[job_id]
                 if not task.done():
@@ -410,13 +410,13 @@ class LongJobManager:
 
     async def remove_job(self, job_id: str) -> bool:
         """
-        从管理器中移除指定的长任务
+        Remove the specified long-running job from the manager
 
         Args:
-            job_id: 任务ID
+            job_id: Job ID
 
         Returns:
-            bool: 是否移除成功
+            bool: Whether the removal was successful
         """
         if job_id not in self._jobs:
             self.logger.error("Job %s not found in manager", job_id)
@@ -424,24 +424,24 @@ class LongJobManager:
 
         job = self._jobs[job_id]
 
-        # 如果任务正在运行，先停止它
+        # If job is running, stop it first
         if job.is_running():
             success = await self.stop_job(job_id)
             if not success:
                 self.logger.error("Failed to stop job %s before removal", job_id)
                 return False
 
-        # 移除任务
+        # Remove job
         del self._jobs[job_id]
         self.logger.info("Job %s removed from manager", job_id)
         return True
 
     async def start_all_jobs(self) -> Dict[str, bool]:
         """
-        启动所有未运行的任务
+        Start all non-running jobs
 
         Returns:
-            Dict[str, bool]: 每个任务的启动结果
+            Dict[str, bool]: Start results for each job
         """
         results = {}
 
@@ -449,23 +449,23 @@ class LongJobManager:
             if not job.is_running():
                 results[job_id] = await self.start_job(job_id)
             else:
-                results[job_id] = True  # 已经在运行
+                results[job_id] = True  # Already running
 
         return results
 
     async def stop_all_jobs(self, timeout: float = 30.0) -> Dict[str, bool]:
         """
-        停止所有运行中的任务
+        Stop all running jobs
 
         Args:
-            timeout: 每个任务的停止超时时间（秒）
+            timeout: Stop timeout per job in seconds
 
         Returns:
-            Dict[str, bool]: 每个任务的停止结果
+            Dict[str, bool]: Stop results for each job
         """
         results = {}
 
-        # 并发停止所有任务
+        # Concurrently stop all jobs
         stop_tasks = []
         running_jobs = []
 
@@ -474,7 +474,7 @@ class LongJobManager:
                 stop_tasks.append(self.stop_job(job_id, timeout))
                 running_jobs.append(job_id)
             else:
-                results[job_id] = True  # 已经停止
+                results[job_id] = True  # Already stopped
 
         if stop_tasks:
             stop_results = await asyncio.gather(*stop_tasks, return_exceptions=True)
@@ -492,10 +492,10 @@ class LongJobManager:
 
     async def shutdown(self, timeout: float = 60.0) -> None:
         """
-        关闭管理器，停止所有任务
+        Shut down the manager and stop all jobs
 
         Args:
-            timeout: 总的关闭超时时间（秒）
+            timeout: Total shutdown timeout in seconds
         """
         if self._is_shutdown:
             self.logger.warning("Manager is already shutting down")
@@ -505,7 +505,7 @@ class LongJobManager:
         self._is_shutdown = True
 
         try:
-            # 停止所有任务
+            # Stop all jobs
             await asyncio.wait_for(
                 self.stop_all_jobs(timeout=timeout / 2), timeout=timeout
             )
@@ -521,13 +521,13 @@ class LongJobManager:
             )
 
         finally:
-            # 取消所有剩余的任务
+            # Cancel all remaining tasks
             for job_id, task in self._job_tasks.items():
                 if not task.done():
                     self.logger.warning("Cancelling task for job %s", job_id)
                     task.cancel()
 
-            # 等待所有任务取消完成
+            # Wait for all tasks to finish cancellation
             if self._job_tasks:
                 await asyncio.gather(*self._job_tasks.values(), return_exceptions=True)
 
@@ -538,13 +538,13 @@ class LongJobManager:
 
     def get_job_status(self, job_id: str) -> Optional[LongJobStatus]:
         """
-        获取指定任务的状态
+        Get the status of the specified job
 
         Args:
-            job_id: 任务ID
+            job_id: Job ID
 
         Returns:
-            Optional[LongJobStatus]: 任务状态，如果任务不存在返回None
+            Optional[LongJobStatus]: Job status, returns None if job does not exist
         """
         if job_id not in self._jobs:
             return None
@@ -553,38 +553,38 @@ class LongJobManager:
 
     def get_all_jobs_status(self) -> Dict[str, LongJobStatus]:
         """
-        获取所有任务的状态
+        Get the status of all jobs
 
         Returns:
-            Dict[str, LongJobStatus]: 任务ID到状态的映射
+            Dict[str, LongJobStatus]: Mapping from job ID to status
         """
         return {job_id: job.get_status() for job_id, job in self._jobs.items()}
 
     def get_running_jobs(self) -> List[str]:
         """
-        获取所有运行中的任务ID列表
+        Get a list of all running job IDs
 
         Returns:
-            List[str]: 运行中的任务ID列表
+            List[str]: List of running job IDs
         """
         return [job_id for job_id, job in self._jobs.items() if job.is_running()]
 
     def get_job_stats(self, job_id: str) -> Optional[Dict[str, Any]]:
         """
-        获取指定任务的统计信息
+        Get statistics for the specified job
 
         Args:
-            job_id: 任务ID
+            job_id: Job ID
 
         Returns:
-            Optional[Dict[str, Any]]: 任务统计信息，如果任务不存在或不支持统计返回None
+            Optional[Dict[str, Any]]: Job statistics, returns None if job does not exist or does not support statistics
         """
         if job_id not in self._jobs:
             return None
 
         job = self._jobs[job_id]
 
-        # 检查任务是否支持统计信息
+        # Check if job supports statistics
         if hasattr(job, 'get_stats'):
             return job.get_stats()
 
@@ -596,10 +596,10 @@ class LongJobManager:
 
     def get_manager_stats(self) -> Dict[str, Any]:
         """
-        获取管理器统计信息
+        Get manager statistics
 
         Returns:
-            Dict[str, Any]: 管理器统计信息
+            Dict[str, Any]: Manager statistics
         """
         stats = self.stats.copy()
         stats.update(
@@ -617,24 +617,24 @@ class LongJobManager:
 
     async def _run_job_with_monitoring(self, job: LongJobInterface) -> None:
         """
-        运行任务并进行监控
+        Run job with monitoring
 
         Args:
-            job: 要运行的任务
+            job: Job to run
         """
         job_id = job.job_id
 
         try:
             self.logger.info("Starting monitoring for job %s", job_id)
 
-            # 启动任务
+            # Start job
             await job.start()
 
-            # 监控任务状态，直到任务停止或管理器关闭
+            # Monitor job status until job stops or manager shuts down
             while not self._is_shutdown and job.is_running():
                 await asyncio.sleep(1.0)
 
-            # 如果管理器正在关闭，确保任务也停止
+            # If manager is shutting down, ensure job also stops
             if self._is_shutdown and job.is_running():
                 self.logger.info("Shutting down job %s due to manager shutdown", job_id)
                 await job.shutdown()
@@ -643,7 +643,7 @@ class LongJobManager:
             self.stats['total_jobs_failed'] += 1
             self.logger.error("Job %s failed: %s", job_id, str(e), exc_info=True)
 
-            # 尝试清理任务
+            # Attempt to clean up job
             try:
                 if job.is_running():
                     await job.shutdown()
@@ -659,9 +659,9 @@ class LongJobManager:
             self.logger.info("Monitoring ended for job %s", job_id)
 
     def __len__(self) -> int:
-        """返回管理器中的任务数量"""
+        """Return the number of jobs in the manager"""
         return len(self._jobs)
 
     def __contains__(self, job_id: str) -> bool:
-        """检查任务是否存在于管理器中"""
+        """Check if job exists in the manager"""
         return job_id in self._jobs

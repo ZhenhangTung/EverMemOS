@@ -117,11 +117,11 @@ def main():
         if args.command == "new-migration":
             try:
                 filepath = manager.create_migration(args.name)
-                logger.info("🎉 迁移文件创建成功!")
-                logger.info(f"📝 请编辑文件: {filepath}")
+                logger.info("🎉 Migration file created successfully!")
+                logger.info(f"📝 Please edit file: {filepath}")
 
             except Exception as e:
-                logger.error(f"❌ 创建迁移失败: {e}")
+                logger.error(f"❌ Failed to create migration: {e}")
                 sys.exit(1)
 
         elif args.command == "migrate":
@@ -129,18 +129,18 @@ def main():
             exit_code = manager.run_migration()
 
             if exit_code == 0:
-                logger.info("🎉 迁移执行完成!")
+                logger.info("🎉 Migration execution completed!")
             else:
-                logger.error("❌ 迁移执行失败!")
+                logger.error("❌ Migration execution failed!")
                 sys.exit(exit_code)
 
         else:
-            logger.error(f"❌ 未知命令: {sys.argv[1]}")
+            logger.error(f"❌ Unknown command: {sys.argv[1]}")
             show_help()
             sys.exit(1)
 
     except Exception as e:
-        logger.error(f"❌ 错误: {e}")
+        logger.error(f"❌ Error: {e}")
         sys.exit(1)
 
 

@@ -1,9 +1,9 @@
 """
-事件日志 Milvus 仓库
+Event Log Milvus Repository
 
-基于 BaseMilvusRepository 的事件日志专用仓库类，提供高效的向量存储和检索功能。
-主要功能包括向量存储、相似性搜索、过滤查询和文档管理。
-支持个人和群组事件日志。
+A dedicated repository class for event logs based on BaseMilvusRepository, providing efficient vector storage and retrieval capabilities.
+Key features include vector storage, similarity search, filtered queries, and document management.
+Supports both personal and group event logs.
 """
 
 from datetime import datetime
@@ -23,22 +23,22 @@ logger = get_logger(__name__)
 @repository("event_log_milvus_repository", primary=False)
 class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
     """
-    事件日志 Milvus 仓库
+    Event Log Milvus Repository
 
-    基于 BaseMilvusRepository 的专用仓库类，提供：
-    - 高效的向量存储和检索
-    - 相似性搜索和过滤功能
-    - 文档创建和管理
-    - 向量索引管理
+    A dedicated repository class based on BaseMilvusRepository, providing:
+    - Efficient vector storage and retrieval
+    - Similarity search and filtering capabilities
+    - Document creation and management
+    - Vector index management
 
-    同时支持个人和群组事件日志。
+    Supports both personal and group event logs.
     """
 
     def __init__(self):
-        """初始化事件日志仓库"""
+        """Initialize the event log repository"""
         super().__init__(EventLogCollection)
 
-    # ==================== 文档创建和管理 ====================
+    # ==================== Document Creation and Management ====================
 
     async def create_and_save_event_log(
         self,
@@ -58,43 +58,43 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
         updated_at: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
-        创建并保存事件日志文档
+        Create and save an event log document
 
         Args:
-            id: 事件日志唯一标识
-            user_id: 用户ID（必需）
-            atomic_fact: 原子事实内容（必需）
-            parent_episode_id: 父情景记忆ID（必需）
-            timestamp: 事件发生时间（必需）
-            vector: 文本向量（必需，维度必须为VECTORIZE_DIMENSIONS）
-            group_id: 群组ID
-            participants: 相关参与者列表
-            event_type: 事件类型（如 Conversation, Email 等）
-            search_content: 搜索内容列表
-            extend: 扩展字段
-            vector_model: 向量化模型
-            created_at: 创建时间
-            updated_at: 更新时间
+            id: Unique identifier for the event log
+            user_id: User ID (required)
+            atomic_fact: Atomic fact content (required)
+            parent_episode_id: Parent episode memory ID (required)
+            timestamp: Event occurrence time (required)
+            vector: Text vector (required, dimension must be VECTORIZE_DIMENSIONS)
+            group_id: Group ID
+            participants: List of related participants
+            event_type: Event type (e.g., Conversation, Email, etc.)
+            search_content: List of searchable content
+            extend: Extension fields
+            vector_model: Vectorization model
+            created_at: Creation time
+            updated_at: Update time
 
         Returns:
-            已保存的文档信息
+            Information of the saved document
         """
         try:
-            # 设置默认时间戳
+            # Set default timestamps
             now = get_now_with_timezone()
             if created_at is None:
                 created_at = now
             if updated_at is None:
                 updated_at = now
 
-            # 构建搜索内容
+            # Build search content
             if search_content is None:
                 search_content = [atomic_fact]
 
-            # 准备元数据
+            # Prepare metadata
             metadata = {"vector_model": vector_model or "", "extend": extend or {}}
 
-            # 准备实体数据
+            # Prepare entity data
             entity = {
                 "id": id,
                 "vector": vector,
@@ -111,10 +111,14 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
                 "updated_at": int(updated_at.timestamp()),
             }
 
-            # 插入数据
+            # Insert data
             await self.insert(entity)
 
-            logger.debug("✅ 创建事件日志文档成功: id=%s, user_id=%s", id, user_id)
+            logger.debug(
+                "✅ Successfully created event log document: id=%s, user_id=%s",
+                id,
+                user_id,
+            )
 
             return {
                 "id": id,
@@ -127,10 +131,12 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
             }
 
         except Exception as e:
-            logger.error("❌ 创建事件日志文档失败: id=%s, error=%s", id, e)
+            logger.error(
+                "❌ Failed to create event log document: id=%s, error=%s", id, e
+            )
             raise
 
-    # ==================== 搜索功能 ====================
+    # ==================== Search Functionality ====================
 
     async def vector_search(
         self,
@@ -147,31 +153,31 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
         participant_user_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        向量相似性搜索
+        Vector similarity search
 
         Args:
-            query_vector: 查询向量
-            user_id: 用户ID过滤
-            group_id: 群组ID过滤
-            parent_episode_id: 父情景记忆ID过滤
-            event_type: 事件类型过滤
-            start_time: 事件时间戳开始过滤
-            end_time: 事件时间戳结束过滤
-            limit: 返回结果数量
-            score_threshold: 相似度阈值
-            participant_user_id: 群组检索时额外要求参与者包含该用户
+            query_vector: Query vector
+            user_id: User ID filter
+            group_id: Group ID filter
+            parent_episode_id: Parent episode memory ID filter
+            event_type: Event type filter
+            start_time: Start timestamp filter
+            end_time: End timestamp filter
+            limit: Number of results to return
+            score_threshold: Similarity score threshold
+            participant_user_id: For group retrieval, additionally require this user to be in participants
 
         Returns:
-            搜索结果列表
+            List of search results
         """
         try:
-            # 构建过滤表达式
+            # Build filter expression
             filter_expr = []
 
             if user_id:
                 filter_expr.append(f'user_id == "{user_id}"')
             else:
-                # 如果没有传 user_id,则过滤所有非空 user_id
+                # If user_id is not provided, filter all non-empty user_id
                 filter_expr.append('user_id == ""')
             if group_id:
                 filter_expr.append(f'group_id == "{group_id}"')
@@ -197,19 +203,19 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
                 radius if radius is not None else None
             )
 
-            # 执行搜索
-            # 动态调整 ef 参数：必须 >= limit，通常设为 limit 的 1.5-2 倍
-            ef_value = max(128, limit * 2)  # 确保 ef >= limit，至少 128
+            # Execute search
+            # Dynamically adjust ef parameter: must be >= limit, typically set to 1.5-2 times limit
+            ef_value = max(128, limit * 2)  # Ensure ef >= limit, minimum 128
             search_params = {"metric_type": "COSINE", "params": {"ef": ef_value}}
 
-            # 不设置 radius 参数!
-            # Milvus 的 radius 是相似度下限,设置 -1.0 反而可能导致问题
-            # 我们通过后置过滤来控制相似度阈值
+            # Do not set radius parameter!
+            # Milvus radius is a similarity lower bound; setting -1.0 may cause issues
+            # We use post-filtering to control similarity threshold
             if radius is not None and radius > -1.0:
                 search_params["params"]["radius"] = radius
 
             logger.info(
-                f"Milvus 搜索参数: limit={limit}, "
+                f"Milvus search parameters: limit={limit}, "
                 f"radius={search_params['params'].get('radius', 'None')}, "
                 f"filter_str={filter_str}"
             )
@@ -223,11 +229,11 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
                 output_fields=self.all_output_fields,
             )
 
-            # 处理结果
+            # Process results
             search_results = []
             raw_hit_count = sum(len(hits) for hits in results)
             logger.info(
-                f"Milvus 原始返回: {raw_hit_count} 条结果, "
+                f"Milvus raw response: {raw_hit_count} results, "
                 f"limit={limit}, filter_str={filter_str}, "
             )
 
@@ -241,17 +247,17 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
                     keep = hit.score >= threshold
 
                     if keep:
-                        # 解析元数据
+                        # Parse metadata
                         metadata_json = hit.entity.get("metadata", "{}")
                         metadata = json.loads(metadata_json) if metadata_json else {}
 
-                        # 解析 search_content（统一为 JSON 数组格式）
+                        # Parse search_content (unified as JSON array format)
                         search_content_raw = hit.entity.get("search_content", "[]")
                         search_content = (
                             json.loads(search_content_raw) if search_content_raw else []
                         )
 
-                        # 构建结果
+                        # Build result
                         result = {
                             "id": hit.entity.get("id"),
                             "score": float(hit.score),
@@ -268,65 +274,71 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
                         }
                         search_results.append(result)
 
-            logger.debug("✅ 向量搜索成功: 找到 %d 条结果", len(search_results))
+            logger.debug(
+                "✅ Vector search successful: found %d results", len(search_results)
+            )
             return search_results
 
         except Exception as e:
-            logger.error("❌ 向量搜索失败: %s", e)
+            logger.error("❌ Vector search failed: %s", e)
             raise
 
-    # ==================== 删除功能 ====================
+    # ==================== Deletion Functionality ====================
 
     async def delete_by_id(self, log_id: str) -> bool:
         """
-        根据log_id删除事件日志文档
+        Delete event log document by log_id
 
         Args:
-            log_id: 事件日志唯一标识
+            log_id: Unique identifier of the event log
 
         Returns:
-            删除成功返回 True，否则返回 False
+            True if deletion succeeds, otherwise False
         """
         try:
             success = await super().delete_by_id(log_id)
             if success:
-                logger.debug("✅ 根据log_id删除事件日志成功: log_id=%s", log_id)
+                logger.debug(
+                    "✅ Successfully deleted event log by log_id: log_id=%s", log_id
+                )
             return success
         except Exception as e:
             logger.error(
-                "❌ 根据log_id删除事件日志失败: log_id=%s, error=%s", log_id, e
+                "❌ Failed to delete event log by log_id: log_id=%s, error=%s",
+                log_id,
+                e,
             )
             return False
 
     async def delete_by_parent_episode_id(self, parent_episode_id: str) -> int:
         """
-        根据父情景记忆ID删除所有关联的事件日志
+        Delete all associated event logs by parent episode ID
 
         Args:
-            parent_episode_id: 父情景记忆ID
+            parent_episode_id: Parent episode memory ID
 
         Returns:
-            删除的文档数量
+            Number of deleted documents
         """
         try:
             expr = f'parent_episode_id == "{parent_episode_id}"'
 
-            # 先查询要删除的文档数量
+            # First query the number of documents to delete
             results = await self.collection.query(expr=expr, output_fields=["id"])
             delete_count = len(results)
 
             if delete_count > 0:
-                # 执行删除
+                # Perform deletion
                 await self.collection.delete(expr)
 
             logger.debug(
-                "✅ 根据parent_episode_id删除事件日志成功: 删除了 %d 条记录",
+                "✅ Successfully deleted event logs by parent_episode_id: deleted %d records",
                 delete_count,
             )
             return delete_count
 
         except Exception as e:
-            logger.error("❌ 根据parent_episode_id删除事件日志失败: %s", e)
+            logger.error("❌ Failed to delete event logs by parent_episode_id: %s", e)
             raise
 
     async def delete_by_filters(
@@ -337,26 +349,28 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
         end_time: Optional[datetime] = None,
     ) -> int:
         """
-        根据过滤条件批量删除事件日志文档
+        Batch delete event log documents based on filter conditions
 
         Args:
-            user_id: 用户ID过滤
-            group_id: 群组ID过滤
-            start_time: 开始时间
-            end_time: 结束时间
+            user_id: User ID filter
+            group_id: Group ID filter
+            start_time: Start time
+            end_time: End time
 
         Returns:
-            删除的文档数量
+            Number of deleted documents
         """
         try:
-            # 构建过滤表达式
+            # Build filter expression
             filter_expr = []
-            if user_id is not None:  # 使用 is not None 而不是 truthy 检查，支持空字符串
-                if user_id:  # 非空字符串：个人记忆
-                    # 同时检查 user_id 字段和 participants 数组
+            if (
+                user_id is not None
+            ):  # Use is not None instead of truthy check, to support empty string
+                if user_id:  # Non-empty string: personal memory
+                    # Check both user_id field and participants array
                     user_filter = f'(user_id == "{user_id}" or array_contains(participants, "{user_id}"))'
                     filter_expr.append(user_filter)
-                else:  # 空字符串：群组记忆
+                else:  # Empty string: group memory
                     filter_expr.append('user_id == ""')
             if group_id:
                 filter_expr.append(f'group_id == "{group_id}"')
@@ -366,22 +380,23 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
                 filter_expr.append(f"timestamp <= {int(end_time.timestamp())}")
 
             if not filter_expr:
-                raise ValueError("至少需要提供一个过滤条件")
+                raise ValueError("At least one filter condition must be provided")
 
             expr = " and ".join(filter_expr)
 
-            # 先查询要删除的文档数量
+            # First query the number of documents to delete
             results = await self.collection.query(expr=expr, output_fields=["id"])
             delete_count = len(results)
 
-            # 执行删除
+            # Perform deletion
             await self.collection.delete(expr)
 
             logger.debug(
-                "✅ 根据过滤条件批量删除事件日志成功: 删除了 %d 条记录", delete_count
+                "✅ Successfully batch deleted event logs by filters: deleted %d records",
+                delete_count,
             )
             return delete_count
 
         except Exception as e:
-            logger.error("❌ 根据过滤条件批量删除事件日志失败: %s", e)
+            logger.error("❌ Failed to batch delete event logs by filters: %s", e)
             raise

@@ -1,7 +1,7 @@
 """
-停用词表工具类
+Stopwords utility class
 
-提供停用词表的加载和管理功能，支持哈工大停用词表。
+Provides functionality for loading and managing stopwords, supports Harbin Institute of Technology stopwords list.
 """
 
 import os
@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 class StopwordsManager:
-    """停用词表管理器"""
+    """Stopwords manager"""
 
     def __init__(self, stopwords_file_path: Optional[str] = None):
-        """初始化停用词表管理器
+        """Initialize the stopwords manager
 
         Args:
-            stopwords_file_path: 停用词表文件路径，如果为None则使用默认路径
+            stopwords_file_path: Path to the stopwords file. If None, use default path
         """
         self.stopwords_file_path = (
             stopwords_file_path or self._get_default_stopwords_path()
@@ -28,24 +28,24 @@ class StopwordsManager:
         self.load_stopwords()
 
     def _get_default_stopwords_path(self) -> str:
-        """获取默认停用词表文件路径"""
+        """Get default stopwords file path"""
         return str(CURRENT_DIR / "config" / "stopwords" / "hit_stopwords.txt")
 
     def load_stopwords(self) -> Set[str]:
-        """加载停用词表
+        """Load stopwords
 
         Returns:
-            停用词集合
+            Set of stopwords
         """
         if self._stopwords is not None:
             return self._stopwords
 
         stopwords = set()
 
-        # 检查文件是否存在
+        # Check if file exists
         if not os.path.exists(self.stopwords_file_path):
-            logger.warning(f"停用词表文件不存在: {self.stopwords_file_path}")
-            logger.info("将使用空的停用词表")
+            logger.warning(f"Stopwords file does not exist: {self.stopwords_file_path}")
+            logger.info("An empty stopwords set will be used")
             self._stopwords = stopwords
             return stopwords
 
@@ -53,63 +53,65 @@ class StopwordsManager:
             with open(self.stopwords_file_path, 'r', encoding='utf-8') as f:
                 for line in f:
                     word = line.strip()
-                    if word:  # 跳过空行
+                    if word:  # Skip empty lines
                         stopwords.add(word)
 
-            logger.info(f"成功加载停用词表，共 {len(stopwords)} 个停用词")
+            logger.info(
+                f"Successfully loaded stopwords, total {len(stopwords)} stopwords"
+            )
             self._stopwords = stopwords
             return stopwords
 
         except Exception as e:
-            logger.error(f"加载停用词表失败: {e}")
-            logger.info("将使用空的停用词表")
+            logger.error(f"Failed to load stopwords: {e}")
+            logger.info("An empty stopwords set will be used")
             self._stopwords = set()
             return set()
 
     def is_stopword(self, word: str) -> bool:
-        """判断是否为停用词
+        """Check if a word is a stopword
 
         Args:
-            word: 要检查的词
+            word: Word to check
 
         Returns:
-            如果是停用词返回True，否则返回False
+            True if the word is a stopword, otherwise False
         """
         return word in self._stopwords
 
     def filter_stopwords(self, words: list, min_length: int = 1) -> list:
-        """过滤停用词
+        """Filter out stopwords
 
         Args:
-            words: 词列表
-            min_length: 最小词长度，小于此长度的词也会被过滤
+            words: List of words
+            min_length: Minimum word length, words shorter than this will also be filtered
 
         Returns:
-            过滤后的词列表
+            List of words after filtering
         """
 
         filtered_words = []
         for word in words:
             if (
                 word not in self._stopwords and len(word) >= min_length and word.strip()
-            ):  # 过滤空白字符
+            ):  # Filter whitespace characters
                 filtered_words.append(word)
 
         return filtered_words
 
 
-# 全局停用词管理器实例
+# Global stopwords manager instance
 _stopwords_manager: Optional[StopwordsManager] = StopwordsManager()
 
 
 def filter_stopwords(words: list, min_length: int = 1) -> list:
-    """便捷函数：过滤停用词
+    """Convenience function: filter stopwords
 
     Args:
-        words: 词列表
-        min_length: 最小词长度
+        words: List of words
+        min_length: Minimum word length
 
     Returns:
-        过滤后的词列表
+        List of words after filtering
     """
     return _stopwords_manager.filter_stopwords(words, min_length)

@@ -1,95 +1,97 @@
 # -*- coding: utf-8 -*-
 """
-依赖注入系统异常类定义
+Dependency injection system exception class definitions
 """
 
 from typing import Type, Any, List
 
 
 class DIException(Exception):
-    """依赖注入系统基础异常"""
+    """Base exception for dependency injection system"""
 
     pass
 
 
 class CircularDependencyError(DIException):
-    """循环依赖异常"""
+    """Circular dependency exception"""
 
     def __init__(self, dependency_chain: List[Type]):
         self.dependency_chain = dependency_chain
         chain_str = " -> ".join([cls.__name__ for cls in dependency_chain])
-        super().__init__(f"检测到循环依赖: {chain_str}")
+        super().__init__(f"Circular dependency detected: {chain_str}")
 
 
 class BeanNotFoundError(DIException):
-    """Bean未找到异常"""
+    """Bean not found exception"""
 
     def __init__(self, bean_type: Type = None, bean_name: str = None):
         self.bean_type = bean_type
         self.bean_name = bean_name
 
         if bean_name:
-            super().__init__(f"未找到名为 '{bean_name}' 的Bean")
+            super().__init__(f"Bean named '{bean_name}' not found")
         elif bean_type:
-            # 处理字符串类型的bean_type
+            # Handle string type bean_type
             if isinstance(bean_type, str):
-                super().__init__(f"未找到类型为 '{bean_type}' 的Bean")
+                super().__init__(f"Bean of type '{bean_type}' not found")
             else:
-                super().__init__(f"未找到类型为 '{bean_type.__name__}' 的Bean")
+                super().__init__(f"Bean of type '{bean_type.__name__}' not found")
         else:
-            super().__init__("未找到指定的Bean")
+            super().__init__("Specified Bean not found")
 
 
 class DuplicateBeanError(DIException):
-    """重复Bean异常"""
+    """Duplicate Bean exception"""
 
     def __init__(self, bean_type: Type = None, bean_name: str = None):
         self.bean_type = bean_type
         self.bean_name = bean_name
 
         if bean_name:
-            super().__init__(f"名为 '{bean_name}' 的Bean已存在")
+            super().__init__(f"Bean named '{bean_name}' already exists")
         elif bean_type:
-            super().__init__(f"类型为 '{bean_type.__name__}' 的Bean已存在")
+            super().__init__(f"Bean of type '{bean_type.__name__}' already exists")
         else:
-            super().__init__("Bean已存在")
+            super().__init__("Bean already exists")
 
 
 class FactoryError(DIException):
-    """Factory异常"""
+    """Factory exception"""
 
     def __init__(self, factory_type: Type, message: str = None):
         self.factory_type = factory_type
-        default_msg = f"Factory '{factory_type.__name__}' 创建实例失败"
+        default_msg = f"Factory '{factory_type.__name__}' failed to create instance"
         super().__init__(message or default_msg)
 
 
 class DependencyResolutionError(DIException):
-    """依赖解析异常"""
+    """Dependency resolution exception"""
 
     def __init__(self, target_type: Type, missing_dependency: Type):
         self.target_type = target_type
         self.missing_dependency = missing_dependency
         super().__init__(
-            f"无法解析 '{target_type.__name__}' 的依赖 '{missing_dependency.__name__}'"
+            f"Cannot resolve dependency '{missing_dependency.__name__}' for '{target_type.__name__}'"
         )
 
 
 class MockNotEnabledError(DIException):
-    """Mock模式未启用异常"""
+    """Mock mode not enabled exception"""
 
     def __init__(self):
-        super().__init__("Mock模式未启用，无法注册Mock实现")
+        super().__init__(
+            "Mock mode is not enabled, cannot register Mock implementation"
+        )
 
 
 class PrimaryBeanConflictError(DIException):
-    """Primary Bean冲突异常"""
+    """Primary Bean conflict exception"""
 
     def __init__(self, bean_type: Type, existing_primary: Type, new_primary: Type):
         self.bean_type = bean_type
         self.existing_primary = existing_primary
         self.new_primary = new_primary
         super().__init__(
-            f"类型 '{bean_type.__name__}' 存在多个Primary实现: "
-            f"'{existing_primary.__name__}' 和 '{new_primary.__name__}'"
+            f"Multiple Primary implementations exist for type '{bean_type.__name__}': "
+            f"'{existing_primary.__name__}' and '{new_primary.__name__}'"
         )

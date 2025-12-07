@@ -1,10 +1,10 @@
 """
-租户信息提供者模块
+Tenant information provider module
 
-本模块定义了租户信息提供者接口及其默认实现，
-用于根据 tenant_id 获取租户信息。
+This module defines the tenant information provider interface and its default implementation,
+used to retrieve tenant information based on tenant_id.
 
-使用DI机制管理 TenantInfoProvider 的实现。
+Uses DI mechanism to manage TenantInfoProvider implementations.
 """
 
 from abc import ABC, abstractmethod
@@ -16,27 +16,27 @@ from core.di.decorators import component
 
 class TenantInfoProvider(ABC):
     """
-    租户信息提供者接口
+    Tenant information provider interface
 
-    此接口定义了获取租户信息的标准方法。
-    不同的实现可以从不同的数据源获取租户信息（如数据库、API、配置文件等）。
+    This interface defines standard methods for retrieving tenant information.
+    Different implementations can retrieve tenant information from various data sources (e.g., database, API, configuration files).
 
-    使用DI机制：
-    - 可以注册多个实现
-    - 使用 primary=True 标记默认实现
-    - 通过容器获取实例
+    Using DI mechanism:
+    - Multiple implementations can be registered
+    - Use primary=True to mark the default implementation
+    - Obtain instances through the container
     """
 
     @abstractmethod
     def get_tenant_info(self, tenant_id: str) -> Optional[TenantInfo]:
         """
-        根据租户ID获取租户信息
+        Retrieve tenant information by tenant ID
 
         Args:
-            tenant_id: 租户唯一标识符
+            tenant_id: Unique identifier of the tenant
 
         Returns:
-            租户信息对象，如果未找到则返回 None
+            Tenant information object, or None if not found
         """
         raise NotImplementedError
 
@@ -44,26 +44,26 @@ class TenantInfoProvider(ABC):
 @component("default_tenant_info_provider")
 class DefaultTenantInfoProvider(TenantInfoProvider):
     """
-    默认的租户信息提供者实现
+    Default tenant information provider implementation
 
-    此实现提供最基本的租户信息，仅包含 tenant_id，
-    不包含存储配置等详细信息。适用于简单场景或作为默认实现。
+    This implementation provides basic tenant information containing only the tenant_id,
+    without detailed information such as storage configurations. Suitable for simple scenarios or as the default implementation.
 
-    使用 @component 装饰器注册到DI容器，并标记为 primary。
+    Uses the @component decorator to register into the DI container and mark as primary.
     """
 
     def get_tenant_info(self, tenant_id: str) -> Optional[TenantInfo]:
         """
-        根据租户ID创建基本的租户信息对象
+        Create a basic tenant information object by tenant ID
 
-        此实现创建一个仅包含 tenant_id 的 TenantInfo 对象，
-        不包含任何存储配置信息。
+        This implementation creates a TenantInfo object containing only the tenant_id,
+        without any storage configuration information.
 
         Args:
-            tenant_id: 租户唯一标识符
+            tenant_id: Unique identifier of the tenant
 
         Returns:
-            包含基本信息的 TenantInfo 对象
+            TenantInfo object containing basic information
 
         Examples:
             >>> from core.di.container import get_container
@@ -72,11 +72,11 @@ class DefaultTenantInfoProvider(TenantInfoProvider):
             >>> print(tenant_info.tenant_id)
             tenant_001
         """
-        # 如果 tenant_id 为空，返回 None
+        # Return None if tenant_id is empty
         if not tenant_id:
             return None
 
-        # 创建仅包含 tenant_id 的基本租户信息
+        # Create basic tenant information containing only tenant_id
         return TenantInfo(
             tenant_id=tenant_id, tenant_detail=TenantDetail(), origin_tenant_data={}
         )

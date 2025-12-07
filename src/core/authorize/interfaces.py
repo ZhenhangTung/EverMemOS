@@ -4,28 +4,28 @@ from .enums import Role
 
 
 class AuthorizationStrategy(ABC):
-    """授权策略接口"""
+    """Authorization strategy interface"""
 
     @abstractmethod
     async def check_permission(
         self, user_info: Optional[Dict[str, Any]], required_role: Role, **kwargs
     ) -> bool:
         """
-        检查用户权限
+        Check user permissions
 
         Args:
-            user_info: 用户信息，可能为None（匿名用户）
-            required_role: 需要的角色
-            **kwargs: 额外的参数
+            user_info: User information, may be None (anonymous user)
+            required_role: Required role
+            **kwargs: Additional parameters
 
         Returns:
-            bool: 是否有权限
+            bool: Whether the user has permission
         """
         pass
 
 
 class AuthorizationContext:
-    """授权上下文，包含授权检查所需的信息"""
+    """Authorization context, containing information required for authorization checks"""
 
     def __init__(
         self,
@@ -41,6 +41,6 @@ class AuthorizationContext:
 
     def need_auth(self) -> bool:
         """
-        检查是否需要授权
+        Check if authorization is needed
         """
         return self.required_role != Role.ANONYMOUS

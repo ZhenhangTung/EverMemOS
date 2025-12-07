@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Memsys Main Application - 主应用启动脚本
+Memsys Main Application - Main application startup script
 
-Memsys 记忆系统的主要业务应用，包含：
-- 需求提取智能体
-- 大纲生成和编辑智能体
-- 全文写作和编辑智能体
-- 文档管理和资源处理服务
+Main business application of the Memsys memory system, including:
+- Requirement extraction agent
+- Outline generation and editing agent
+- Full-text writing and editing agent
+- Document management and resource processing services
 """
 import argparse
 import os
@@ -14,44 +14,53 @@ import sys
 import uvicorn
 import logging
 
-# 这里环境变量还没加载，所以不能使用get_logger
+# Environment variables are not loaded yet, so cannot use get_logger
 logger = logging.getLogger(__name__)
 
-# 应用信息
+# Application info
 APP_NAME = "Memory System"
 APP_VERSION = "1.0.0"
-APP_DESCRIPTION = "记忆系统主应用"
+APP_DESCRIPTION = "Main application of the memory system"
 
 
 def parse_args():
-    """解析命令行参数"""
-    parser = argparse.ArgumentParser(description=f"启动 {APP_NAME} 服务")
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description=f"Start {APP_NAME} service")
     parser.add_argument(
-        "--host", type=str, default="0.0.0.0", help="服务器监听主机地址 (默认: 0.0.0.0)"
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Server listening host address (default: 0.0.0.0)",
     )
     parser.add_argument(
-        "--port", type=int, default=1995, help="服务器监听端口 (默认: 1995)"
+        "--port", type=int, default=1995, help="Server listening port (default: 1995)"
     )
     parser.add_argument(
         "--env-file",
         type=str,
         default=".env",
-        help="指定要加载的环境变量文件 (默认: .env)",
+        help="Specify the environment variable file to load (default: .env)",
     )
     parser.add_argument(
-        "--mock", action="store_true", help="启用Mock模式 (用于测试和开发)"
+        "--mock",
+        action="store_true",
+        help="Enable Mock mode (for testing and development)",
     )
     parser.add_argument(
-        "--longjob", type=str, help="启动指定的长任务消费者 (例如: kafka_consumer)"
+        "--longjob",
+        type=str,
+        help="Start specified long-running job consumer (e.g.: kafka_consumer)",
     )
     parser.add_argument(
-        "--skip-migrations", action="store_true", help="跳过启动时的 MongoDB 数据库迁移"
+        "--skip-migrations",
+        action="store_true",
+        help="Skip MongoDB database migrations on startup",
     )
     return parser.parse_args()
 
 
 def main():
-    # 解析命令行参数
+    # Parse command line arguments
     args = parse_args()
 
     if args.longjob:
@@ -59,36 +68,36 @@ def main():
     else:
         service_name = "web"
 
-    # 添加src目录到Python路径
+    # Add src directory to Python path
     from import_parent_dir import add_parent_path
 
     add_parent_path(0)
 
-    # 使用统一的环境加载工具
+    # Use unified environment loading utility
     from common_utils.load_env import setup_environment
 
-    # 设置环境（Python路径和.env文件）
+    # Set up environment (Python path and .env file)
     setup_environment(
         load_env_file_name=args.env_file,
         check_env_var="MONGODB_HOST",
         service_name=service_name,
     )
 
-    # 检查是否启用Mock模式：优先检查命令行参数，其次检查环境变量
+    # Check if Mock mode is enabled: prioritize command line argument, then environment variable
     from core.di.utils import enable_mock_mode
 
     if args.mock or (
         os.getenv("MOCK_MODE") and os.getenv("MOCK_MODE").lower() == "true"
     ):
         enable_mock_mode()
-        logger.info("🚀 启用Mock模式")
+        logger.info("🚀 Enabled Mock mode")
     else:
-        logger.info("🚀 禁用Mock模式")
+        logger.info("🚀 Disabled Mock mode")
 
-    # 显示应用启动信息
-    logger.info("🚀 启动 %s v%s", APP_NAME, APP_VERSION)
+    # Display application startup information
+    logger.info("🚀 Starting %s v%s", APP_NAME, APP_VERSION)
     logger.info("📝 %s", APP_DESCRIPTION)
-    logger.info("🌟 启动参数:")
+    logger.info("🌟 Startup parameters:")
     logger.info("  📡 Host: %s", args.host)
     logger.info("  🔌 Port: %s", args.port)
     logger.info("  📄 Env File: %s", args.env_file)
@@ -96,37 +105,37 @@ def main():
     logger.info("  🔧 LongJob Mode: %s", args.longjob if args.longjob else "Disabled")
     logger.info("  🔄 Skip Migrations: %s", args.skip_migrations)
 
-    # 执行依赖注入和异步任务设置
+    # Execute dependency injection and async task setup
     from application_startup import setup_all
 
-    # 在模块加载时就执行依赖注入和异步任务设置
+    # Perform dependency injection and async task setup during module loading
     setup_all()
 
-    # 执行 MongoDB 数据库迁移（可通过 --skip-migrations 参数跳过）
+    # Run MongoDB database migrations (can be skipped via --skip-migrations argument)
     from core.oxm.mongo.migration.manager import MigrationManager
 
     MigrationManager.run_migrations_on_startup(enabled=not args.skip_migrations)
 
-    # 检查是否是 LongJob 模式
+    # Check if in LongJob mode
     if args.longjob:
-        logger.info("🔧 启动 LongJob 模式: %s", args.longjob)
+        logger.info("🔧 Starting LongJob mode: %s", args.longjob)
         os.environ["LONGJOB_NAME"] = args.longjob
 
     from app import app
 
-    # 将应用信息添加到FastAPI应用中
+    # Attach application info to the FastAPI app
     app.title = APP_NAME
     app.version = APP_VERSION
     app.description = APP_DESCRIPTION
 
-    # 使用命令行参数启动服务
+    # Start service using command line arguments
     try:
         uvicorn_kwargs = {"host": args.host, "port": args.port}
         uvicorn.run(app, **uvicorn_kwargs)
     except KeyboardInterrupt:
-        logger.info("👋 %s 已停止", APP_NAME)
+        logger.info("👋 %s stopped", APP_NAME)
     except (OSError, RuntimeError) as e:
-        logger.error("❌ %s 启动失败: %s", APP_NAME, e)
+        logger.error("❌ %s failed to start: %s", APP_NAME, e)
         sys.exit(1)
 
 

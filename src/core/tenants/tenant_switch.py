@@ -1,5 +1,5 @@
 # ============================================================================
-# 应用就绪监听器（通过 DI 自动发现）
+# Application ready listener (automatically discovered via DI)
 # ============================================================================
 
 from core.di.decorators import component
@@ -13,12 +13,12 @@ logger = get_logger(__name__)
 @component(name="tenant_config_app_ready_listener")
 class TenantConfigAppReadyListener(AppReadyListener):
     """
-    租户配置应用就绪监听器
+    Tenant configuration application ready listener
 
-    当应用启动完成时，自动开启租户严格检查模式。
-    通过 DI 容器自动发现和调用，无需手动注册。
+    Automatically enables strict tenant checking mode when application startup is complete.
+    Automatically discovered and invoked by the DI container, no manual registration required.
     """
 
     def on_app_ready(self) -> None:
-        """应用就绪时开启严格租户检查"""
+        """Enable strict tenant check when application is ready"""
         get_tenant_config().mark_app_ready()

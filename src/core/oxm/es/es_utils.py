@@ -11,41 +11,41 @@ logger = get_logger(__name__)
 
 
 def generate_index_name(cls: Type['DocBase']) -> str:
-    """生成带时间戳的索引名"""
+    """Generate index name with timestamp"""
     now = get_now_with_timezone()
     alias = cls.get_index_name()
     return f"{alias}-{now.strftime('%Y%m%d%H%M%S%f')}"
 
 
 def get_index_ns() -> str:
-    """获取索引命名空间"""
+    """Get index namespace"""
     return os.getenv("SELF_ES_INDEX_NS") or ""
 
 
 def is_abstract_doc_class(doc_class: Type['DocBase']) -> bool:
     """
-    检查文档类是否是抽象类
+    Check if the document class is an abstract class
 
-    通过检查 Meta.abstract 属性判断是否是抽象类，
-    抽象类不应该被初始化索引。
+    Determine whether it is an abstract class by checking the Meta.abstract attribute.
+    Abstract classes should not have their indices initialized.
 
     Args:
-        doc_class: 文档类
+        doc_class: Document class
 
     Returns:
-        bool: 是否是抽象类
+        bool: Whether it is an abstract class
     """
-    # 检查 Meta 类的 abstract 属性
+    # Check the abstract attribute of the Meta class
     pattern = getattr(doc_class, 'PATTERN', None) or None
     return (not pattern) or "Generated" in doc_class.__name__
 
 
 class EsIndexInitializer:
     """
-    Elasticsearch 索引初始化工具类
+    Elasticsearch index initialization utility class
 
-    用于批量初始化 ES 文档类对应的索引和别名。
-    使用 doc_class._get_connection() 获取连接，支持租户感知。
+    Used to batch initialize indices and aliases corresponding to ES document classes.
+    Uses doc_class._get_connection() to obtain the connection, supporting tenant awareness.
     """
 
     def __init__(self):
@@ -55,18 +55,19 @@ class EsIndexInitializer:
         self, document_classes: Optional[List[Type['DocBase']]] = None
     ) -> None:
         """
-        初始化多个文档类的索引
+        Initialize indices for multiple document classes
 
         Args:
-            document_classes: 文档类列表
+            document_classes: List of document classes
         """
         if not document_classes:
-            logger.info("没有需要初始化的文档类")
+            logger.info("No document classes need to be initialized")
             return
 
         try:
             logger.info(
-                "正在初始化 Elasticsearch 索引，共 %d 个文档类", len(document_classes)
+                "Initializing Elasticsearch indices, total %d document classes",
+                len(document_classes),
             )
 
             for doc_class in document_classes:
@@ -75,56 +76,66 @@ class EsIndexInitializer:
             self._initialized_classes.extend(document_classes)
 
             logger.info(
-                "✅ Elasticsearch 索引初始化成功，处理了 %d 个文档类",
+                "✅ Elasticsearch index initialization succeeded, processed %d document classes",
                 len(document_classes),
             )
 
             for doc_class in document_classes:
                 logger.info(
-                    "📋 初始化索引: class=%s -> index=%s",
+                    "📋 Initialized index: class=%s -> index=%s",
                     doc_class.__name__,
                     doc_class.get_index_name(),
                 )
 
         except Exception as e:
-            logger.error("❌ Elasticsearch 索引初始化失败: %s", e)
+            logger.error("❌ Elasticsearch index initialization failed: %s", e)
             raise
 
     async def init_document_index(self, doc_class: Type['DocBase']) -> None:
         """
-        初始化单个文档类的索引
+        Initialize index for a single document class
 
         Args:
-            doc_class: 文档类
+            doc_class: Document class
         """
         try:
-            # 获取别名名称
+            # Get alias name
             alias = doc_class.get_index_name()
 
             if not alias:
-                logger.info("文档类没有索引别名，跳过初始化 %s", doc_class.__name__)
+                logger.info(
+                    "Document class has no index alias, skipping initialization %s",
+                    doc_class.__name__,
+                )
                 return
 
-            # 检查是否是抽象类
+            # Check if it is an abstract class
             if is_abstract_doc_class(doc_class):
-                logger.debug("文档类是抽象类，跳过初始化 %s", doc_class.__name__)
+                logger.debug(
+                    "Document class is abstract, skipping initialization %s",
+                    doc_class.__name__,
+                )
                 return
 
-            # 通过文档类获取连接（支持租户感知）
+            # Get connection through document class (supports tenant awareness)
             client = doc_class._get_connection()
 
-            # 检查别名是否存在
-            logger.info("正在检查索引别名: %s (文档类: %s)", alias, doc_class.__name__)
+            # Check if alias exists
+            logger.info(
+                "Checking index alias: %s (document class: %s)",
+                alias,
+                doc_class.__name__,
+            )
             alias_exists = await client.indices.exists(index=alias)
 
             if not alias_exists:
-                # 生成目标索引名
+                # Generate target index name
                 dst = doc_class.dest()
 
-                # 创建索引
+                # Create index
                 await doc_class.init(index=dst, using=client)
 
-                # 创建别名
+                # Create alias
                 await client.indices.update_aliases(
                     body={
                         "actions": [
@@ -138,17 +149,21 @@ class EsIndexInitializer:
                         ]
                     }
                 )
-                logger.info("✅ 创建索引和别名: %s -> %s", dst, alias)
+                logger.info("✅ Created index and alias: %s -> %s", dst, alias)
             else:
-                logger.info("📋 索引别名已存在: %s", alias)
+                logger.info("📋 Index alias already exists: %s", alias)
 
         except Exception as e:
-            logger.error("❌ 初始化文档类 %s 的索引失败: %s", doc_class.__name__, e)
+            logger.error(
+                "❌ Failed to initialize index for document class %s: %s",
+                doc_class.__name__,
+                e,
+            )
             raise
 
     @property
     def initialized_classes(self) -> List[Type['DocBase']]:
-        """获取已初始化的文档类列表"""
+        """Get list of initialized document classes"""
         return self._initialized_classes
 
 
@@ -156,10 +171,10 @@ async def initialize_document_indices(
     document_classes: Optional[List[Type['DocBase']]] = None,
 ) -> None:
     """
-    便捷函数：初始化多个文档类的索引
+    Utility function: Initialize indices for multiple document classes
 
     Args:
-        document_classes: 文档类列表
+        document_classes: List of document classes
     """
     initializer = EsIndexInitializer()
     await initializer.initialize_indices(document_classes)
@@ -167,10 +182,10 @@ async def initialize_document_indices(
 
 async def init_single_document_index(doc_class: Type['DocBase']) -> None:
     """
-    便捷函数：初始化单个文档类的索引
+    Utility function: Initialize index for a single document class
 
     Args:
-        doc_class: 文档类
+        doc_class: Document class
     """
     initializer = EsIndexInitializer()
     await initializer.init_document_index(doc_class)

@@ -1,8 +1,8 @@
 """
-Milvus 租户感知模块
+Milvus tenant-aware module
 
-提供租户感知的 Milvus Collection 支持：
-- TenantAwareCollection: 租户感知的 Collection 类
-- TenantAwareMilvusCollectionWithSuffix: 租户感知的带 Suffix 和 Alias 机制的 Collection 管理类
-- TenantAwareCollectionClassProvider: 租户感知的 Collection 类提供器
+Provides tenant-aware Milvus Collection support:
+- TenantAwareCollection: Tenant-aware Collection class
+- TenantAwareMilvusCollectionWithSuffix: Tenant-aware Collection management class with Suffix and Alias mechanism
+- TenantAwareCollectionClassProvider: Tenant-aware Collection class provider
 """

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-修复历史 EpisodicMemory 文档中缺失的向量字段。
+Fix missing vector fields in historical EpisodicMemory documents.
 
-运行方式（推荐通过 bootstrap 运行，自动加载应用上下文与依赖注入）：
+How to run (recommended to run via bootstrap, which automatically loads application context and dependency injection):
   python src/bootstrap.py src/scripts/data_fix/fix_episodic_memory_missing_vector.py --limit 1000 --batch 200 --concurrency 8
 
-参数：
-  --limit         最多处理的文档数量（默认 1000）
-  --batch         每次从数据库拉取的文档数量（默认 200，越大越快但更占内存）
-  --concurrency   并发度（默认 8）
+Arguments:
+  --limit         Maximum number of documents to process (default 1000)
+  --batch         Number of documents to fetch from database each time (default 200, larger is faster but uses more memory)
+  --concurrency   Concurrency level (default 8)
 """
 
 import argparse
@@ -25,7 +25,7 @@ from common_utils.datetime_utils import from_iso_format, to_iso_format
 
 logger = get_logger(__name__)
 
-# 目标向量模型：不等于该模型的记录也需要重刷
+# Target vector model: records not using this model also need to be re-processed
 TARGET_VECTOR_MODEL = "Qwen/Qwen3-Embedding-4B"
 
 
@@ -36,11 +36,11 @@ async def _fetch_candidates(
     created_lte: Optional[Any],
 ) -> List[EpisodicMemory]:
     """
-    查询缺失向量的情景记忆候选文档。
+    Query candidate episodic memory documents missing vectors.
 
-    返回以下两类文档：
-    1) episode 不为空且 vector 不存在/为 None/为空数组 的文档
-    2) vector_model 不等于目标模型（TARGET_VECTOR_MODEL） 的文档（即需要重刷）
+    Returns two types of documents:
+    1) Documents where episode is not empty but vector is missing/None/empty array
+    2) Documents where vector_model is not equal to the target model (TARGET_VECTOR_MODEL) (i.e., need re-processing)
     """
     and_filters: List[Dict[str, Any]] = [
         {"episode": {"$exists": True, "$ne": ""}},
@@ -57,13 +57,13 @@ async def _fetch_candidates(
         },
     ]
 
-    # created_at 过滤条件（范围 + 翻页锚点）
+    # created_at filter conditions (range + pagination anchor)
     created_at_filter: Dict[str, Any] = {}
     if created_gte is not None:
         created_at_filter["$gte"] = created_gte
     if created_lte is not None:
         created_at_filter["$lte"] = created_lte
-    # 翻页锚点：优先处理最近创建的数据，其次按更早的数据继续翻页
+    # Pagination anchor: prioritize recently created data, then continue with earlier data
     if created_before is not None:
         created_at_filter["$lt"] = created_before
     if created_at_filter:
@@ -71,7 +71,7 @@ async def _fetch_candidates(
 
     query: Dict[str, Any] = {"$and": and_filters}
 
-    cursor = EpisodicMemory.find(query).sort("-created_at").limit(size)  # 最近优先
+    cursor = EpisodicMemory.find(query).sort("-created_at").limit(size)  # Recent first
 
     results = await cursor.to_list()
     return results
@@ -81,27 +81,27 @@ async def _process_one(
     document: EpisodicMemory, semaphore: asyncio.Semaphore
 ) -> Tuple[Optional[str], Optional[str]]:
     """
-    处理单个文档：向量化 episode 并回写 vector 与 vector_model。
+    Process a single document: vectorize episode and write back vector and vector_model.
 
-    返回 (doc_id, error)；成功时 error 为 None。
+    Returns (doc_id, error); error is None on success.
     """
     async with semaphore:
         try:
             if not document.episode:
-                return str(document.id), "episode 为空，跳过"
+                return str(document.id), "episode is empty, skipping"
 
             vectorize_service = get_vectorize_service()
             embedding = await vectorize_service.get_embedding(document.episode)
-            vector_list = embedding.tolist()  # 与仓库逻辑保持一致
+            vector_list = embedding.tolist()  # Consistent with repository logic
             model_name = vectorize_service.get_model_name()
 
-            # 精确按 _id 更新，避免覆盖其他字段
+            # Update precisely by _id to avoid overwriting other fields
             await EpisodicMemory.find({"_id": document.id}).update(
                 {"$set": {"vector": vector_list, "vector_model": model_name}}
             )
 
             return str(document.id), None
-        except Exception as exc:  # noqa: BLE001 非关键错误，记录后继续
+        except Exception as exc:  # noqa: BLE001 Non-critical error, log and continue
             return str(document.id), str(exc)
 
 
@@ -113,15 +113,15 @@ async def run_fix(
     end_created_at: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
-    执行修复任务。
+    Execute the fix task.
 
     Args:
-        limit:    最多处理的文档数量
-        batch:    每次批量从数据库拉取的文档数量
-        concurrency: 并发度（协程并发）
+        limit:    Maximum number of documents to process
+        batch:    Number of documents to fetch from database in each batch
+        concurrency: Concurrency level (coroutine concurrency)
 
     Returns:
-        统计信息字典
+        Statistics dictionary
     """
     if limit <= 0:
         limit = 1
@@ -136,12 +136,12 @@ async def run_fix(
     succeeded = 0
     errors: List[Tuple[str, str]] = []
     created_before: Optional[Any] = None
-    # 通过函数参数传入的范围过滤
+    # Range filtering passed via function parameters
     created_gte: Optional[Any] = start_created_at
     created_lte: Optional[Any] = end_created_at
 
     logger.info(
-        "🔍 开始扫描需修复文档（limit=%d, batch=%d, concurrency=%d）",
+        "🔍 Starting scan for documents to fix (limit=%d, batch=%d, concurrency=%d)",
         limit,
         batch,
         concurrency,
@@ -159,19 +159,22 @@ async def run_fix(
         if not candidates:
             break
 
-        # 下一页锚点：本批次中最早的 created_at
+        # Next page anchor: earliest created_at in this batch
         try:
             created_before = candidates[-1].created_at
             try:
-                logger.info("⏱️ 当前处理到 created_at=%s", to_iso_format(created_before))
+                logger.info(
+                    "⏱️ Currently processing created_at=%s",
+                    to_iso_format(created_before),
+                )
             except Exception:  # noqa: BLE001
-                logger.info("⏱️ 当前处理到 created_at=%s", str(created_before))
+                logger.info("⏱️ Currently processing created_at=%s", str(created_before))
         except AttributeError:
-            # 如果模型无该字段或异常，退化为按 skip 逻辑（不更新锚点）
+            # If model lacks this field or exception occurs, fall back to skip logic (do not update anchor)
             pass
 
         logger.info(
-            "📦 拉取到候选 %d 条（已累计处理=%d/%d）",
+            "📦 Fetched %d candidates (cumulative processed=%d/%d)",
             len(candidates),
             processed_total,
             limit,
@@ -194,13 +197,13 @@ async def run_fix(
 
     failed = len(errors)
     if failed:
-        for doc_id, err_msg in errors[:20]:  # 避免日志过多
-            logger.error("❌ 修复失败 doc=%s, error=%s", doc_id, err_msg)
+        for doc_id, err_msg in errors[:20]:  # Avoid excessive logging
+            logger.error("❌ Fix failed doc=%s, error=%s", doc_id, err_msg)
         if failed > 20:
-            logger.error("… 还有 %d 条错误未逐条打印", failed - 20)
+            logger.error("… %d more errors not printed individually", failed - 20)
 
     logger.info(
-        "✅ 修复完成 | total=%d, succeeded=%d, failed=%d",
+        "✅ Fix completed | total=%d, succeeded=%d, failed=%d",
         processed_total,
         succeeded,
         failed,
@@ -214,46 +217,56 @@ async def run_fix(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="修复历史 EpisodicMemory 缺失向量数据")
-    parser.add_argument(
-        "--limit", type=int, default=1000, help="最多处理的文档数量（默认 1000）"
+    parser = argparse.ArgumentParser(
+        description="Fix missing vector data in historical EpisodicMemory"
     )
     parser.add_argument(
-        "--batch", type=int, default=200, help="每次从数据库拉取的文档数量（默认 200）"
+        "--limit",
+        type=int,
+        default=1000,
+        help="Maximum number of documents to process (default 1000)",
     )
-    parser.add_argument("--concurrency", type=int, default=8, help="并发度（默认 8）")
+    parser.add_argument(
+        "--batch",
+        type=int,
+        default=200,
+        help="Number of documents to fetch from database each time (default 200)",
+    )
+    parser.add_argument(
+        "--concurrency", type=int, default=8, help="Concurrency level (default 8)"
+    )
     parser.add_argument(
         "--start-created-at",
         dest="start_created_at",
         type=str,
         default=None,
-        help="仅处理 created_at 大于等于该时间的文档（ISO格式，例如 2025-09-16T20:20:06+08:00）",
+        help="Only process documents with created_at greater than or equal to this time (ISO format, e.g., 2025-09-16T20:20:06+08:00)",
     )
     parser.add_argument(
         "--end-created-at",
         dest="end_created_at",
         type=str,
         default=None,
-        help="仅处理 created_at 小于等于该时间的文档（ISO格式，例如 2025-09-30T23:59:59+08:00）",
+        help="Only process documents with created_at less than or equal to this time (ISO format, e.g., 2025-09-30T23:59:59+08:00)",
     )
     return parser.parse_args()
 
 
 def main():
     args = _parse_args()
-    # 通过 bootstrap 运行时，应用上下文已加载；此处直接执行异步任务
-    # 解析时间范围参数（ISO -> 带时区 datetime）
+    # When running via bootstrap, application context is already loaded; execute async task directly here
+    # Parse time range arguments (ISO -> timezone-aware datetime)
     start_dt = from_iso_format(args.start_created_at) if args.start_created_at else None
     end_dt = from_iso_format(args.end_created_at) if args.end_created_at else None
 
     if start_dt or end_dt:
         try:
-            start_str = to_iso_format(start_dt) if start_dt else "(未指定)"
-            end_str = to_iso_format(end_dt) if end_dt else "(未指定)"
+            start_str = to_iso_format(start_dt) if start_dt else "(not specified)"
+            end_str = to_iso_format(end_dt) if end_dt else "(not specified)"
         except Exception:  # noqa: BLE001
-            start_str = str(start_dt) if start_dt else "(未指定)"
-            end_str = str(end_dt) if end_dt else "(未指定)"
-        logger.info("⛳ 使用 created_at 过滤范围: [%s, %s]", start_str, end_str)
+            start_str = str(start_dt) if start_dt else "(not specified)"
+            end_str = str(end_dt) if end_dt else "(not specified)"
+        logger.info("⛳ Using created_at filter range: [%s, %s]", start_str, end_str)
 
     asyncio.run(
         run_fix(

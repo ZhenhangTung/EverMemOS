@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-DI测试 Fixtures
+DI Test Fixtures
 
-提供测试用的接口、实现类、Mock类等
-这些类可以被其他测试文件导入使用
+Provides interfaces, implementation classes, and Mock classes for testing
+These classes can be imported and used by other test files
 """
 
 from abc import ABC, abstractmethod
@@ -12,25 +12,25 @@ from core.di.container import DIContainer
 from core.di.bean_definition import BeanScope
 
 
-# ==================== 用户服务相关 ====================
+# ==================== User Service Related ====================
 
 
 class UserRepository(ABC):
-    """用户仓储接口"""
+    """User repository interface"""
 
     @abstractmethod
     def find_by_id(self, user_id: int) -> Optional[dict]:
-        """根据ID查找用户"""
+        """Find user by ID"""
         pass
 
     @abstractmethod
     def find_all(self) -> List[dict]:
-        """查找所有用户"""
+        """Find all users"""
         pass
 
 
 class MySQLUserRepository(UserRepository):
-    """MySQL用户仓储实现（Primary）"""
+    """MySQL user repository implementation (Primary)"""
 
     def __init__(self):
         self.db_type = "mysql"
@@ -49,7 +49,7 @@ class MySQLUserRepository(UserRepository):
 
 
 class PostgreSQLUserRepository(UserRepository):
-    """PostgreSQL用户仓储实现（非Primary）"""
+    """PostgreSQL user repository implementation (Non-Primary)"""
 
     def __init__(self):
         self.db_type = "postgres"
@@ -65,7 +65,7 @@ class PostgreSQLUserRepository(UserRepository):
 
 
 class MockUserRepository(UserRepository):
-    """Mock用户仓储实现"""
+    """Mock user repository implementation"""
 
     def __init__(self):
         self.db_type = "mock"
@@ -81,26 +81,26 @@ class MockUserRepository(UserRepository):
 
 
 class UserService(ABC):
-    """用户服务接口"""
+    """User service interface"""
 
     @abstractmethod
     def get_user(self, user_id: int) -> Optional[dict]:
-        """获取用户"""
+        """Get user"""
         pass
 
     @abstractmethod
     def get_all_users(self) -> List[dict]:
-        """获取所有用户"""
+        """Get all users"""
         pass
 
 
 class UserServiceImpl(UserService):
-    """用户服务实现"""
+    """User service implementation"""
 
     def __init__(
         self, repository: UserRepository = None, container: DIContainer = None
     ):
-        # 支持两种注入方式：构造函数注入或通过容器获取
+        # Supports two injection methods: constructor injection or retrieval via container
         if repository:
             self.repository = repository
         elif container:
@@ -118,20 +118,20 @@ class UserServiceImpl(UserService):
         return self.repository.find_all()
 
 
-# ==================== 通知服务相关 ====================
+# ==================== Notification Service Related ====================
 
 
 class NotificationService(ABC):
-    """通知服务接口"""
+    """Notification service interface"""
 
     @abstractmethod
     def send(self, message: str, recipient: str) -> bool:
-        """发送通知"""
+        """Send notification"""
         pass
 
 
 class EmailNotificationService(NotificationService):
-    """邮件通知服务实现（Primary）"""
+    """Email notification service implementation (Primary)"""
 
     def __init__(self):
         self.sent_messages = []
@@ -144,7 +144,7 @@ class EmailNotificationService(NotificationService):
 
 
 class SMSNotificationService(NotificationService):
-    """短信通知服务实现（非Primary）"""
+    """SMS notification service implementation (Non-Primary)"""
 
     def __init__(self):
         self.sent_messages = []
@@ -157,7 +157,7 @@ class SMSNotificationService(NotificationService):
 
 
 class PushNotificationService(NotificationService):
-    """推送通知服务实现"""
+    """Push notification service implementation"""
 
     def __init__(self):
         self.sent_messages = []
@@ -169,20 +169,20 @@ class PushNotificationService(NotificationService):
         return True
 
 
-# ==================== 邮件服务相关 ====================
+# ==================== Email Service Related ====================
 
 
 class EmailService(ABC):
-    """邮件服务接口"""
+    """Email service interface"""
 
     @abstractmethod
     def send_email(self, to: str, subject: str, body: str) -> bool:
-        """发送邮件"""
+        """Send email"""
         pass
 
 
 class SMTPEmailService(EmailService):
-    """SMTP邮件服务实现"""
+    """SMTP email service implementation"""
 
     def __init__(self):
         self.host = "smtp.example.com"
@@ -194,11 +194,11 @@ class SMTPEmailService(EmailService):
         return True
 
 
-# ==================== 数据库连接相关 ====================
+# ==================== Database Connection Related ====================
 
 
 class DatabaseConnection:
-    """数据库连接类"""
+    """Database connection class"""
 
     def __init__(self, host: str, port: int, database: str):
         self.host = host
@@ -214,24 +214,24 @@ class DatabaseConnection:
 
 
 def create_database_connection() -> DatabaseConnection:
-    """创建数据库连接的工厂方法"""
+    """Factory method to create database connection"""
     return DatabaseConnection(host="localhost", port=3306, database="test_db")
 
 
 def create_readonly_connection() -> DatabaseConnection:
-    """创建只读数据库连接的工厂方法"""
+    """Factory method to create read-only database connection"""
     return DatabaseConnection(
         host="readonly.example.com", port=3306, database="test_db"
     )
 
 
-# ==================== Prototype Scope 测试类 ====================
+# ==================== Prototype Scope Test Classes ====================
 
 
 class PrototypeService:
-    """原型作用域服务（每次获取都创建新实例）"""
+    """Prototype scope service (a new instance is created each time it is retrieved)"""
 
-    instance_counter = 0  # 类级别计数器
+    instance_counter = 0  # Class-level counter
 
     def __init__(self):
         PrototypeService.instance_counter += 1
@@ -246,34 +246,34 @@ class PrototypeService:
 
     @classmethod
     def reset_counter(cls):
-        """重置计数器（用于测试）"""
+        """Reset counter (used for testing)"""
         cls.instance_counter = 0
 
 
-# ==================== 缓存服务相关 ====================
+# ==================== Cache Service Related ====================
 
 
 class CacheService(ABC):
-    """缓存服务接口"""
+    """Cache service interface"""
 
     @abstractmethod
     def get(self, key: str) -> Optional[str]:
-        """获取缓存"""
+        """Get cache"""
         pass
 
     @abstractmethod
     def set(self, key: str, value: str, ttl: int = 3600) -> bool:
-        """设置缓存"""
+        """Set cache"""
         pass
 
     @abstractmethod
     def delete(self, key: str) -> bool:
-        """删除缓存"""
+        """Delete cache"""
         pass
 
 
 class RedisCacheService(CacheService):
-    """Redis缓存服务实现（Primary）"""
+    """Redis cache service implementation (Primary)"""
 
     def __init__(self):
         self.storage = {}
@@ -294,7 +294,7 @@ class RedisCacheService(CacheService):
 
 
 class MemoryCacheService(CacheService):
-    """内存缓存服务实现"""
+    """In-memory cache service implementation"""
 
     def __init__(self):
         self.storage = {}
@@ -314,16 +314,16 @@ class MemoryCacheService(CacheService):
         return False
 
 
-# ==================== 工具辅助函数 ====================
+# ==================== Utility Helper Functions ====================
 
 
 def register_standard_beans(container: DIContainer):
-    """注册标准测试Bean到容器
+    """Register standard test beans into the container
 
     Args:
-        container: DI容器实例
+        container: DI container instance
     """
-    # 注册UserRepository实现
+    # Register UserRepository implementations
     container.register_bean(
         bean_type=MySQLUserRepository, bean_name="mysql_user_repo", is_primary=True
     )
@@ -336,7 +336,7 @@ def register_standard_beans(container: DIContainer):
         bean_type=MockUserRepository, bean_name="mock_user_repo", is_mock=True
     )
 
-    # 注册NotificationService实现
+    # Register NotificationService implementations
     container.register_bean(
         bean_type=EmailNotificationService,
         bean_name="email_notification",
@@ -349,23 +349,23 @@ def register_standard_beans(container: DIContainer):
         bean_type=PushNotificationService, bean_name="push_notification"
     )
 
-    # 注册CacheService实现
+    # Register CacheService implementations
     container.register_bean(
         bean_type=RedisCacheService, bean_name="redis_cache", is_primary=True
     )
     container.register_bean(bean_type=MemoryCacheService, bean_name="memory_cache")
 
-    # 注册EmailService实现
+    # Register EmailService implementation
     container.register_bean(bean_type=SMTPEmailService, bean_name="smtp_email_service")
 
-    # 注册Factory Bean
+    # Register Factory Bean
     container.register_factory(
         bean_type=DatabaseConnection,
         factory_method=create_database_connection,
         bean_name="db_connection",
     )
 
-    # 注册Prototype Bean
+    # Register Prototype Bean
     container.register_bean(
         bean_type=PrototypeService,
         bean_name="prototype_service",

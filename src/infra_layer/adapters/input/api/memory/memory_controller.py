@@ -1,11 +1,11 @@
 """
-Memory Controller - 统一的记忆管理控制器
+Memory Controller - Unified memory management controller
 
-提供完整的记忆管理 RESTful API 路由，包括：
-- 记忆存储 (memorize): 接收简单直接的单条消息格式并存储
-- 对话元数据 (conversation-meta): 保存对话的元数据信息
-- 记忆获取 (fetch): 通过 GET 方法获取用户核心记忆
-- 记忆检索 (search): 支持关键词/向量/混合三种检索方法
+Provides complete memory management RESTful API routes, including:
+- Memory storage (memorize): Receive simple direct single message format and store
+- Conversation metadata (conversation-meta): Save conversation metadata information
+- Memory retrieval (fetch): Retrieve user core memories via GET method
+- Memory search (search): Support three retrieval methods: keyword, vector, and hybrid
 """
 
 import logging
@@ -46,15 +46,15 @@ class MemoryController(BaseController):
     """
 
     def __init__(self, conversation_meta_repository: ConversationMetaRawRepository):
-        """初始化控制器"""
+        """Initialize controller"""
         super().__init__(
             prefix="/api/v1/memories",
             tags=["Memory Controller"],
-            default_auth="none",  # 根据实际需求调整认证策略
+            default_auth="none",  # Adjust authentication strategy based on actual needs
         )
         self.memory_manager = MemoryManager()
         self.conversation_meta_repository = conversation_meta_repository
-        # 获取 RedisProvider
+        # Get RedisProvider
         self.redis_provider = get_bean_by_type(RedisProvider)
         logger.info(
             "MemoryController initialized with MemoryManager and ConversationMetaRepository"
@@ -63,57 +63,57 @@ class MemoryController(BaseController):
     @post(
         "",
         response_model=Dict[str, Any],
-        summary="存储单条群聊消息记忆",
+        summary="Store single group chat message memory",
         description="""
-        接收简单直接的单条消息格式并存储为记忆
+        Receive simple direct single message format and store as memory
         
-        ## 功能说明：
-        - 接收简单直接的单条消息数据（无需预转换）
-        - 将单条消息提取为记忆单元（memcells）
-        - 适用于实时消息处理场景
-        - 返回已保存的记忆列表
+        ## Functionality:
+        - Receive simple direct single message data (no pre-conversion required)
+        - Extract single message into memory units (memcells)
+        - Suitable for real-time message processing scenarios
+        - Return list of saved memories
         
-        ## 输入格式（简单直接）：
+        ## Input format (simple direct):
         ```json
         {
           "group_id": "group_123",
-          "group_name": "项目讨论组",
+          "group_name": "Project Discussion Group",
           "message_id": "msg_001",
           "create_time": "2025-01-15T10:00:00+08:00",
           "sender": "user_001",
-          "sender_name": "张三",
-          "content": "今天讨论下新功能的技术方案",
+          "sender_name": "Zhang San",
+          "content": "Today let's discuss the technical solution for the new feature",
           "refer_list": ["msg_000"]
         }
         ```
         
-        ## 字段说明：
-        - **group_id** (可选): 群组ID
-        - **group_name** (可选): 群组名称
-        - **message_id** (必需): 消息ID
-        - **create_time** (必需): 消息创建时间（ISO 8601格式）
-        - **sender** (必需): 发送者用户ID
-        - **sender_name** (可选): 发送者名称
-        - **content** (必需): 消息内容
-        - **refer_list** (可选): 引用的消息ID列表
+        ## Field descriptions:
+        - **group_id** (optional): Group ID
+        - **group_name** (optional): Group name
+        - **message_id** (required): Message ID
+        - **create_time** (required): Message creation time (ISO 8601 format)
+        - **sender** (required): Sender user ID
+        - **sender_name** (optional): Sender name
+        - **content** (required): Message content
+        - **refer_list** (optional): List of referenced message IDs
         
-        ## 接口说明：
-        - 接收简单直接的单条消息格式，无需转换
+        ## Interface description:
+        - Receive simple direct single message format, no conversion required
         
-        ## 使用场景：
-        - 实时消息流处理
-        - 聊天机器人集成
-        - 消息队列消费
-        - 单条消息导入
+        ## Use cases:
+        - Real-time message stream processing
+        - Chatbot integration
+        - Message queue consumption
+        - Single message import
         """,
         responses={
             200: {
-                "description": "成功存储记忆数据",
+                "description": "Successfully stored memory data",
                 "content": {
                     "application/json": {
                         "examples": {
                             "extracted": {
-                                "summary": "提取到记忆（已触发边界）",
+                                "summary": "Extracted memories (boundary triggered)",
                                 "value": {
                                     "status": "ok",
                                     "message": "Extracted 1 memories",
@@ -124,7 +124,7 @@ class MemoryController(BaseController):
                                                 "user_id": "user_001",
                                                 "group_id": "group_123",
                                                 "timestamp": "2025-01-15T10:00:00",
-                                                "content": "用户讨论了新功能的技术方案",
+                                                "content": "User discussed the technical solution for the new feature",
                                             }
                                         ],
                                         "count": 1,
@@ -133,7 +133,7 @@ class MemoryController(BaseController):
                                 },
                             },
                             "accumulated": {
-                                "summary": "消息已累积（未触发边界）",
+                                "summary": "Message queued (boundary not triggered)",
                                 "value": {
                                     "status": "ok",
                                     "message": "Message queued, awaiting boundary detection",
@@ -149,13 +149,13 @@ class MemoryController(BaseController):
                 },
             },
             400: {
-                "description": "请求参数错误",
+                "description": "Request parameter error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.INVALID_PARAMETER.value,
-                            "message": "数据格式错误：缺少必需字段 message_id",
+                            "message": "Data format error: Required field message_id is missing",
                             "timestamp": "2025-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories",
                         }
@@ -163,13 +163,13 @@ class MemoryController(BaseController):
                 },
             },
             500: {
-                "description": "服务器内部错误",
+                "description": "Internal server error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.SYSTEM_ERROR.value,
-                            "message": "存储记忆失败，请稍后重试",
+                            "message": "Failed to store memory, please try again later",
                             "timestamp": "2025-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories",
                         }
@@ -183,46 +183,52 @@ class MemoryController(BaseController):
         self, fastapi_request: FastAPIRequest
     ) -> Dict[str, Any]:
         """
-        存储单条消息记忆数据
+        Store single message memory data
 
-        接收简单直接的单条消息格式，通过 group_chat_converter 转换并存储
+        Receive simple direct single message format, convert and store via group_chat_converter
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 记忆存储响应，包含已保存的记忆列表
+            Dict[str, Any]: Memory storage response, containing list of saved memories
 
         Raises:
-            HTTPException: 当请求处理失败时
+            HTTPException: When request processing fails
         """
         try:
-            # 1. 从请求中获取 JSON body（简单直接的格式）
+            # 1. Get JSON body from request (simple direct format)
             message_data = await fastapi_request.json()
-            logger.info("收到 memorize 请求（单条消息）")
+            logger.info("Received memorize request (single message)")
 
-            # 3. 使用 group_chat_converter 转换为内部格式
-            logger.info("开始转换简单消息格式到内部格式")
+            # 3. Use group_chat_converter to convert to internal format
+            logger.info(
+                "Starting conversion from simple message format to internal format"
+            )
             memorize_input = convert_simple_message_to_memorize_input(message_data)
 
-            # 提取元信息用于日志
+            # Extract metadata for logging
             group_name = memorize_input.get("group_name")
             group_id = memorize_input.get("group_id")
 
-            logger.info("转换完成: group_id=%s, group_name=%s", group_id, group_name)
+            logger.info(
+                "Conversion completed: group_id=%s, group_name=%s", group_id, group_name
+            )
 
-            # 4. 转换为 MemorizeRequest 对象并调用 memory_manager
-            logger.info("开始处理记忆请求")
+            # 4. Convert to MemorizeRequest object and call memory_manager
+            logger.info("Starting to process memory request")
             memorize_request = await handle_conversation_format(memorize_input)
             memories = await self.memory_manager.memorize(memorize_request)
 
-            # 5. 返回统一格式的响应
-            # 确保 saved_memories 始终返回列表（空列表或有数据的列表），而不是 None
+            # 5. Return unified response format
+            # Ensure saved_memories always returns a list (empty or with data), never None
             saved_memories = memories if memories else []
             memory_count = len(saved_memories)
-            logger.info("处理记忆请求完成，保存了 %s 条记忆", memory_count)
+            logger.info(
+                "Memory request processing completed, saved %s memories", memory_count
+            )
 
-            # 优化返回信息，帮助用户理解运行状态
+            # Optimize return message to help users understand runtime status
             if memory_count > 0:
                 message = f"Extracted {memory_count} memories"
             else:
@@ -239,58 +245,58 @@ class MemoryController(BaseController):
             }
 
         except ValueError as e:
-            logger.error("memorize 请求参数错误: %s", e)
+            logger.error("memorize request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
         except HTTPException:
-            # 重新抛出 HTTPException
+            # Re-raise HTTPException
             raise
         except Exception as e:
-            logger.error("memorize 请求处理失败: %s", e, exc_info=True)
+            logger.error("memorize request processing failed: %s", e, exc_info=True)
             raise HTTPException(
-                status_code=500, detail="存储记忆失败，请稍后重试"
+                status_code=500, detail="Failed to store memory, please try again later"
             ) from e
 
     @get(
         "",
         response_model=Dict[str, Any],
-        summary="获取用户记忆",
+        summary="Fetch user memories",
         description="""
-        通过 KV 方式获取用户的核心记忆数据
+        Retrieve user's core memory data via KV method
         
-        ## 功能说明：
-        - 根据用户ID直接获取存储的核心记忆
-        - 支持多种记忆类型：基础记忆、用户画像、偏好设置等
-        - 支持分页和排序
-        - 适用于需要快速获取用户固定记忆集合的场景
+        ## Functionality:
+        - Directly retrieve stored core memories based on user ID
+        - Support multiple memory types: base memory, user profile, preference settings, etc.
+        - Support pagination and sorting
+        - Suitable for scenarios requiring quick retrieval of fixed user memory sets
         
-        ## 记忆类型说明：
-        - **base_memory**: 基础记忆，用户的基本信息和常用数据
-        - **profile**: 用户画像，包含用户的特征和属性
-        - **preference**: 用户偏好，包含用户的喜好和设置
-        - **episode_memory**: 情景记忆摘要
-        - **multiple**: 多类型（默认），包含 base_memory、profile、preference
+        ## Memory type descriptions:
+        - **base_memory**: Base memory, user's basic information and commonly used data
+        - **profile**: User profile, containing user characteristics and attributes
+        - **preference**: User preferences, containing user likes and settings
+        - **episode_memory**: Episodic memory summaries
+        - **multiple**: Multiple types (default), includes base_memory, profile, preference
         
-        ## 使用场景：
-        - 用户个人资料展示
-        - 个性化推荐系统
-        - 用户偏好设置加载
+        ## Use cases:
+        - User profile display
+        - Personalized recommendation systems
+        - User preference settings loading
         """,
         responses={
             200: {
-                "description": "成功获取记忆数据",
+                "description": "Successfully retrieved memory data",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": "ok",
-                            "message": "记忆获取成功",
+                            "message": "Memory retrieval successful",
                             "result": {
                                 "memories": [
                                     {
                                         "memory_type": "base_memory",
                                         "user_id": "user_123",
                                         "timestamp": "2024-01-15T10:30:00",
-                                        "content": "用户喜欢喝咖啡",
-                                        "summary": "咖啡偏好",
+                                        "content": "User likes drinking coffee",
+                                        "summary": "Coffee preference",
                                     }
                                 ],
                                 "total_count": 100,
@@ -306,13 +312,13 @@ class MemoryController(BaseController):
                 },
             },
             400: {
-                "description": "请求参数错误",
+                "description": "Request parameter error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.INVALID_PARAMETER.value,
-                            "message": "user_id 不能为空",
+                            "message": "user_id cannot be empty",
                             "timestamp": "2024-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories/fetch",
                         }
@@ -320,13 +326,13 @@ class MemoryController(BaseController):
                 },
             },
             500: {
-                "description": "服务器内部错误",
+                "description": "Internal server error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.SYSTEM_ERROR.value,
-                            "message": "获取记忆失败，请稍后重试",
+                            "message": "Failed to retrieve memory, please try again later",
                             "timestamp": "2024-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories/fetch",
                         }
@@ -337,102 +343,103 @@ class MemoryController(BaseController):
     )
     async def fetch_memories(self, fastapi_request: FastAPIRequest) -> Dict[str, Any]:
         """
-        获取用户记忆数据
+        Retrieve user memory data
 
-        通过 KV 方式根据用户ID直接获取存储的核心记忆
+        Directly retrieve stored core memories by user ID via KV method
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 记忆获取响应
+            Dict[str, Any]: Memory retrieval response
 
         Raises:
-            HTTPException: 当请求处理失败时
+            HTTPException: When request processing fails
         """
         try:
-            # 优先从 body 获取参数，兼容 query params
+            # Prioritize getting parameters from body, fallback to query params
             try:
                 params = await fastapi_request.json()
             except Exception:
-                # 如果没有 body，则从 query params 获取（兼容旧方式）
+                # If no body, get from query params (backward compatibility)
                 params = dict(fastapi_request.query_params)
             logger.info(
-                "收到 fetch 请求: user_id=%s, memory_type=%s",
+                "Received fetch request: user_id=%s, memory_type=%s",
                 params.get("user_id"),
                 params.get("memory_type"),
             )
 
-            # 直接使用 converter 转换
+            # Directly use converter to transform
             fetch_request = convert_dict_to_fetch_mem_request(params)
 
-            # 调用 memory_manager 的 fetch_mem 方法
+            # Call memory_manager's fetch_mem method
             response = await self.memory_manager.fetch_mem(fetch_request)
 
-            # 返回统一格式的响应
+            # Return unified response format
             memory_count = len(response.memories) if response.memories else 0
             logger.info(
-                "fetch 请求处理完成: user_id=%s, 返回 %s 条记忆",
-                query_params.get("user_id"),
+                "Fetch request processing completed: user_id=%s, returned %s memories",
+                params.get("user_id"),
                 memory_count,
             )
             return {
                 "status": ErrorStatus.OK.value,
-                "message": f"记忆获取成功，共获取 {memory_count} 条记忆",
+                "message": f"Memory retrieval successful, retrieved {memory_count} memories",
                 "result": response,
             }
 
         except ValueError as e:
-            logger.error("fetch 请求参数错误: %s", e)
+            logger.error("Fetch request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
         except HTTPException:
-            # 重新抛出 HTTPException
+            # Re-raise HTTPException
             raise
         except Exception as e:
-            logger.error("fetch 请求处理失败: %s", e, exc_info=True)
+            logger.error("Fetch request processing failed: %s", e, exc_info=True)
             raise HTTPException(
-                status_code=500, detail="获取记忆失败，请稍后重试"
+                status_code=500,
+                detail="Failed to retrieve memory, please try again later",
             ) from e
 
     @get(
         "/search",
         response_model=Dict[str, Any],
-        summary="检索相关记忆（支持关键词/向量/混合检索）",
+        summary="Search relevant memories (supports keyword/vector/hybrid search)",
         description="""
-        基于查询文本使用关键词、向量或混合方法检索相关的记忆数据
+        Retrieve relevant memory data based on query text using keyword, vector, or hybrid methods
         
-        ## 功能说明：
-        - 根据查询文本查找最相关的记忆
-        - 支持关键词（BM25）、向量相似度、混合检索三种方法
-        - 支持时间范围过滤
-        - 返回结果按群组组织，并包含相关性评分
-        - 适用于需要精确匹配或语义检索的场景
+        ## Functionality:
+        - Find most relevant memories based on query text
+        - Support three methods: keyword (BM25), vector similarity, and hybrid search
+        - Support time range filtering
+        - Return results organized by group with relevance scores
+        - Suitable for scenarios requiring exact matching or semantic retrieval
         
-        ## 检索方法说明：
-        - **keyword**: 基于关键词的 BM25 检索，适合精确匹配，速度快（默认方法）
-        - **vector**: 基于语义向量的相似度检索，适合模糊查询和语义相似查询
-        - **hybrid**: 混合检索策略，结合关键词和向量检索的优势（推荐）
+        ## Search method descriptions:
+        - **keyword**: Keyword-based BM25 search, suitable for exact matching, fast (default method)
+        - **vector**: Semantic vector-based similarity search, suitable for fuzzy queries and semantic similarity
+        - **hybrid**: Hybrid search strategy combining advantages of keyword and vector search (recommended)
         
-        ## 返回结果说明：
-        - 记忆按群组（group）组织返回
-        - 每个群组包含多条相关记忆，按时间排序
-        - 群组按重要性得分排序，最重要的群组排在前面
-        - 每条记忆都有相关性得分，表示与查询的匹配程度
+        ## Result description:
+        - Memories returned organized by group
+        - Each group contains multiple relevant memories sorted by time
+        - Groups sorted by importance score, most important group first
+        - Each memory has a relevance score indicating match degree with query
         
-        ## 使用场景：
-        - 对话上下文理解
-        - 智能问答系统
-        - 相关内容推荐
-        - 记忆线索追溯
+        ## Use cases:
+        - Conversation context understanding
+        - Intelligent Q&A systems
+        - Relevant content recommendations
+        - Memory clue tracing
         """,
         responses={
             200: {
-                "description": "成功检索记忆数据",
+                "description": "Successfully retrieved memory data",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": "ok",
-                            "message": "记忆检索成功",
+                            "message": "Memory retrieval successful",
                             "result": {
                                 "groups": [
                                     {
@@ -442,7 +449,7 @@ class MemoryController(BaseController):
                                                 "memory_type": "episode_memory",
                                                 "user_id": "user_123",
                                                 "timestamp": "2024-01-15T10:30:00",
-                                                "summary": "讨论了咖啡偏好",
+                                                "summary": "Discussed coffee preference",
                                                 "group_id": "group_456",
                                             }
                                         ],
@@ -469,13 +476,13 @@ class MemoryController(BaseController):
                 },
             },
             400: {
-                "description": "请求参数错误",
+                "description": "Request parameter error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.INVALID_PARAMETER.value,
-                            "message": "query 不能为空",
+                            "message": "query cannot be empty",
                             "timestamp": "2024-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories/search",
                         }
@@ -483,13 +490,13 @@ class MemoryController(BaseController):
                 },
             },
             500: {
-                "description": "服务器内部错误",
+                "description": "Internal server error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.SYSTEM_ERROR.value,
-                            "message": "检索记忆失败，请稍后重试",
+                            "message": "Failed to retrieve memory, please try again later",
                             "timestamp": "2024-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories/search",
                         }
@@ -500,102 +507,105 @@ class MemoryController(BaseController):
     )
     async def search_memories(self, fastapi_request: FastAPIRequest) -> Dict[str, Any]:
         """
-        检索相关记忆数据
+        Search relevant memory data
 
-        基于查询文本使用关键词、向量或混合方法检索相关的记忆数据
+        Retrieve relevant memory data based on query text using keyword, vector, or hybrid methods
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 记忆检索响应
+            Dict[str, Any]: Memory search response
 
         Raises:
-            HTTPException: 当请求处理失败时
+            HTTPException: When request processing fails
         """
         try:
-            # 从请求中获取 JSON body
+            # Get JSON body from request
             body = await fastapi_request.json()
             query = body.get("query")
             logger.info(
-                "收到 search 请求: user_id=%s, query=%s", body.get("user_id"), query
+                "Received search request: user_id=%s, query=%s",
+                body.get("user_id"),
+                query,
             )
 
-            # 直接使用 converter 转换
+            # Directly use converter to transform
             retrieve_request = convert_dict_to_retrieve_mem_request(body, query=query)
 
-            # 使用 retrieve_mem 方法（支持 keyword 和 hybrid）
+            # Use retrieve_mem method (supports keyword and hybrid)
             response = await self.memory_manager.retrieve_mem(retrieve_request)
 
-            # 返回统一格式的响应
+            # Return unified response format
             group_count = len(response.memories) if response.memories else 0
             logger.info(
-                "search 请求处理完成: user_id=%s, 返回 %s 个群组",
+                "Search request processing completed: user_id=%s, returned %s groups",
                 body.get("user_id"),
                 group_count,
             )
             return {
                 "status": ErrorStatus.OK.value,
-                "message": f"记忆检索成功，共检索到 {group_count} 个群组",
+                "message": f"Memory search successful, retrieved {group_count} groups",
                 "result": response,
             }
 
         except ValueError as e:
-            logger.error("search 请求参数错误: %s", e)
+            logger.error("Search request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
         except HTTPException:
-            # 重新抛出 HTTPException
+            # Re-raise HTTPException
             raise
         except Exception as e:
-            logger.error("search 请求处理失败: %s", e, exc_info=True)
+            logger.error("Search request processing failed: %s", e, exc_info=True)
             raise HTTPException(
-                status_code=500, detail="检索记忆失败，请稍后重试"
+                status_code=500,
+                detail="Failed to retrieve memory, please try again later",
             ) from e
 
     @post(
         "/conversation-meta",
         response_model=Dict[str, Any],
-        summary="保存对话元数据",
+        summary="Save conversation metadata",
         description="""
-        保存对话的元数据信息，包括场景、参与者、标签等
+        Save conversation metadata information, including scene, participants, tags, etc.
         
-        ## 功能说明：
-        - 如果 group_id 已存在，则更新整个记录（upsert）
-        - 如果 group_id 不存在，则创建新记录
-        - 所有字段都需要提供完整数据
+        ## Functionality:
+        - If group_id exists, update the entire record (upsert)
+        - If group_id does not exist, create a new record
+        - All fields must be provided with complete data
         
-        ## 注意事项：
-        - 这是一个完整更新接口，会替换整个记录
-        - 如果只需要更新部分字段，请使用 PATCH /conversation-meta 接口
+        ## Notes:
+        - This is a full update interface that will replace the entire record
+        - If you only need to update partial fields, use the PATCH /conversation-meta interface
         """,
     )
     async def save_conversation_meta(
         self, fastapi_request: FastAPIRequest
     ) -> Dict[str, Any]:
         """
-        保存对话元数据
+        Save conversation metadata
 
-        接收 ConversationMetaRequest 格式的数据，转换为 ConversationMeta ODM 模型并保存到 MongoDB
+        Receive ConversationMetaRequest format data, convert to ConversationMeta ODM model and save to MongoDB
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 保存响应，包含已保存的元数据信息
+            Dict[str, Any]: Save response, containing saved metadata information
 
         Raises:
-            HTTPException: 当请求处理失败时
+            HTTPException: When request processing fails
         """
         try:
-            # 1. 从请求中获取 JSON body
+            # 1. Get JSON body from request
             request_data = await fastapi_request.json()
             logger.info(
-                "收到 conversation-meta 保存请求: group_id=%s",
+                "Received conversation-meta save request: group_id=%s",
                 request_data.get("group_id"),
             )
 
-            # 2. 解析为 ConversationMetaRequest
-            # 处理 user_details 的转换
+            # 2. Parse into ConversationMetaRequest
+            # Handle conversion of user_details
             user_details_data = request_data.get("user_details", {})
             user_details = {}
             for user_id, detail_data in user_details_data.items():
@@ -619,11 +629,11 @@ class MemoryController(BaseController):
             )
 
             logger.info(
-                "解析 ConversationMetaRequest 成功: group_id=%s",
+                "Parsed ConversationMetaRequest successfully: group_id=%s",
                 conversation_meta_request.group_id,
             )
 
-            # 3. 转换为 ConversationMeta ODM 模型
+            # 3. Convert to ConversationMeta ODM model
             user_details_model = {}
             for user_id, detail in conversation_meta_request.user_details.items():
                 user_details_model[user_id] = UserDetailModel(
@@ -643,8 +653,8 @@ class MemoryController(BaseController):
                 tags=conversation_meta_request.tags,
             )
 
-            # 4. 使用 upsert 方式保存（如果 group_id 已存在则更新）
-            logger.info("开始保存对话元数据到 MongoDB")
+            # 4. Save using upsert method (update if group_id exists)
+            logger.info("Starting to save conversation metadata to MongoDB")
             saved_meta = await self.conversation_meta_repository.upsert_by_group_id(
                 group_id=conversation_meta.group_id,
                 conversation_data={
@@ -661,18 +671,20 @@ class MemoryController(BaseController):
             )
 
             if not saved_meta:
-                raise HTTPException(status_code=500, detail="保存对话元数据失败")
+                raise HTTPException(
+                    status_code=500, detail="Failed to save conversation metadata"
+                )
 
             logger.info(
-                "保存对话元数据成功: id=%s, group_id=%s",
+                "Conversation metadata saved successfully: id=%s, group_id=%s",
                 saved_meta.id,
                 saved_meta.group_id,
             )
 
-            # 5. 返回成功响应
+            # 5. Return success response
             return {
                 "status": ErrorStatus.OK.value,
-                "message": "对话元数据保存成功",
+                "message": "Conversation metadata saved successfully",
                 "result": {
                     "id": str(saved_meta.id),
                     "group_id": saved_meta.group_id,
@@ -693,72 +705,75 @@ class MemoryController(BaseController):
             }
 
         except KeyError as e:
-            logger.error("conversation-meta 请求缺少必需字段: %s", e)
+            logger.error("conversation-meta request missing required field: %s", e)
             raise HTTPException(
-                status_code=400, detail=f"缺少必需字段: {str(e)}"
+                status_code=400, detail=f"Missing required field: {str(e)}"
             ) from e
         except ValueError as e:
-            logger.error("conversation-meta 请求参数错误: %s", e)
+            logger.error("conversation-meta request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
         except HTTPException:
-            # 重新抛出 HTTPException
+            # Re-raise HTTPException
             raise
         except Exception as e:
-            logger.error("conversation-meta 请求处理失败: %s", e, exc_info=True)
+            logger.error(
+                "conversation-meta request processing failed: %s", e, exc_info=True
+            )
             raise HTTPException(
-                status_code=500, detail="保存对话元数据失败，请稍后重试"
+                status_code=500,
+                detail="Failed to save conversation metadata, please try again later",
             ) from e
 
     @patch(
         "/conversation-meta",
         response_model=Dict[str, Any],
-        summary="局部更新对话元数据",
+        summary="Partially update conversation metadata",
         description="""
-        局部更新对话的元数据信息，只更新提供的字段
+        Partially update conversation metadata, only updating provided fields
         
-        ## 功能说明：
-        - 根据 group_id 定位要更新的对话元数据
-        - 只更新请求中提供的字段，未提供的字段保持不变
-        - 适用于需要修改部分信息的场景
+        ## Functionality:
+        - Locate the conversation metadata to update by group_id
+        - Only update fields provided in the request, keep unchanged fields as-is
+        - Suitable for scenarios requiring modification of partial information
         
-        ## 请求示例：
+        ## Request example:
         ```json
         {
           "group_id": "group_123",
-          "name": "新的对话名称",
-          "tags": ["标签1", "标签2"]
+          "name": "New conversation name",
+          "tags": ["tag1", "tag2"]
         }
         ```
         
-        ## 字段说明：
-        - **group_id** (必需): 要更新的对话群组ID
-        - 其他所有字段均为可选，只需提供需要更新的字段
+        ## Field descriptions:
+        - **group_id** (required): Group ID of the conversation to update
+        - All other fields are optional, only provide fields that need updating
         
-        ## 支持更新的字段：
-        - **name**: 对话名称
-        - **description**: 对话描述
-        - **scene_desc**: 场景描述
-        - **tags**: 标签列表
-        - **user_details**: 用户详情（会完整替换现有的 user_details）
-        - **default_timezone**: 默认时区
+        ## Fields that can be updated:
+        - **name**: Conversation name
+        - **description**: Conversation description
+        - **scene_desc**: Scene description
+        - **tags**: Tag list
+        - **user_details**: User details (will completely replace existing user_details)
+        - **default_timezone**: Default timezone
         
-        ## 注意事项：
-        - group_id 必须存在，否则返回 404 错误
-        - user_details 字段如果提供，会完整替换现有的用户详情
-        - 不允许修改 version、scene、group_id、conversation_created_at 等核心字段
+        ## Notes:
+        - group_id must exist, otherwise return 404 error
+        - If user_details field is provided, it will completely replace existing user details
+        - Not allowed to modify core fields such as version, scene, group_id, conversation_created_at
         """,
         responses={
             200: {
-                "description": "成功更新对话元数据",
+                "description": "Successfully updated conversation metadata",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": "ok",
-                            "message": "对话元数据更新成功",
+                            "message": "Conversation metadata updated successfully",
                             "result": {
                                 "id": "507f1f77bcf86cd799439011",
                                 "group_id": "group_123",
-                                "name": "新的对话名称",
+                                "name": "New conversation name",
                                 "updated_fields": ["name", "tags"],
                             },
                         }
@@ -766,13 +781,13 @@ class MemoryController(BaseController):
                 },
             },
             400: {
-                "description": "请求参数错误",
+                "description": "Request parameter error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.INVALID_PARAMETER.value,
-                            "message": "缺少必需字段 group_id",
+                            "message": "Missing required field group_id",
                             "timestamp": "2025-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories/conversation-meta",
                         }
@@ -780,13 +795,13 @@ class MemoryController(BaseController):
                 },
             },
             404: {
-                "description": "对话元数据不存在",
+                "description": "Conversation metadata not found",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.RESOURCE_NOT_FOUND.value,
-                            "message": "找不到指定的对话元数据: group_123",
+                            "message": "Specified conversation metadata not found: group_123",
                             "timestamp": "2025-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories/conversation-meta",
                         }
@@ -794,13 +809,13 @@ class MemoryController(BaseController):
                 },
             },
             500: {
-                "description": "服务器内部错误",
+                "description": "Internal server error",
                 "content": {
                     "application/json": {
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.SYSTEM_ERROR.value,
-                            "message": "更新对话元数据失败，请稍后重试",
+                            "message": "Failed to update conversation metadata, please try again later",
                             "timestamp": "2025-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories/conversation-meta",
                         }
@@ -813,41 +828,47 @@ class MemoryController(BaseController):
         self, fastapi_request: FastAPIRequest
     ) -> Dict[str, Any]:
         """
-        局部更新对话元数据
+        Partially update conversation metadata
 
-        根据 group_id 定位记录，只更新请求中提供的字段
+        Locate record by group_id, only update fields provided in the request
 
         Args:
-            fastapi_request: FastAPI 请求对象
+            fastapi_request: FastAPI request object
 
         Returns:
-            Dict[str, Any]: 更新响应，包含更新后的元数据信息
+            Dict[str, Any]: Update response, containing updated metadata information
 
         Raises:
-            HTTPException: 当请求处理失败时
+            HTTPException: When request processing fails
         """
         try:
-            # 1. 从请求中获取 JSON body
+            # 1. Get JSON body from request
             request_data = await fastapi_request.json()
             group_id = request_data.get("group_id")
 
-            # 2. 验证 group_id 是否提供
+            # 2. Validate group_id is provided
             if not group_id:
-                raise HTTPException(status_code=400, detail="缺少必需字段 group_id")
+                raise HTTPException(
+                    status_code=400, detail="Missing required field group_id"
+                )
 
-            logger.info("收到 conversation-meta 局部更新请求: group_id=%s", group_id)
+            logger.info(
+                "Received conversation-meta partial update request: group_id=%s",
+                group_id,
+            )
 
-            # 3. 检查对话元数据是否存在
+            # 3. Check if conversation metadata exists
             existing_meta = await self.conversation_meta_repository.get_by_group_id(
                 group_id
             )
             if not existing_meta:
                 raise HTTPException(
-                    status_code=404, detail=f"找不到指定的对话元数据: {group_id}"
+                    status_code=404,
+                    detail=f"Specified conversation metadata not found: {group_id}",
                 )
 
-            # 4. 准备更新数据（排除不允许修改的字段和空值）
-            # 不允许通过 PATCH 修改的核心字段
+            # 4. Prepare update data (exclude immutable fields and null values)
+            # Core fields not allowed to be modified via PATCH
             immutable_fields = {
                 "version",
                 "scene",
@@ -858,12 +879,12 @@ class MemoryController(BaseController):
             update_data = {}
             updated_fields = []
 
-            # 处理普通字段
+            # Handle regular fields
             for key, value in request_data.items():
                 if key in immutable_fields or key == "group_id":
                     continue
 
-                # 处理 user_details 字段
+                # Handle user_details field
                 if key == "user_details" and value is not None:
                     user_details_model = {}
                     for user_id, detail_data in value.items():
@@ -878,12 +899,12 @@ class MemoryController(BaseController):
                     update_data[key] = value
                     updated_fields.append(key)
 
-            # 5. 如果没有需要更新的字段
+            # 5. If no fields need updating
             if not update_data:
-                logger.warning("没有提供需要更新的字段: group_id=%s", group_id)
+                logger.warning("No fields provided for update: group_id=%s", group_id)
                 return {
                     "status": ErrorStatus.OK.value,
-                    "message": "没有字段需要更新",
+                    "message": "No fields need updating",
                     "result": {
                         "id": str(existing_meta.id),
                         "group_id": existing_meta.group_id,
@@ -891,26 +912,31 @@ class MemoryController(BaseController):
                     },
                 }
 
-            # 6. 执行更新
-            logger.info("开始更新对话元数据，更新字段: %s", updated_fields)
+            # 6. Perform update
+            logger.info(
+                "Starting to update conversation metadata, updating fields: %s",
+                updated_fields,
+            )
             updated_meta = await self.conversation_meta_repository.update_by_group_id(
                 group_id=group_id, update_data=update_data
             )
 
             if not updated_meta:
-                raise HTTPException(status_code=500, detail="更新对话元数据失败")
+                raise HTTPException(
+                    status_code=500, detail="Failed to update conversation metadata"
+                )
 
             logger.info(
-                "更新对话元数据成功: id=%s, group_id=%s, updated_fields=%s",
+                "Conversation metadata updated successfully: id=%s, group_id=%s, updated_fields=%s",
                 updated_meta.id,
                 updated_meta.group_id,
                 updated_fields,
             )
 
-            # 7. 返回成功响应
+            # 7. Return success response
             return {
                 "status": ErrorStatus.OK.value,
-                "message": f"对话元数据更新成功，共更新 {len(updated_fields)} 个字段",
+                "message": f"Conversation metadata updated successfully, updated {len(updated_fields)} fields",
                 "result": {
                     "id": str(updated_meta.id),
                     "group_id": updated_meta.group_id,
@@ -926,18 +952,27 @@ class MemoryController(BaseController):
             }
 
         except HTTPException:
-            # 重新抛出 HTTPException
+            # Re-raise HTTPException
             raise
         except KeyError as e:
-            logger.error("conversation-meta 局部更新请求缺少必需字段: %s", e)
+            logger.error(
+                "conversation-meta partial update request missing required field: %s", e
+            )
             raise HTTPException(
-                status_code=400, detail=f"缺少必需字段: {str(e)}"
+                status_code=400, detail=f"Missing required field: {str(e)}"
             ) from e
         except ValueError as e:
-            logger.error("conversation-meta 局部更新请求参数错误: %s", e)
+            logger.error(
+                "conversation-meta partial update request parameter error: %s", e
+            )
             raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
-            logger.error("conversation-meta 局部更新请求处理失败: %s", e, exc_info=True)
+            logger.error(
+                "conversation-meta partial update request processing failed: %s",
+                e,
+                exc_info=True,
+            )
             raise HTTPException(
-                status_code=500, detail="更新对话元数据失败，请稍后重试"
+                status_code=500,
+                detail="Failed to update conversation metadata, please try again later",
             ) from e

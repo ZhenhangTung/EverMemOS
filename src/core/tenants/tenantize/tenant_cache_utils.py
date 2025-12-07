@@ -1,19 +1,19 @@
 """
-租户缓存工具函数
+Tenant cache utility functions
 
-提供租户感知的缓存机制，用于在租户上下文中缓存计算结果。
-这是一个通用的缓存模式实现，避免在不同模块中重复编写相同的缓存逻辑。
+Provides tenant-aware caching mechanism for caching computation results within tenant context.
+This is a generic cache pattern implementation to avoid duplicating the same caching logic across different modules.
 
-核心设计模式：
-- 缓存模式（Cache Pattern）
-- 延迟初始化模式（Lazy Initialization Pattern）
-- 备忘录模式（Memoization Pattern）
+Core design patterns:
+- Cache Pattern
+- Lazy Initialization Pattern
+- Memoization Pattern
 
-使用场景：
-- 租户感知的连接别名计算
-- 租户感知的数据库名称获取
-- 租户感知的配置信息获取
-- 任何需要按租户缓存的计算结果
+Use cases:
+- Tenant-aware connection alias computation
+- Tenant-aware database name retrieval
+- Tenant-aware configuration information retrieval
+- Any computation result that needs to be cached per tenant
 """
 
 from typing import TypeVar, Callable, Optional, Union
@@ -31,37 +31,37 @@ def get_or_compute_tenant_cache(
     patch_key: TenantPatchKey,
     compute_func: Callable[[], T],
     fallback: Optional[Union[T, Callable[[], T]]] = None,
-    cache_description: str = "值",
+    cache_description: str = "value",
 ) -> T:
     """
-    获取或计算租户缓存值（支持延迟计算 fallback）
+    Get or compute tenant cache value (supports lazy evaluation fallback)
 
-    这是一个通用的租户感知缓存函数，封装了常见的缓存模式：
-    1. 判断是否租户模式 -> 如果不是，返回 fallback（延迟计算）
-    2. 获取租户信息 -> 如果没有，返回 fallback（延迟计算）
-    3. 检查 patch 缓存 -> 如果有，返回缓存值
-    4. 调用 compute_func 计算新值 -> 缓存到 patch -> 返回新值
+    This is a generic tenant-aware cache function that encapsulates common caching patterns:
+    1. Check if in non-tenant mode -> if yes, return fallback (lazy evaluation)
+    2. Get tenant information -> if not available, return fallback (lazy evaluation)
+    3. Check patch cache -> if hit, return cached value
+    4. Call compute_func to calculate new value -> cache to patch -> return new value
 
-    性能优化：
-    - fallback 支持延迟计算：只有在真正需要时才调用 fallback 函数
-    - 避免在租户模式下执行不必要的 fallback 计算
+    Performance optimization:
+    - Fallback supports lazy evaluation: fallback function is only called when actually needed
+    - Avoid unnecessary fallback computation in tenant mode
 
     Args:
-        patch_key: TenantPatchKey 枚举值，用于标识缓存项
-        compute_func: 计算函数，当缓存未命中时调用。应该是无参数的 Callable
-        fallback: 非租户模式或无租户上下文时的后备值（可选）
-                 - 可以是一个具体的值（如 "default"）
-                 - 也可以是一个无参数函数（延迟计算，如 lambda: get_default_database_name()）
-        cache_description: 缓存项的描述，用于日志记录（可选，默认为"值"）
+        patch_key: TenantPatchKey enum value, used to identify the cache item
+        compute_func: Computation function, called when cache miss occurs. Should be a parameterless Callable
+        fallback: Fallback value when not in tenant mode or no tenant context (optional)
+                 - Can be a concrete value (e.g., "default")
+                 - Or a parameterless function (lazy evaluation, e.g., lambda: get_default_database_name())
+        cache_description: Description of the cache item, used for logging (optional, default is "value")
 
     Returns:
-        T: 缓存的值或计算的值
+        T: Cached value or computed value
 
     Raises:
-        RuntimeError: 如果 fallback 为 None 且在非租户模式或无租户上下文时
+        RuntimeError: If fallback is None and in non-tenant mode or without tenant context
 
-    使用示例：
-        >>> # 示例 1: 获取租户感知的连接别名（fallback 是具体值）
+    Usage examples:
+        >>> # Example 1: Get tenant-aware connection alias (fallback is a concrete value)
         >>> def compute_using():
         ...     milvus_config = get_tenant_milvus_config()
         ...     cache_key = get_milvus_connection_cache_key(milvus_config)
@@ -70,11 +70,11 @@ def get_or_compute_tenant_cache(
         >>> using = get_or_compute_tenant_cache(
         ...     patch_key=TenantPatchKey.MILVUS_CONNECTION_CACHE_KEY,
         ...     compute_func=compute_using,
-        ...     fallback="default",  # 具体值，不需要延迟计算
-        ...     cache_description="Milvus 连接别名"
+        ...     fallback="default",  # Concrete value, no lazy evaluation needed
+        ...     cache_description="Milvus connection alias"
         ... )
 
-        >>> # 示例 2: 获取租户感知的数据库名称（fallback 是函数，延迟计算）
+        >>> # Example 2: Get tenant-aware database name (fallback is a function, lazy evaluation)
         >>> def compute_database_name():
         ...     mongo_config = get_tenant_mongo_config()
         ...     return mongo_config.get("database")
@@ -82,46 +82,46 @@ def get_or_compute_tenant_cache(
         >>> db_name = get_or_compute_tenant_cache(
         ...     patch_key=TenantPatchKey.ACTUAL_DATABASE_NAME,
         ...     compute_func=compute_database_name,
-        ...     fallback=lambda: get_default_database_name(),  # 延迟计算，只在需要时调用
-        ...     cache_description="数据库名称"
+        ...     fallback=lambda: get_default_database_name(),  # Lazy evaluation, only called when needed
+        ...     cache_description="database name"
         ... )
     """
     try:
         config = get_tenant_config()
 
-        # 步骤 1: 非租户模式 -> 返回后备值（延迟计算）
+        # Step 1: Non-tenant mode -> return fallback value (lazy evaluation)
         if config.non_tenant_mode:
             fallback_value = _resolve_fallback(fallback, cache_description)
             if fallback_value is None:
                 raise RuntimeError(
-                    f"非租户模式下必须提供 fallback 参数 [cache_key={patch_key.value}]"
+                    f"fallback parameter must be provided in non-tenant mode [cache_key={patch_key.value}]"
                 )
             logger.debug(
-                "⚠️ 非租户模式，使用后备%s [fallback=%s]",
+                "⚠️ Non-tenant mode, using fallback %s [fallback=%s]",
                 cache_description,
                 fallback_value,
             )
             return fallback_value
 
-        # 步骤 2: 获取租户信息
+        # Step 2: Get tenant information
         tenant_info = get_current_tenant()
         if not tenant_info:
-            # 严格检查模式：应用启动完成后，租户模式下必须有租户上下文
+            # Strict check mode: after app startup, tenant context must exist in tenant mode
             if config.app_ready:
                 raise RuntimeError(
-                    f"🚨 严格租户检查失败：应用已就绪但缺少租户上下文！"
-                    f"这通常表示代码存在严重问题，请检查调用链路。"
+                    f"🚨 Strict tenant check failed: app is ready but tenant context is missing!"
+                    f"This usually indicates a serious code issue, please check the call chain."
                     f"[cache_key={patch_key.value}, cache_description={cache_description}]"
                 )
 
-            # 应用启动中，允许使用 fallback
+            # During app startup, allow using fallback
             fallback_value = _resolve_fallback(fallback, cache_description)
             if fallback_value is None:
                 raise RuntimeError(
-                    f"租户模式下未设置租户上下文且未提供 fallback [cache_key={patch_key.value}]"
+                    f"Tenant context not set in tenant mode and no fallback provided [cache_key={patch_key.value}]"
                 )
             logger.debug(
-                "⚠️ 租户模式下未设置租户上下文，使用后备%s [fallback=%s]",
+                "⚠️ Tenant context not set in tenant mode, using fallback %s [fallback=%s]",
                 cache_description,
                 fallback_value,
             )
@@ -129,45 +129,45 @@ def get_or_compute_tenant_cache(
 
         tenant_id = tenant_info.tenant_id
 
-        # 步骤 3: 检查 patch 缓存
+        # Step 3: Check patch cache
         cached_value = tenant_info.get_patch_value(patch_key)
         if cached_value is not None:
             logger.debug(
-                "🔍 从 tenant_info_patch 缓存命中%s [tenant_id=%s, value=%s]",
+                "🔍 Cache hit in tenant_info_patch for %s [tenant_id=%s, value=%s]",
                 cache_description,
                 tenant_id,
                 cached_value,
             )
             return cached_value
 
-        # 步骤 4: 计算新值
+        # Step 4: Compute new value
         computed_value = compute_func()
 
-        # 步骤 5: 缓存到 patch
+        # Step 5: Cache to patch
         tenant_info.set_patch_value(patch_key, computed_value)
 
         logger.debug(
-            "✅ 为租户 [%s] 计算并缓存%s [value=%s]",
-            tenant_id,
+            "✅ Computed and cached %s for tenant [%s] [value=%s]",
             cache_description,
+            tenant_id,
             computed_value,
         )
 
         return computed_value
 
     except Exception as e:
-        # 异常处理：尝试使用 fallback（延迟计算）
+        # Exception handling: try to use fallback (lazy evaluation)
         fallback_value = _resolve_fallback(fallback, cache_description)
         if fallback_value is not None:
             logger.error(
-                "获取租户缓存%s失败，使用后备值: %s [fallback=%s]",
+                "Failed to get tenant cache %s, using fallback value: %s [fallback=%s]",
                 cache_description,
                 e,
                 fallback_value,
             )
             return fallback_value
         else:
-            logger.error("获取租户缓存%s失败: %s", cache_description, e)
+            logger.error("Failed to get tenant cache %s: %s", cache_description, e)
             raise
 
 
@@ -175,25 +175,25 @@ def _resolve_fallback(
     fallback: Optional[Union[T, Callable[[], T]]], description: str
 ) -> Optional[T]:
     """
-    解析 fallback 值（支持延迟计算）
+    Resolve fallback value (supports lazy evaluation)
 
     Args:
-        fallback: 可以是具体值或函数
-        description: 描述信息，用于日志
+        fallback: Can be a concrete value or a function
+        description: Description for logging
 
     Returns:
-        解析后的值
+        Resolved value
     """
     if fallback is None:
         return None
 
-    # 如果是 Callable，调用它（延迟计算）
+    # If it's a Callable, call it (lazy evaluation)
     if callable(fallback):
         try:
             return fallback()
         except Exception as e:
-            logger.error("计算 fallback %s 失败: %s", description, e)
+            logger.error("Failed to compute fallback %s: %s", description, e)
             return None
 
-    # 否则直接返回具体值
+    # Otherwise, return the concrete value directly
     return fallback

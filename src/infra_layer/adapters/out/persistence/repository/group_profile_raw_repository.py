@@ -13,65 +13,71 @@ logger = get_logger(__name__)
 @repository("group_profile_raw_repository", primary=True)
 class GroupProfileRawRepository(BaseRepository[GroupProfile]):
     """
-    群组记忆原始数据仓库
+    Group profile raw data repository
 
-    提供群组记忆的 CRUD 操作和查询功能。
-    支持群组信息、角色定义、用户标签和近期话题的管理。
+    Provides CRUD operations and query capabilities for group profiles.
+    Supports management of group information, role definitions, user tags, and recent topics.
     """
 
     def __init__(self):
         super().__init__(GroupProfile)
 
-    # ==================== 版本管理方法 ====================
+    # ==================== Version Management Methods ====================
 
     async def ensure_latest(
         self, group_id: str, session: Optional[AsyncClientSession] = None
     ) -> bool:
         """
-        确保指定群组的最新版本标记正确
+        Ensure the latest version flag is correctly set for the specified group
 
-        根据group_id找到最新的version，将其is_latest设为True，其他版本设为False。
-        这是一个幂等操作，可以安全地重复调用。
+        Find the latest version by group_id, set its is_latest to True, and set others to False.
+        This is an idempotent operation and can be safely called repeatedly.
 
         Args:
-            group_id: 群组ID
-            session: 可选的 MongoDB 会话，用于事务支持
+            group_id: Group ID
+            session: Optional MongoDB session for transaction support
 
         Returns:
-            是否成功更新
+            Whether the update was successful
         """
         try:
-            # 只查询最新的一条记录（优化性能）
+            # Query only the most recent record (optimize performance)
             latest_version = await self.model.find_one(
                 {"group_id": group_id}, sort=[("version", -1)], session=session
             )
 
             if not latest_version:
-                logger.debug("ℹ️  未找到需要更新的群组记忆: group_id=%s", group_id)
+                logger.debug(
+                    "ℹ️  No group profile found to update: group_id=%s", group_id
+                )
                 return True
 
-            # 批量更新：将所有旧版本的is_latest设为False
+            # Batch update: set is_latest to False for all older versions
             await self.model.find(
                 {"group_id": group_id, "version": {"$ne": latest_version.version}},
                 session=session,
             ).update_many({"$set": {"is_latest": False}})
 
-            # 更新最新版本的is_latest为True
+            # Update the latest version's is_latest to True
             if latest_version.is_latest != True:
                 latest_version.is_latest = True
                 await latest_version.save(session=session)
                 logger.debug(
-                    "✅ 设置最新版本标记: group_id=%s, version=%s",
+                    "✅ Set latest version flag: group_id=%s, version=%s",
                     group_id,
                     latest_version.version,
                 )
 
             return True
         except Exception as e:
-            logger.error("❌ 确保最新版本标记失败: group_id=%s, error=%s", group_id, e)
+            logger.error(
+                "❌ Failed to ensure latest version flag: group_id=%s, error=%s",
+                group_id,
+                e,
+            )
             return False
 
-    # ==================== 基础 CRUD 方法 ====================
+    # ==================== Basic CRUD Methods ====================
 
     async def get_by_group_id(
         self,
@@ -80,21 +86,21 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[GroupProfile]:
         """
-        根据群组ID获取群组记忆
+        Get group profile by group ID
 
         Args:
-            group_id: 群组ID
-            version_range: 版本范围 (start, end)，左闭右闭区间 [start, end]。
-                          如果不传或为None，则获取最新版本（按version倒序）
-            session: 可选的 MongoDB 会话，用于事务支持
+            group_id: Group ID
+            version_range: Version range (start, end), inclusive [start, end].
+                          If not provided or None, get the latest version (sorted by version descending)
+            session: Optional MongoDB session for transaction support
 
         Returns:
-            GroupProfile 或 None
+            GroupProfile or None
         """
         try:
             query_filter = {"group_id": group_id}
 
-            # 处理版本范围查询
+            # Handle version range query
             if version_range:
                 start_version, end_version = version_range
                 version_filter = {}
@@ -105,22 +111,22 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
                 if version_filter:
                     query_filter["version"] = version_filter
 
-            # 按版本倒序，获取最新版本
+            # Sort by version descending to get the latest version
             result = await self.model.find_one(
                 query_filter, sort=[("version", -1)], session=session
             )
 
             if result:
                 logger.debug(
-                    "✅ 根据群组ID获取群组记忆成功: %s, version=%s",
+                    "✅ Successfully retrieved group profile by group ID: %s, version=%s",
                     group_id,
                     result.version,
                 )
             else:
-                logger.debug("ℹ️  未找到群组记忆: group_id=%s", group_id)
+                logger.debug("ℹ️  Group profile not found: group_id=%s", group_id)
             return result
         except Exception as e:
-            logger.error("❌ 根据群组ID获取群组记忆失败: %s", e)
+            logger.error("❌ Failed to retrieve group profile by group ID: %s", e)
             return None
 
     async def update_by_group_id(
@@ -131,54 +137,54 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[GroupProfile]:
         """
-        根据群组ID更新群组记忆
+        Update group profile by group ID
 
         Args:
-            group_id: 群组ID
-            update_data: 更新数据
-            version: 可选的版本号，如果指定则更新特定版本，否则更新最新版本
-            session: 可选的 MongoDB 会话，用于事务支持
+            group_id: Group ID
+            update_data: Update data
+            version: Optional version number; if specified, update specific version, otherwise update latest version
+            session: Optional MongoDB session for transaction support
 
         Returns:
-            更新后的 GroupProfile 或 None
+            Updated GroupProfile or None
         """
         try:
-            # 查找要更新的文档
+            # Find the document to update
             if version is not None:
-                # 更新特定版本
+                # Update specific version
                 existing_doc = await self.model.find_one(
                     {"group_id": group_id, "version": version}, session=session
                 )
             else:
-                # 更新最新版本
+                # Update latest version
                 existing_doc = await self.model.find_one(
                     {"group_id": group_id}, sort=[("version", -1)], session=session
                 )
 
             if not existing_doc:
                 logger.warning(
-                    "⚠️  未找到要更新的群组记忆: group_id=%s, version=%s",
+                    "⚠️  Group profile not found for update: group_id=%s, version=%s",
                     group_id,
                     version,
                 )
                 return None
 
-            # 更新文档
+            # Update document
             for key, value in update_data.items():
                 if hasattr(existing_doc, key):
                     setattr(existing_doc, key, value)
 
-            # 保存更新后的文档
+            # Save updated document
             await existing_doc.save(session=session)
             logger.debug(
-                "✅ 根据群组ID更新群组记忆成功: group_id=%s, version=%s",
+                "✅ Successfully updated group profile by group ID: group_id=%s, version=%s",
                 group_id,
                 existing_doc.version,
             )
 
             return existing_doc
         except Exception as e:
-            logger.error("❌ 根据群组ID更新群组记忆失败: %s", e)
+            logger.error("❌ Failed to update group profile by group ID: %s", e)
             return None
 
     async def delete_by_group_id(
@@ -188,15 +194,15 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
         session: Optional[AsyncClientSession] = None,
     ) -> bool:
         """
-        根据群组ID删除群组记忆
+        Delete group profile by group ID
 
         Args:
-            group_id: 群组ID
-            version: 可选的版本号，如果指定则只删除特定版本，否则删除所有版本
-            session: 可选的 MongoDB 会话，用于事务支持
+            group_id: Group ID
+            version: Optional version number; if specified, delete only that version, otherwise delete all versions
+            session: Optional MongoDB session for transaction support
 
         Returns:
-            是否删除成功
+            Whether deletion was successful
         """
         try:
             query_filter = {"group_id": group_id}
@@ -204,11 +210,11 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
                 query_filter["version"] = version
 
             if version is not None:
-                # 删除特定版本
+                # Delete specific version
                 result = await self.model.find_one(query_filter, session=session)
                 if not result:
                     logger.warning(
-                        "⚠️  未找到要删除的群组记忆: group_id=%s, version=%s",
+                        "⚠️  Group profile not found for deletion: group_id=%s, version=%s",
                         group_id,
                         version,
                     )
@@ -216,16 +222,16 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
 
                 await result.delete(session=session)
                 logger.debug(
-                    "✅ 根据群组ID和版本删除群组记忆成功: group_id=%s, version=%s",
+                    "✅ Successfully deleted group profile by group ID and version: group_id=%s, version=%s",
                     group_id,
                     version,
                 )
 
-                # 删除后确保最新版本标记正确
+                # After deletion, ensure latest version flag is correct
                 await self.ensure_latest(group_id, session)
                 return True
             else:
-                # 删除所有版本
+                # Delete all versions
                 result = await self.model.find(query_filter, session=session).delete()
                 deleted_count = (
                     result.deleted_count if hasattr(result, 'deleted_count') else 0
@@ -234,16 +240,18 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
 
                 if success:
                     logger.debug(
-                        "✅ 根据群组ID删除所有群组记忆成功: group_id=%s, 删除 %d 条",
+                        "✅ Successfully deleted all group profiles by group ID: group_id=%s, deleted %d records",
                         group_id,
                         deleted_count,
                     )
                 else:
-                    logger.warning("⚠️  未找到要删除的群组记忆: group_id=%s", group_id)
+                    logger.warning(
+                        "⚠️  No group profile found for deletion: group_id=%s", group_id
+                    )
 
                 return success
         except Exception as e:
-            logger.error("❌ 根据群组ID删除群组记忆失败: %s", e)
+            logger.error("❌ Failed to delete group profile by group ID: %s", e)
             return False
 
     async def upsert_by_group_id(
@@ -254,92 +262,93 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[GroupProfile]:
         """
-        根据群组ID更新或插入群组记忆
+        Update or insert group profile by group ID
 
-        如果update_data中包含version字段：
-        - 如果该version已存在，则更新该版本
-        - 如果该version不存在，则创建新版本（必须提供version）
-        如果update_data中不包含version字段：
-        - 获取最新版本并更新，如果不存在则报错（创建时必须提供version）
+        If update_data contains a version field:
+        - If that version exists, update it
+        - If that version does not exist, create a new version (version must be provided)
+        If update_data does not contain a version field:
+        - Get the latest version and update it; if it doesn't exist, raise an error (version must be provided when creating)
 
         Args:
-            group_id: 群组ID
-            update_data: 要更新的数据（创建新版本时必须包含version字段）
-            timestamp: 时间戳，创建新记录时必需
-            session: 可选的 MongoDB 会话，用于事务支持
+            group_id: Group ID
+            update_data: Data to update (must contain version field when creating a new version)
+            timestamp: Timestamp, required when creating a new record
+            session: Optional MongoDB session for transaction support
 
         Returns:
-            更新或创建的群组记忆记录
+            Updated or created group profile record
         """
         try:
             version = update_data.get("version")
 
             if version is not None:
-                # 如果指定了版本，查找特定版本
+                # If version is specified, find that specific version
                 existing_doc = await self.model.find_one(
                     {"group_id": group_id, "version": version}, session=session
                 )
             else:
-                # 如果未指定版本，查找最新版本
+                # If version is not specified, find the latest version
                 existing_doc = await self.model.find_one(
                     {"group_id": group_id}, sort=[("version", -1)], session=session
                 )
 
             if existing_doc:
-                # 更新现有记录
+                # Update existing record
                 for key, value in update_data.items():
                     if hasattr(existing_doc, key):
                         setattr(existing_doc, key, value)
                 await existing_doc.save(session=session)
                 logger.debug(
-                    "✅ 更新现有群组记忆成功: group_id=%s, version=%s",
+                    "✅ Successfully updated existing group profile: group_id=%s, version=%s",
                     group_id,
                     existing_doc.version,
                 )
 
-                # 如果更新了版本，需要确保最新标记正确
+                # If version was updated, ensure latest flag is correct
                 if version is not None:
                     await self.ensure_latest(group_id, session)
 
                 return existing_doc
             else:
-                # 创建新记录时必须提供version
+                # When creating a new record, version must be provided
                 if version is None:
                     logger.error(
-                        "❌ 创建新群组记忆时必须提供version字段: group_id=%s", group_id
+                        "❌ Version field must be provided when creating a new group profile: group_id=%s",
+                        group_id,
                     )
                     raise ValueError(
-                        f"创建新群组记忆时必须提供version字段: group_id={group_id}"
+                        f"Version field must be provided when creating a new group profile: group_id={group_id}"
                     )
 
-                # 创建新记录，需要提供 timestamp
+                # Create new record, timestamp is required
                 if timestamp is None:
                     from time import time
 
-                    timestamp = int(time() * 1000)  # 毫秒级时间戳
+                    timestamp = int(time() * 1000)  # Millisecond timestamp
 
                 new_doc = GroupProfile(
                     group_id=group_id, timestamp=timestamp, **update_data
                 )
                 await new_doc.create(session=session)
                 logger.info(
-                    "✅ 创建新群组记忆成功: group_id=%s, version=%s",
+                    "✅ Successfully created new group profile: group_id=%s, version=%s",
                     group_id,
                     new_doc.version,
                 )
 
-                # 创建后确保最新版本标记正确
+                # After creation, ensure latest version flag is correct
                 await self.ensure_latest(group_id, session)
 
                 return new_doc
         except ValueError:
-            # 重新抛出ValueError，不要被Exception捕获
+            # Re-raise ValueError, do not catch it in Exception
             raise
         except Exception as e:
-            logger.error("❌ 更新或创建群组记忆失败: %s", e)
+            logger.error("❌ Failed to update or create group profile: %s", e)
             return None
 
-    # ==================== 查询方法 ====================
+    # ==================== Query Methods ====================
 
     async def find_by_group_ids(
         self,
@@ -348,15 +357,15 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
         session: Optional[AsyncClientSession] = None,
     ) -> List[GroupProfile]:
         """
-        根据群组ID列表批量获取群组记忆
+        Batch retrieve group profiles by list of group IDs
 
         Args:
-            group_ids: 群组ID列表
-            only_latest: 是否只获取最新版本，默认为True。批量查询时使用is_latest字段过滤
-            session: 可选的 MongoDB 会话，用于事务支持
+            group_ids: List of group IDs
+            only_latest: Whether to get only the latest version, default is True. Use is_latest field for filtering in batch queries
+            session: Optional MongoDB session for transaction support
 
         Returns:
-            GroupProfile 列表
+            List of GroupProfile
         """
         try:
             if not group_ids:
@@ -364,7 +373,7 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
 
             query_filter = {"group_id": {"$in": group_ids}}
 
-            # 批量查询时，使用is_latest字段过滤最新版本
+            # For batch queries, use is_latest field to filter latest versions
             if only_latest:
                 query_filter["is_latest"] = True
 
@@ -372,14 +381,14 @@ class GroupProfileRawRepository(BaseRepository[GroupProfile]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据群组ID列表获取群组记忆成功: %d 个群组ID, only_latest=%s, 找到 %d 条记录",
+                "✅ Successfully retrieved group profiles by group ID list: %d group IDs, only_latest=%s, found %d records",
                 len(group_ids),
                 only_latest,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据群组ID列表获取群组记忆失败: %s", e)
+            logger.error("❌ Failed to retrieve group profiles by group ID list: %s", e)
             return []
 
 

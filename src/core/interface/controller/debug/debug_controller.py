@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-调试控制器
+Debug Controller
 
-提供DI容器中Bean的调试接口，支持调用特定service的特定方法
-仅在开发环境下启用，生产环境自动禁用
+Provides debugging interfaces for Beans in the DI container, supports calling specific methods of specific services.
+Only enabled in development environment, automatically disabled in production environment.
 """
 
 import asyncio
@@ -26,33 +26,40 @@ logger = get_logger(__name__)
 
 
 class BeanCallRequest(BaseModel):
-    """Bean方法调用请求模型（兼容代码执行）"""
+    """Bean method call request model (compatible with code execution)"""
 
-    # Bean标识（二选一）
-    bean_name: Optional[str] = Field(None, description="Bean名称")
-    bean_type: Optional[str] = Field(None, description="Bean类型名称")
+    # Bean identifier (choose one)
+    bean_name: Optional[str] = Field(None, description="Bean name")
+    bean_type: Optional[str] = Field(None, description="Bean type name")
 
-    # 方法调用
-    method: str = Field(..., description="要调用的方法名称")
+    # Method call
+    method: str = Field(..., description="Method name to be called")
 
-    # 传统参数方式
-    args: List[Any] = Field(default_factory=list, description="位置参数列表")
-    kwargs: Dict[str, Any] = Field(default_factory=dict, description="关键字参数字典")
+    # Traditional parameter method
+    args: List[Any] = Field(
+        default_factory=list, description="List of positional arguments"
+    )
+    kwargs: Dict[str, Any] = Field(
+        default_factory=dict, description="Dictionary of keyword arguments"
+    )
 
-    # 代码执行方式（可选）
+    # Code execution method (optional)
     code: Optional[str] = Field(
-        None, description="Python代码，用于生成args和kwargs参数（可选）"
+        None,
+        description="Python code used to generate args and kwargs parameters (optional)",
     )
 
     @classmethod
     def model_validate(cls, obj, *, strict=None, from_attributes=None, context=None):
-        """自定义验证逻辑"""
+        """Custom validation logic"""
         if (
             isinstance(obj, dict)
             and not obj.get("bean_name")
             and not obj.get("bean_type")
         ):
-            logger.error("Bean调用请求验证失败：缺少bean_name或bean_type参数")
+            logger.error(
+                "Bean call request validation failed: missing bean_name or bean_type parameter"
+            )
             raise ValueError(ErrorMessage.INVALID_PARAMETER.value)
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context
@@ -60,27 +67,31 @@ class BeanCallRequest(BaseModel):
 
 
 class BeanCallWithCodeRequest(BaseModel):
-    """通过代码生成参数的Bean方法调用请求模型"""
+    """Bean method call request model using code to generate parameters"""
 
-    # Bean标识（二选一）
-    bean_name: Optional[str] = Field(None, description="Bean名称")
-    bean_type: Optional[str] = Field(None, description="Bean类型名称")
+    # Bean identifier (choose one)
+    bean_name: Optional[str] = Field(None, description="Bean name")
+    bean_type: Optional[str] = Field(None, description="Bean type name")
 
-    # 方法调用
-    method: str = Field(..., description="要调用的方法名称")
+    # Method call
+    method: str = Field(..., description="Method name to be called")
 
-    # Python代码生成参数
-    code: str = Field(..., description="Python代码，用于生成args和kwargs参数")
+    # Python code to generate parameters
+    code: str = Field(
+        ..., description="Python code used to generate args and kwargs parameters"
+    )
 
     @classmethod
     def model_validate(cls, obj, *, strict=None, from_attributes=None, context=None):
-        """自定义验证逻辑"""
+        """Custom validation logic"""
         if (
             isinstance(obj, dict)
             and not obj.get("bean_name")
             and not obj.get("bean_type")
         ):
-            logger.error("Bean代码调用请求验证失败：缺少bean_name或bean_type参数")
+            logger.error(
+                "Bean code call request validation failed: missing bean_name or bean_type parameter"
+            )
             raise ValueError(ErrorMessage.INVALID_PARAMETER.value)
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context
@@ -88,80 +99,88 @@ class BeanCallWithCodeRequest(BaseModel):
 
 
 class BeanCallResponse(BaseModel):
-    """Bean方法调用响应模型"""
+    """Bean method call response model"""
 
-    success: bool = Field(..., description="调用是否成功")
-    result: Optional[Any] = Field(None, description="方法返回值（JSON可序列化）")
-    result_str: Optional[str] = Field(
-        None, description="方法返回值的字符串表示（当无法JSON序列化时）"
+    success: bool = Field(..., description="Whether the call was successful")
+    result: Optional[Any] = Field(
+        None, description="Method return value (JSON serializable)"
     )
-    error: Optional[str] = Field(None, description="错误信息")
-    traceback: Optional[str] = Field(None, description="详细的错误堆栈信息")
-    bean_info: Optional[Dict[str, Any]] = Field(None, description="调用的Bean信息")
+    result_str: Optional[str] = Field(
+        None,
+        description="String representation of the return value (used when not JSON serializable)",
+    )
+    error: Optional[str] = Field(None, description="Error message")
+    traceback: Optional[str] = Field(None, description="Detailed error stack trace")
+    bean_info: Optional[Dict[str, Any]] = Field(
+        None, description="Information about the called Bean"
+    )
     code_execution: Optional[Dict[str, Any]] = Field(
-        None, description="代码执行信息（仅在使用代码生成参数时）"
+        None,
+        description="Code execution information (only when using code to generate parameters)",
     )
 
 
 class BeanInfoResponse(BaseModel):
-    """Bean信息响应模型"""
+    """Bean information response model"""
 
-    name: str = Field(..., description="Bean名称")
-    type_name: str = Field(..., description="Bean类型名称")
-    scope: str = Field(..., description="Bean作用域")
-    is_primary: bool = Field(..., description="是否为Primary Bean")
-    is_mock: bool = Field(..., description="是否为Mock Bean")
-    methods: List[str] = Field(default_factory=list, description="可调用的方法列表")
+    name: str = Field(..., description="Bean name")
+    type_name: str = Field(..., description="Bean type name")
+    scope: str = Field(..., description="Bean scope")
+    is_primary: bool = Field(..., description="Whether it is a Primary Bean")
+    is_mock: bool = Field(..., description="Whether it is a Mock Bean")
+    methods: List[str] = Field(
+        default_factory=list, description="List of callable methods"
+    )
 
 
 @controller(name="debug_controller")
 class DebugController(BaseController):
     """
-    DI容器调试 API 控制器
+    DI Container Debug API Controller
 
-    提供依赖注入容器的调试和测试功能，支持在开发环境下：
-    - 查看所有已注册的Bean信息
-    - 调用任意Bean的任意方法进行测试
-    - 获取Bean的详细配置和方法列表
-    - 监控DI容器的运行状态
+    Provides debugging and testing capabilities for the dependency injection container, supporting:
+    - Viewing information of all registered Beans
+    - Calling any method of any Bean for testing
+    - Getting detailed configuration and method list of Beans
+    - Monitoring the runtime status of the DI container
 
-    **安全机制**：
-    - 只在开发环境启用（ENV=DEV）
-    - 生产环境自动禁用所有调试接口
-    - 不需要用户认证，但受环境变量控制
+    **Security Mechanism**:
+    - Only enabled in development environment (ENV=DEV)
+    - All debugging interfaces are automatically disabled in production
+    - No user authentication required, but access controlled by environment variables
 
-    **主要功能**：
-    1. **Bean查询**: 支持按名称或类型查找Bean
-    2. **方法调用**: 支持传递参数调用Bean方法
-    3. **状态监控**: 查看容器Mock模式、Bean数量等
-    4. **错误诊断**: 提供详细的调用错误信息和堆栈跟踪
+    **Main Features**:
+    1. **Bean Query**: Supports searching Beans by name or type
+    2. **Method Call**: Supports passing parameters to call Bean methods
+    3. **Status Monitoring**: View container mock mode, number of Beans, etc.
+    4. **Error Diagnosis**: Provides detailed call error information and stack trace
     """
 
     def __init__(self):
         super().__init__(
             prefix="/asdf/debug/di",
             tags=["Debug"],
-            default_auth="none",  # 调试接口不需要认证，但会通过环境变量控制访问
+            default_auth="none",  # Debug interface does not require authentication, but access is controlled by environment variables
         )
         self.container = get_container()
 
     def _check_debug_enabled(self) -> bool:
-        """检查调试功能是否启用"""
+        """Check if debugging is enabled"""
         return os.environ.get('ENV', 'prod').upper() == 'DEV'
 
     def _ensure_debug_enabled(self):
-        """确保调试功能已启用，否则抛出404错误"""
+        """Ensure debugging is enabled, otherwise raise 404 error"""
         if not self._check_debug_enabled():
-            logger.error("调试功能未启用，拒绝访问调试接口")
+            logger.error("Debugging is not enabled, access to debug interface denied")
             raise HTTPException(
                 status_code=404, detail=ErrorMessage.PERMISSION_DENIED.value
             )
 
     def _get_bean_methods(self, bean_instance: Any) -> List[str]:
-        """获取Bean实例的可调用方法列表"""
+        """Get list of callable methods of a Bean instance"""
         methods = []
         for attr_name in dir(bean_instance):
-            if not attr_name.startswith('_'):  # 排除私有方法
+            if not attr_name.startswith('_'):  # Exclude private methods
                 attr = getattr(bean_instance, attr_name)
                 if callable(attr):
                     methods.append(attr_name)
@@ -171,33 +190,37 @@ class DebugController(BaseController):
         self, bean_name: Optional[str], bean_type: Optional[str]
     ) -> tuple[Any, Dict[str, Any]]:
         """
-        根据标识符获取Bean实例和信息
+        Get Bean instance and information by identifier
 
         Args:
-            bean_name: Bean名称
-            bean_type: Bean类型名称
+            bean_name: Bean name
+            bean_type: Bean type name
 
         Returns:
             tuple: (bean_instance, bean_info)
 
         Raises:
-            HTTPException: 当找不到Bean或参数无效时
+            HTTPException: When Bean is not found or parameters are invalid
         """
         if bean_name and bean_type:
-            logger.error("Bean标识符参数错误：不能同时提供bean_name和bean_type")
+            logger.error(
+                "Bean identifier parameter error: cannot provide both bean_name and bean_type"
+            )
             raise HTTPException(
                 status_code=400, detail=ErrorMessage.INVALID_PARAMETER.value
             )
 
         if not bean_name and not bean_type:
-            logger.error("Bean标识符参数错误：必须提供bean_name或bean_type之一")
+            logger.error(
+                "Bean identifier parameter error: must provide either bean_name or bean_type"
+            )
             raise HTTPException(
                 status_code=400, detail=ErrorMessage.INVALID_PARAMETER.value
             )
 
         try:
             if bean_name:
-                # 通过名称获取Bean
+                # Get Bean by name
                 bean_instance = get_bean(bean_name)
                 bean_info = {
                     "name": bean_name,
@@ -205,11 +228,11 @@ class DebugController(BaseController):
                     "lookup_method": "by_name",
                 }
             else:
-                # 通过类型名称获取Bean
-                # 首先需要找到对应的类型
+                # Get Bean by type name
+                # First need to find the corresponding type
                 bean_class = self._find_bean_type_by_name(bean_type)
                 if not bean_class:
-                    logger.error(f"未找到类型为'{bean_type}'的Bean类")
+                    logger.error(f"Bean class with type '{bean_type}' not found")
                     raise HTTPException(
                         status_code=404, detail=ErrorMessage.BEAN_NOT_FOUND.value
                     )
@@ -226,32 +249,32 @@ class DebugController(BaseController):
         except Exception as e:
             if "not found" in str(e).lower():
                 identifier = bean_name or bean_type
-                method = "名称" if bean_name else "类型"
-                logger.error(f"通过{method}'{identifier}'未找到Bean：{str(e)}")
+                method = "name" if bean_name else "type"
+                logger.error(f"Bean not found by {method} '{identifier}': {str(e)}")
                 raise HTTPException(
                     status_code=404, detail=ErrorMessage.BEAN_NOT_FOUND.value
                 ) from e
             else:
-                logger.error(f"获取Bean时发生错误：{str(e)}")
+                logger.error(f"Error occurred while getting Bean: {str(e)}")
                 raise HTTPException(
                     status_code=500, detail=ErrorMessage.BEAN_OPERATION_FAILED.value
                 ) from e
 
     def _find_bean_type_by_name(self, type_name: str) -> Optional[Type]:
         """
-        根据类型名称查找对应的Bean类型
+        Find the corresponding Bean type by type name
 
-        使用更可靠的方式：通过获取所有Bean并检查其类型，
-        避免依赖可能不准确的list_all_beans_info
+        Uses a more reliable approach: get all Beans and check their types,
+        avoiding reliance on potentially inaccurate list_all_beans_info
 
         Args:
-            type_name: 类型名称
+            type_name: Type name
 
         Returns:
-            对应的类型，如果未找到则返回None
+            Corresponding type, or None if not found
         """
         try:
-            # 方法1: 通过get_beans()获取所有Bean实例，检查类型名称
+            # Method 1: Use get_beans() to get all Bean instances, check type names
             all_beans_dict = self.container.get_beans()
 
             for _, bean_instance in all_beans_dict.items():
@@ -263,15 +286,15 @@ class DebugController(BaseController):
             return None
 
         except Exception:
-            # 如果get_beans()失败，使用备用方法
-            # 尝试使用一些常见的类型名称模式来推测
+            # If get_beans() fails, use fallback method
+            # Try to infer using common type name patterns
             try:
-                # 先尝试获取所有Bean信息作为备用
+                # First try to get all Bean info as fallback
                 all_beans = self.container.list_all_beans_info()
 
                 for bean_info in all_beans:
                     if bean_info['type_name'] == type_name:
-                        # 通过名称获取Bean实例，然后获取其类型
+                        # Get Bean instance by name, then get its type
                         try:
                             bean_instance = get_bean(bean_info['name'])
                             return type(bean_instance)
@@ -281,45 +304,45 @@ class DebugController(BaseController):
                 return None
 
             except Exception:
-                # 如果所有方法都失败，返回None
+                # If all methods fail, return None
                 return None
 
     def _serialize_result(self, result: Any) -> Dict[str, Any]:
         """
-        序列化方法调用结果
+        Serialize method call result
 
         Args:
-            result: 方法返回值
+            result: Method return value
 
         Returns:
-            包含序列化结果的字典
+            Dictionary containing serialized result
         """
         try:
-            # 尝试JSON序列化
+            # Try JSON serialization
             json.dumps(result)
             return {"result": result}
         except (TypeError, ValueError):
-            # 如果无法JSON序列化，返回字符串表示
+            # If JSON serialization fails, return string representation
             return {"result_str": repr(result)}
 
     def _execute_parameter_code(self, code: str) -> Dict[str, Any]:
         """
-        安全执行Python代码生成参数
+        Safely execute Python code to generate parameters
 
         Args:
-            code: Python代码字符串
+            code: Python code string
 
         Returns:
-            包含args和kwargs的字典
+            Dictionary containing args and kwargs
 
         Raises:
-            ValueError: 当代码执行失败或返回格式不正确时
+            ValueError: When code execution fails or return format is incorrect
         """
         try:
-            # 创建安全的执行环境，允许自由导入
+            # Create safe execution environment, allow free imports
             safe_globals = {
                 '__builtins__': {
-                    # 基础类型和函数
+                    # Basic types and functions
                     'len': len,
                     'str': str,
                     'int': int,
@@ -348,17 +371,17 @@ class DebugController(BaseController):
                     'all': all,
                     'map': map,
                     'filter': filter,
-                    # 允许导入
+                    # Allow import
                     '__import__': __import__,
                 },
-                # 预导入常用模块和类型
+                # Pre-import commonly used modules and types
                 'datetime': None,
                 'json': None,
                 'uuid': None,
                 'typing': None,
             }
 
-            # 预导入常用模块
+            # Pre-import commonly used modules
             try:
                 import datetime
                 import json
@@ -370,50 +393,52 @@ class DebugController(BaseController):
                 safe_globals['uuid'] = uuid
                 safe_globals['typing'] = typing
             except ImportError as e:
-                logger.warning(f"预导入模块失败: {e}")
+                logger.warning(f"Failed to pre-import module: {e}")
 
-            # 不再预导入项目内部模块，支持完全自由导入
+            # No longer pre-import internal project modules, support completely free imports
 
             local_vars = {}
 
-            # 执行代码
+            # Execute code
             exec(code, safe_globals, local_vars)
 
-            # 检查是否定义了args和kwargs
+            # Check if args and kwargs are defined
             if 'args' not in local_vars and 'kwargs' not in local_vars:
-                logger.error("代码执行结果无效：未定义args或kwargs变量")
+                logger.error(
+                    "Invalid code execution result: args or kwargs variable not defined"
+                )
                 raise ValueError(ErrorMessage.INVALID_PARAMETER.value)
 
             args = local_vars.get('args', [])
             kwargs = local_vars.get('kwargs', {})
 
-            # 验证类型
+            # Validate types
             if not isinstance(args, (list, tuple)):
                 logger.error(
-                    f"args参数类型错误：期望list或tuple，实际为{type(args).__name__}"
+                    f"Wrong args parameter type: expected list or tuple, got {type(args).__name__}"
                 )
                 raise ValueError(ErrorMessage.INVALID_PARAMETER.value)
 
             if not isinstance(kwargs, dict):
                 logger.error(
-                    f"kwargs参数类型错误：期望dict，实际为{type(kwargs).__name__}"
+                    f"Wrong kwargs parameter type: expected dict, got {type(kwargs).__name__}"
                 )
                 raise ValueError(ErrorMessage.INVALID_PARAMETER.value)
 
             return {'args': list(args), 'kwargs': kwargs}
 
         except Exception as e:
-            logger.error(f"执行参数生成代码失败: {e}")
-            logger.error(f"代码执行异常详情：{str(e)}")
+            logger.error(f"Failed to execute parameter generation code: {e}")
+            logger.error(f"Code execution exception details: {str(e)}")
             raise ValueError(ErrorMessage.INVALID_PARAMETER.value)
 
     @get(
         "/status",
         response_model=Dict[str, Any],
-        summary="获取调试功能状态",
+        summary="Get debugging function status",
         responses={
             200: {
-                "description": "调试状态信息获取成功",
+                "description": "Debugging status information retrieved successfully",
                 "content": {
                     "application/json": {
                         "example": {
@@ -427,18 +452,18 @@ class DebugController(BaseController):
     )
     def get_debug_status(self) -> Dict[str, Any]:
         """
-        获取调试功能状态信息
+        Get debugging function status information
 
-        返回调试功能是否启用以及DI容器的基本信息：
-        - debug_enabled: 调试功能是否启用（基于ENV环境变量）
-        - container_info: DI容器信息，包括Mock模式状态和Bean总数
+        Returns whether debugging is enabled and basic information about the DI container:
+        - debug_enabled: Whether debugging is enabled (based on ENV environment variable)
+        - container_info: DI container information, including mock mode status and total number of Beans
 
-        **注意**：
-        - 当ENV != 'DEV'时，debug_enabled为false
-        - 此接口不受调试开关控制，总是可以访问
+        **Note**:
+        - debug_enabled is false when ENV != 'DEV'
+        - This interface is not controlled by the debug switch and is always accessible
 
         Returns:
-            Dict[str, Any]: 包含调试状态和容器信息的字典
+            Dict[str, Any]: Dictionary containing debugging status and container information
         """
         return {
             "debug_enabled": self._check_debug_enabled(),
@@ -452,10 +477,10 @@ class DebugController(BaseController):
         "/beans",
         extra_models=[BeanInfoResponse],
         response_model=List[BeanInfoResponse],
-        summary="列出所有已注册的Bean信息",
+        summary="List all registered Bean information",
         responses={
             200: {
-                "description": "Bean列表获取成功",
+                "description": "Bean list retrieved successfully",
                 "content": {
                     "application/json": {
                         "example": [
@@ -484,32 +509,32 @@ class DebugController(BaseController):
                     }
                 },
             },
-            404: {"description": "调试功能未启用或未找到Bean"},
-            500: {"description": "获取Bean列表时发生内部错误"},
+            404: {"description": "Debugging not enabled or Bean not found"},
+            500: {"description": "Internal error occurred while retrieving Bean list"},
         },
     )
     def list_all_beans(self) -> List[BeanInfoResponse]:
         """
-        列出所有已注册的Bean信息
+        List all registered Bean information
 
-        返回DI容器中所有已注册Bean的详细信息列表，包括：
-        - name: Bean名称
-        - type_name: Bean类型名称
-        - scope: Bean作用域（singleton/prototype/factory）
-        - is_primary: 是否为Primary Bean
-        - is_mock: 是否为Mock Bean
-        - methods: 可调用的公共方法列表
+        Returns a detailed list of all registered Beans in the DI container, including:
+        - name: Bean name
+        - type_name: Bean type name
+        - scope: Bean scope (singleton/prototype/factory)
+        - is_primary: Whether it is a Primary Bean
+        - is_mock: Whether it is a Mock Bean
+        - methods: List of callable public methods
 
-        **注意**：
-        - 只在调试模式启用时可用（ENV=DEV）
-        - 方法列表只包含不以下划线开头的公共方法
-        - 如果获取某个Bean的方法列表失败，该Bean仍会返回但methods为空
+        **Note**:
+        - Only available when debugging mode is enabled (ENV=DEV)
+        - Method list only includes public methods not starting with underscore
+        - If getting method list for a Bean fails, the Bean is still returned but methods is empty
 
         Returns:
-            List[BeanInfoResponse]: Bean信息列表
+            List[BeanInfoResponse]: List of Bean information
 
         Raises:
-            HTTPException: 当调试功能未启用或获取Bean列表失败时
+            HTTPException: When debugging is not enabled or retrieving Bean list fails
         """
         self._ensure_debug_enabled()
 
@@ -519,7 +544,7 @@ class DebugController(BaseController):
 
             for bean_info in all_beans:
                 try:
-                    # 获取Bean实例以便获取方法列表
+                    # Get Bean instance to retrieve method list
                     bean_instance = get_bean(bean_info['name'])
                     methods = self._get_bean_methods(bean_instance)
 
@@ -535,9 +560,11 @@ class DebugController(BaseController):
                     )
                 except Exception as e:
                     logger.warning(
-                        "获取Bean '%s' 的方法列表失败: %s", bean_info['name'], str(e)
+                        "Failed to get method list for Bean '%s': %s",
+                        bean_info['name'],
+                        str(e),
                     )
-                    # 即使获取方法列表失败，也返回基本信息
+                    # Even if getting method list fails, return basic information
                     beans_info.append(
                         BeanInfoResponse(
                             name=bean_info['name'],
@@ -552,8 +579,8 @@ class DebugController(BaseController):
             return beans_info
 
         except Exception as e:
-            logger.error("列出所有Bean时发生错误: %s", str(e))
-            logger.error(f"获取Bean列表异常详情：{str(e)}")
+            logger.error("Error occurred while listing all Beans: %s", str(e))
+            logger.error(f"Exception details when retrieving Bean list: {str(e)}")
             raise HTTPException(
                 status_code=500, detail=ErrorMessage.BEAN_OPERATION_FAILED.value
             ) from e
@@ -562,15 +589,15 @@ class DebugController(BaseController):
         "/call",
         extra_models=[BeanCallRequest, BeanCallResponse],
         response_model=BeanCallResponse,
-        summary="调用指定Bean的指定方法",
+        summary="Call specified method of specified Bean",
         responses={
             200: {
-                "description": "Bean方法调用成功",
+                "description": "Bean method call succeeded",
                 "content": {
                     "application/json": {
                         "examples": {
                             "traditional_way": {
-                                "summary": "传统方式调用成功",
+                                "summary": "Traditional way call succeeded",
                                 "value": {
                                     "success": True,
                                     "result": ["uuid1", "uuid2", "uuid3"],
@@ -582,7 +609,7 @@ class DebugController(BaseController):
                                 },
                             },
                             "code_execution_way": {
-                                "summary": "代码执行方式调用成功",
+                                "summary": "Code execution way call succeeded",
                                 "value": {
                                     "success": True,
                                     "result": [
@@ -605,7 +632,7 @@ class DebugController(BaseController):
                                 },
                             },
                             "failure": {
-                                "summary": "调用失败，包含错误信息",
+                                "summary": "Call failed, includes error information",
                                 "value": {
                                     "success": False,
                                     "error": "Bean not found",
@@ -617,27 +644,31 @@ class DebugController(BaseController):
                     }
                 },
             },
-            400: {"description": "请求参数错误，如缺少必要参数、Bean标识符无效等"},
-            404: {"description": "调试功能未启用、Bean不存在或方法不存在"},
-            500: {"description": "方法调用过程中发生内部错误"},
+            400: {
+                "description": "Request parameter error, such as missing required parameters, invalid Bean identifier, etc."
+            },
+            404: {
+                "description": "Debugging not enabled, Bean does not exist, or method does not exist"
+            },
+            500: {"description": "Internal error occurred during method call"},
         },
     )
     async def call_bean_method(self, request: BeanCallRequest) -> BeanCallResponse:
         """
-        调用指定Bean的指定方法（兼容代码执行）
+        Call specified method of specified Bean (compatible with code execution)
 
-        支持两种参数传递方式：
-        1. **传统方式**: 直接使用 `args` 和 `kwargs` 参数
-        2. **代码执行**: 使用 `code` 参数动态生成参数（支持枚举类型和复杂对象）
+        Supports two parameter passing methods:
+        1. **Traditional method**: Directly use `args` and `kwargs` parameters
+        2. **Code execution**: Use `code` parameter to dynamically generate parameters (supports enum types and complex objects)
 
-        **Bean标识方式**：
-        - bean_name/bean_type: 二选一，用于标识要调用的Bean
+        **Bean identification methods**:
+        - bean_name/bean_type: Choose one, used to identify the Bean to be called
 
-        **参数传递方式**：
-        - 传统方式: 使用 `args` 和 `kwargs` 字段
-        - 代码执行: 使用 `code` 字段编写Python代码生成参数
+        **Parameter passing methods**:
+        - Traditional method: Use `args` and `kwargs` fields
+        - Code execution: Use `code` field to write Python code to generate parameters
 
-        **代码执行示例**：
+        **Code execution example**:
         ```json
         {
             "bean_name": "resource_repository",
@@ -646,7 +677,7 @@ class DebugController(BaseController):
         }
         ```
 
-        **传统方式示例**：
+        **Traditional method example**:
         ```json
         {
             "bean_name": "resource_repository",
@@ -659,21 +690,21 @@ class DebugController(BaseController):
         ```
 
         Args:
-            request: Bean方法调用请求
+            request: Bean method call request
 
         Returns:
-            BeanCallResponse: 方法调用结果
+            BeanCallResponse: Method call result
 
         Raises:
-            HTTPException: 当调试功能未启用、参数错误、Bean不存在或方法调用失败时
+            HTTPException: When debugging is not enabled, parameters are invalid, Bean does not exist, or method call fails
         """
         self._ensure_debug_enabled()
 
         try:
-            # 确定使用哪种参数方式
+            # Determine which parameter method to use
             if request.code:
-                # 使用代码执行方式
-                logger.info("使用代码执行方式生成参数")
+                # Use code execution method
+                logger.info("Using code execution method to generate parameters")
                 code_result = self._execute_parameter_code(request.code)
                 args = code_result['args']
                 kwargs = code_result['kwargs']
@@ -682,21 +713,21 @@ class DebugController(BaseController):
                     'generated_kwargs': kwargs,
                 }
             else:
-                # 使用传统方式
-                logger.info("使用传统参数方式")
+                # Use traditional method
+                logger.info("Using traditional parameter method")
                 args = request.args
                 kwargs = request.kwargs
                 code_execution_info = None
 
-            # 获取Bean实例和信息
+            # Get Bean instance and information
             bean_instance, bean_info = self._get_bean_by_identifier(
                 request.bean_name, request.bean_type
             )
 
-            # 检查方法是否存在
+            # Check if method exists
             if not hasattr(bean_instance, request.method):
                 logger.error(
-                    f"Bean '{bean_info['name']}' 不存在方法 '{request.method}'"
+                    f"Method '{request.method}' does not exist in Bean '{bean_info['name']}'"
                 )
                 raise HTTPException(
                     status_code=404, detail=ErrorMessage.BEAN_OPERATION_FAILED.value
@@ -704,25 +735,25 @@ class DebugController(BaseController):
 
             method_to_call = getattr(bean_instance, request.method)
 
-            # 检查是否为可调用对象
+            # Check if it is a callable object
             if not callable(method_to_call):
                 logger.error(
-                    f"Bean '{bean_info['name']}' 的属性 '{request.method}' 不是可调用对象"
+                    f"Attribute '{request.method}' of Bean '{bean_info['name']}' is not callable"
                 )
                 raise HTTPException(
                     status_code=400, detail=ErrorMessage.INVALID_PARAMETER.value
                 )
 
-            # 调用方法
+            # Call method
             logger.info(
-                "调用Bean方法: %s.%s(args=%s, kwargs=%s)",
+                "Calling Bean method: %s.%s(args=%s, kwargs=%s)",
                 bean_info['name'],
                 request.method,
                 args,
                 kwargs,
             )
 
-            # 检查是否为协程函数，兼容异步和同步方法
+            # Check if it is a coroutine function, compatible with async and sync methods
             if asyncio.iscoroutinefunction(
                 method_to_call
             ) or inspect.iscoroutinefunction(method_to_call):
@@ -730,32 +761,32 @@ class DebugController(BaseController):
             else:
                 result = method_to_call(*args, **kwargs)
 
-            # 序列化结果
+            # Serialize result
             serialized_result = self._serialize_result(result)
 
-            # 构造响应
+            # Construct response
             response_data = {
                 'success': True,
                 'bean_info': bean_info,
                 **serialized_result,
             }
 
-            # 如果使用了代码执行，添加执行信息
+            # If code execution was used, add execution information
             if code_execution_info:
                 response_data['code_execution'] = code_execution_info
 
             return BeanCallResponse(**response_data)
 
         except HTTPException:
-            # 重新抛出HTTP异常
+            # Re-raise HTTP exceptions
             raise
         except Exception as e:
-            # 捕获并处理其他异常
+            # Catch and handle other exceptions
             error_msg = str(e)
             error_traceback = traceback.format_exc()
 
-            logger.error("调用Bean方法时发生错误: %s", error_msg)
-            logger.debug("错误堆栈: %s", error_traceback)
+            logger.error("Error occurred while calling Bean method: %s", error_msg)
+            logger.debug("Error stack: %s", error_traceback)
 
             return BeanCallResponse(
                 success=False,
@@ -769,10 +800,10 @@ class DebugController(BaseController):
         "/beans/{bean_name}",
         extra_models=[BeanInfoResponse],
         response_model=BeanInfoResponse,
-        summary="根据Bean名称获取详细信息",
+        summary="Get detailed information by Bean name",
         responses={
             200: {
-                "description": "Bean信息获取成功",
+                "description": "Bean information retrieved successfully",
                 "content": {
                     "application/json": {
                         "example": {
@@ -793,43 +824,47 @@ class DebugController(BaseController):
                     }
                 },
             },
-            404: {"description": "调试功能未启用或指定的Bean不存在"},
-            500: {"description": "获取Bean信息时发生内部错误"},
+            404: {
+                "description": "Debugging not enabled or specified Bean does not exist"
+            },
+            500: {
+                "description": "Internal error occurred while retrieving Bean information"
+            },
         },
     )
     def get_bean_info(self, bean_name: str) -> BeanInfoResponse:
         """
-        根据Bean名称获取详细信息
+        Get detailed information by Bean name
 
-        通过Bean名称查询指定Bean的完整信息，包括类型、作用域、
-        是否为Primary Bean、是否为Mock Bean以及所有可调用的公共方法列表。
+        Query complete information of a specific Bean by its name, including type, scope,
+        whether it is a Primary Bean, whether it is a Mock Bean, and a list of all callable public methods.
 
-        **返回信息包含**：
-        - name: Bean名称
-        - type_name: Bean的类型名称
-        - scope: Bean作用域（singleton/prototype/factory）
-        - is_primary: 是否为Primary Bean（当有多个同类型Bean时的首选Bean）
-        - is_mock: 是否为Mock Bean（用于测试环境的模拟实现）
-        - methods: 可调用的公共方法列表（不包含以下划线开头的私有方法）
+        **Returned information includes**:
+        - name: Bean name
+        - type_name: Bean type name
+        - scope: Bean scope (singleton/prototype/factory)
+        - is_primary: Whether it is a Primary Bean (preferred Bean when multiple Beans of the same type exist)
+        - is_mock: Whether it is a Mock Bean (mock implementation used in test environments)
+        - methods: List of callable public methods (excluding private methods starting with underscore)
 
-        **使用场景**：
-        - 查看特定Bean的详细配置信息
-        - 了解Bean提供的所有可调用方法
-        - 调试DI容器中Bean的注册状态
+        **Use cases**:
+        - View detailed configuration information of a specific Bean
+        - Understand all callable methods provided by a Bean
+        - Debug registration status of Beans in the DI container
 
-        **注意事项**：
-        - 只在调试模式启用时可用（ENV=DEV）
-        - Bean名称必须完全匹配，区分大小写
-        - 方法列表按字母顺序排序
+        **Notes**:
+        - Only available when debugging mode is enabled (ENV=DEV)
+        - Bean name must match exactly, case-sensitive
+        - Method list is sorted alphabetically
 
         Args:
-            bean_name: Bean的注册名称，必须与DI容器中的名称完全匹配
+            bean_name: Bean registration name, must exactly match the name in the DI container
 
         Returns:
-            BeanInfoResponse: Bean的详细信息，包含元数据和方法列表
+            BeanInfoResponse: Detailed information of the Bean, including metadata and method list
 
         Raises:
-            HTTPException: 当调试功能未启用、Bean不存在或获取信息失败时
+            HTTPException: When debugging is not enabled, Bean does not exist, or retrieving information fails
         """
         self._ensure_debug_enabled()
 
@@ -837,7 +872,7 @@ class DebugController(BaseController):
             bean_instance, _ = self._get_bean_by_identifier(bean_name, None)
             methods = self._get_bean_methods(bean_instance)
 
-            # 从容器获取Bean的元信息
+            # Get Bean metadata from container
             all_beans = self.container.list_all_beans_info()
             bean_meta = next((b for b in all_beans if b['name'] == bean_name), None)
 
@@ -858,7 +893,7 @@ class DebugController(BaseController):
         except HTTPException:
             raise
         except Exception as e:
-            logger.error("获取Bean信息时发生错误: %s", str(e))
+            logger.error("Error occurred while retrieving Bean information: %s", str(e))
             raise HTTPException(
                 status_code=500, detail=ErrorMessage.BEAN_OPERATION_FAILED.value
             ) from e
@@ -867,15 +902,15 @@ class DebugController(BaseController):
         "/call-with-code",
         extra_models=[BeanCallWithCodeRequest, BeanCallResponse],
         response_model=BeanCallResponse,
-        summary="通过Python代码生成参数调用Bean方法",
+        summary="Call Bean method by generating parameters with Python code",
         responses={
             200: {
-                "description": "Bean方法调用成功",
+                "description": "Bean method call succeeded",
                 "content": {
                     "application/json": {
                         "examples": {
                             "success_with_enum": {
-                                "summary": "使用枚举参数调用成功",
+                                "summary": "Call succeeded with enum parameter",
                                 "value": {
                                     "success": True,
                                     "result": ["uuid1", "uuid2", "uuid3"],
@@ -898,32 +933,34 @@ class DebugController(BaseController):
                     }
                 },
             },
-            400: {"description": "请求参数错误或代码执行失败"},
-            404: {"description": "调试功能未启用、Bean不存在或方法不存在"},
-            500: {"description": "方法调用过程中发生内部错误"},
+            400: {"description": "Request parameter error or code execution failed"},
+            404: {
+                "description": "Debugging not enabled, Bean does not exist, or method does not exist"
+            },
+            500: {"description": "Internal error occurred during method call"},
         },
     )
     async def call_bean_method_with_code(
         self, request: BeanCallWithCodeRequest
     ) -> BeanCallResponse:
         """
-        通过Python代码生成参数调用Bean方法
+        Call Bean method by generating parameters with Python code
 
-        这个接口允许你编写Python代码来动态生成方法参数，特别适用于：
-        1. **枚举类型参数**: 如ResourceType.LITERATURE
-        2. **复杂对象构造**: 如AIInputValueObject实例
-        3. **动态参数计算**: 根据逻辑生成参数值
-        4. **类型转换**: 处理JSON无法直接表示的Python类型
+        This interface allows you to write Python code to dynamically generate method parameters, especially suitable for:
+        1. **Enum type parameters**: e.g., ResourceType.LITERATURE
+        2. **Complex object construction**: e.g., AIInputValueObject instance
+        3. **Dynamic parameter calculation**: Generate parameter values based on logic
+        4. **Type conversion**: Handle Python types that cannot be directly represented in JSON
 
-        **代码执行环境**:
-        - 提供安全的执行环境，限制可用的内置函数
-        - 自动导入常用枚举类型：ResourceType, ResourceScope, ResourceProcessingStatus
-        - 自动导入常用值对象：AIInputValueObject
-        - 代码必须定义 `args` 和/或 `kwargs` 变量
+        **Code execution environment**:
+        - Provides a safe execution environment, limiting available built-in functions
+        - Automatically imports common enum types: ResourceType, ResourceScope, ResourceProcessingStatus
+        - Automatically imports common value objects: AIInputValueObject
+        - Code must define `args` and/or `kwargs` variables
 
-        **代码示例**:
+        **Code examples**:
         ```python
-        # 示例1: 使用枚举类型
+        # Example 1: Using enum type
         args = []
         kwargs = {
             'resource_ids': [274, 281, 282],
@@ -931,7 +968,7 @@ class DebugController(BaseController):
             'user_id': 1
         }
 
-        # 示例2: 构造复杂对象
+        # Example 2: Constructing complex object
         ai_input = AIInputValueObject({
             'literature_refs': [
                 {'value': {'id': 280}},
@@ -941,8 +978,8 @@ class DebugController(BaseController):
         args = [ai_input]
         kwargs = {'user_id': 1}
 
-        # 示例3: 动态计算参数
-        resource_ids = list(range(270, 285))  # 生成ID列表
+        # Example 3: Dynamically calculating parameters
+        resource_ids = list(range(270, 285))  # Generate ID list
         kwargs = {
             'resource_ids': resource_ids,
             'resource_type': ResourceType.LITERATURE,
@@ -950,26 +987,26 @@ class DebugController(BaseController):
         }
         ```
 
-        **安全限制**:
-        - 禁用文件操作、网络访问等危险功能
-        - 只能使用预定义的安全函数和导入的类型
-        - 代码执行超时保护
+        **Security restrictions**:
+        - File operations, network access, and other dangerous functions are disabled
+        - Only predefined safe functions and imported types can be used
+        - Code execution timeout protection
 
         Args:
-            request: 包含Bean标识、方法名和Python代码的请求
+            request: Request containing Bean identifier, method name, and Python code
 
         Returns:
-            BeanCallResponse: 方法调用结果，包含代码执行信息
+            BeanCallResponse: Method call result, including code execution information
 
         Raises:
-            HTTPException: 当调试功能未启用、代码执行失败或方法调用失败时
+            HTTPException: When debugging is not enabled, code execution fails, or method call fails
         """
         self._ensure_debug_enabled()
 
         try:
-            # 执行代码生成参数
+            # Execute code to generate parameters
             logger.info(
-                "执行参数生成代码: %s",
+                "Executing parameter generation code: %s",
                 request.code[:100] + "..." if len(request.code) > 100 else request.code,
             )
 
@@ -977,14 +1014,18 @@ class DebugController(BaseController):
             args = code_result['args']
             kwargs = code_result['kwargs']
 
-            logger.info("代码执行成功，生成参数: args=%s, kwargs=%s", args, kwargs)
+            logger.info(
+                "Code execution succeeded, generated parameters: args=%s, kwargs=%s",
+                args,
+                kwargs,
+            )
 
-            # 获取Bean实例和信息
+            # Get Bean instance and information
             bean_instance, bean_info = self._get_bean_by_identifier(
                 request.bean_name, request.bean_type
             )
 
-            # 检查方法是否存在
+            # Check if method exists
             if not hasattr(bean_instance, request.method):
                 raise HTTPException(
                     status_code=404, detail=ErrorMessage.BEAN_OPERATION_FAILED.value
@@ -992,22 +1033,22 @@ class DebugController(BaseController):
 
             method_to_call = getattr(bean_instance, request.method)
 
-            # 检查是否为可调用对象
+            # Check if it is a callable object
             if not callable(method_to_call):
                 raise HTTPException(
                     status_code=400, detail=ErrorMessage.INVALID_PARAMETER.value
                 )
 
-            # 调用方法
+            # Call method
             logger.info(
-                "调用Bean方法: %s.%s(args=%s, kwargs=%s)",
+                "Calling Bean method: %s.%s(args=%s, kwargs=%s)",
                 bean_info['name'],
                 request.method,
                 args,
                 kwargs,
             )
 
-            # 检查是否为协程函数，兼容异步和同步方法
+            # Check if it is a coroutine function, compatible with async and sync methods
             if asyncio.iscoroutinefunction(
                 method_to_call
             ) or inspect.iscoroutinefunction(method_to_call):
@@ -1015,10 +1056,10 @@ class DebugController(BaseController):
             else:
                 result = method_to_call(*args, **kwargs)
 
-            # 序列化结果
+            # Serialize result
             serialized_result = self._serialize_result(result)
 
-            # 添加代码执行信息
+            # Add code execution information
             response_data = {
                 'success': True,
                 'bean_info': bean_info,
@@ -1029,15 +1070,17 @@ class DebugController(BaseController):
             return BeanCallResponse(**response_data)
 
         except HTTPException:
-            # 重新抛出HTTP异常
+            # Re-raise HTTP exceptions
             raise
         except Exception as e:
-            # 捕获并处理其他异常
+            # Catch and handle other exceptions
             error_msg = str(e)
             error_traceback = traceback.format_exc()
 
-            logger.error("通过代码调用Bean方法时发生错误: %s", error_msg)
-            logger.debug("错误堆栈: %s", error_traceback)
+            logger.error(
+                "Error occurred while calling Bean method with code: %s", error_msg
+            )
+            logger.debug("Error stack: %s", error_traceback)
 
             return BeanCallResponse(
                 success=False,

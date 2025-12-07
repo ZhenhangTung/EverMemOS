@@ -2,22 +2,22 @@ from typing import List
 
 
 class ScannerPathsRegistry:
-    """扫描路径注册器"""
+    """Scanner path registry"""
 
     def __init__(self):
-        """初始化扫描路径注册器"""
+        """Initialize scanner path registry"""
         self.scan_paths: List[str] = []
 
     def add_scan_path(self, path: str) -> 'ScannerPathsRegistry':
-        """添加扫描路径"""
+        """Add scan path"""
         self.scan_paths.append(path)
         return self
 
     def get_scan_paths(self) -> List[str]:
-        """获取扫描路径"""
+        """Get scan paths"""
         return self.scan_paths
 
     def clear(self) -> 'ScannerPathsRegistry':
-        """清空扫描路径"""
+        """Clear scan paths"""
         self.scan_paths = []
         return self

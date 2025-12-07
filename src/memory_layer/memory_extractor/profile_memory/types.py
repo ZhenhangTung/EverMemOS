@@ -85,11 +85,11 @@ class ProfileMemory(Memory):
         super().__post_init__()
 
     def to_dict(self) -> Dict[str, Any]:
-        """重写 to_dict() 以包含 ProfileMemory 的所有字段"""
-        # 先获取基类的字段
+        """Override to_dict() to include all fields of ProfileMemory"""
+        # First get the base class fields
         base_dict = super().to_dict()
 
-        # 添加 ProfileMemory 特有的字段
+        # Add ProfileMemory specific fields
         base_dict.update(
             {
                 "user_name": self.user_name,
@@ -135,18 +135,19 @@ class ProfileMemory(Memory):
 class ProfileMemoryExtractRequest(MemoryExtractRequest):
     """
     Request payload used by ProfileMemoryExtractor.
-    
-    Profile 提取需要处理多个 MemCell (来自聚类),因此覆盖基类的单个 memcell,
-    使用 memcell_list 和 user_id_list
+
+    Profile extraction needs to process multiple MemCells (from clustering), thus overriding the base class's single memcell,
+    using memcell_list and user_id_list
     """
-    # 覆盖基类字段,设置为 None (Profile 不使用单个 memcell)
+
+    # Override base class field, set to None (Profile does not use single memcell)
     memcell: Optional[MemCell] = None
-    
-    # Profile 特有字段
+
+    # Profile specific fields
     memcell_list: List[MemCell] = None
     user_id_list: Optional[List[str]] = None
-    
+
     def __post_init__(self):
-        # 确保 memcell_list 不为 None
+        # Ensure memcell_list is not None
         if self.memcell_list is None:
             self.memcell_list = []

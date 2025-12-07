@@ -1,7 +1,7 @@
 """
-Milvus 租户配置工具函数
+Milvus Tenant Configuration Utility Functions
 
-本模块提供租户 Milvus 配置相关的工具函数，用于从租户信息中提取 Milvus 配置。
+This module provides utility functions related to tenant Milvus configuration, used to extract Milvus configuration from tenant information.
 """
 
 import os
@@ -17,12 +17,12 @@ logger = get_logger(__name__)
 
 def get_tenant_milvus_config() -> Optional[Dict[str, Any]]:
     """
-    从当前租户上下文中获取 Milvus 配置
+    Retrieve Milvus configuration from the current tenant context
 
-    从租户信息的 storage_info 中提取 Milvus 相关配置。
-    如果租户配置不完整或缺失，会从环境变量中补充。
+    Extract Milvus-related configuration from the storage_info of tenant information.
+    If tenant configuration is incomplete or missing, supplement it from environment variables.
 
-    配置结构示例：
+    Example configuration structure:
     {
         "host": "localhost",
         "port": 19530,
@@ -30,12 +30,12 @@ def get_tenant_milvus_config() -> Optional[Dict[str, Any]]:
         "password": "password"
     }
 
-    注意：
-        Milvus 的租户隔离通过 Collection 名称实现（在 TenantAwareCollection 中处理），
-        不使用 db_name 维度的隔离。
+    Note:
+        Tenant isolation in Milvus is achieved through Collection names (handled in TenantAwareCollection),
+        not using db_name level isolation.
 
     Returns:
-        Milvus 配置字典，如果不存在则返回 None
+        Milvus configuration dictionary, or None if not available
 
     Examples:
         >>> config = get_tenant_milvus_config()
@@ -44,20 +44,22 @@ def get_tenant_milvus_config() -> Optional[Dict[str, Any]]:
     """
     tenant_info = get_current_tenant()
     if not tenant_info:
-        logger.debug("⚠️ 未设置租户上下文，无法获取租户 Milvus 配置")
+        logger.debug(
+            "⚠️ Tenant context not set, unable to retrieve tenant Milvus configuration"
+        )
         return None
 
-    # 从租户的 storage_info 中获取 Milvus 配置
-    # 支持两种配置键名：milvus 或 milvus_config
+    # Retrieve Milvus configuration from tenant's storage_info
+    # Support two configuration key names: milvus or milvus_config
     milvus_config = tenant_info.get_storage_info("milvus")
     if milvus_config is None:
         milvus_config = tenant_info.get_storage_info("milvus_config")
 
-    # 获取环境变量配置作为后备
+    # Retrieve environment variable configuration as fallback
     env_fallback_config = load_milvus_config_from_env()
 
     if not milvus_config:
-        # 租户配置中完全没有 Milvus 信息，使用环境变量配置
+        # No Milvus information in tenant configuration, use environment variable configuration
         final_config = {
             "host": env_fallback_config.get("host", "localhost"),
             "port": env_fallback_config.get("port", 19530),
@@ -65,14 +67,14 @@ def get_tenant_milvus_config() -> Optional[Dict[str, Any]]:
             "password": env_fallback_config.get("password", ""),
         }
         logger.info(
-            "✅ 租户 [%s] 配置中缺少 Milvus 信息，使用环境变量配置补全: host=%s, port=%s",
+            "✅ Tenant [%s] configuration missing Milvus information, using environment variable configuration: host=%s, port=%s",
             tenant_info.tenant_id,
             final_config["host"],
             final_config["port"],
         )
         return final_config
 
-    # 兼容逻辑：如果租户配置缺少某些字段，从环境变量中补充
+    # Compatibility logic: if tenant configuration is missing certain fields, supplement from environment variables
     final_config = {
         "host": milvus_config.get("host")
         or env_fallback_config.get("host", "localhost"),
@@ -83,7 +85,7 @@ def get_tenant_milvus_config() -> Optional[Dict[str, Any]]:
     }
 
     logger.debug(
-        "✅ 从租户 [%s] 获取 Milvus 配置: host=%s, port=%s",
+        "✅ Retrieved Milvus configuration from tenant [%s]: host=%s, port=%s",
         tenant_info.tenant_id,
         final_config["host"],
         final_config["port"],
@@ -94,22 +96,22 @@ def get_tenant_milvus_config() -> Optional[Dict[str, Any]]:
 
 def get_milvus_connection_cache_key(config: Dict[str, Any]) -> str:
     """
-    基于 Milvus 连接配置生成缓存键
+    Generate cache key based on Milvus connection configuration
 
-    使用连接参数（host、port、user、password）的哈希值作为缓存键。
-    注意：db_name 不参与缓存键生成，因为同一个连接可以访问不同的数据库。
+    Use the hash value of connection parameters (host, port, user, password) as the cache key.
+    Note: db_name is not included in the cache key generation, as the same connection can access different databases.
 
     Args:
-        config: Milvus 连接配置字典
+        config: Milvus connection configuration dictionary
 
     Returns:
-        缓存键字符串（MD5 哈希值）
+        Cache key string (MD5 hash value)
 
     Examples:
         >>> config = {"host": "localhost", "port": 19530, "user": "admin", "password": "pwd"}
         >>> cache_key = get_milvus_connection_cache_key(config)
     """
-    # 使用连接参数生成唯一的缓存键（不包括 db_name，因为同一连接可以访问多个数据库）
+    # Use connection parameters to generate a unique cache key (excluding db_name, as one connection can access multiple databases)
     key_parts = [
         str(config.get("host", "")),
         str(config.get("port", "")),
@@ -123,19 +125,19 @@ def get_milvus_connection_cache_key(config: Dict[str, Any]) -> str:
 
 def load_milvus_config_from_env() -> Dict[str, Any]:
     """
-    从环境变量加载默认 Milvus 配置
+    Load default Milvus configuration from environment variables
 
-    读取以下环境变量：
-    - MILVUS_HOST: Milvus 主机地址，默认 localhost
-    - MILVUS_PORT: Milvus 端口，默认 19530
-    - MILVUS_USER: 用户名（可选）
-    - MILVUS_PASSWORD: 密码（可选）
+    Read the following environment variables:
+    - MILVUS_HOST: Milvus host address, default localhost
+    - MILVUS_PORT: Milvus port, default 19530
+    - MILVUS_USER: Username (optional)
+    - MILVUS_PASSWORD: Password (optional)
 
-    注意：
-        不使用 MILVUS_DB_NAME，租户隔离通过 Collection 名称实现
+    Note:
+        MILVUS_DB_NAME is not used; tenant isolation is achieved through Collection names
 
     Returns:
-        Milvus 配置字典
+        Milvus configuration dictionary
 
     Examples:
         >>> config = load_milvus_config_from_env()
@@ -149,7 +151,7 @@ def load_milvus_config_from_env() -> Dict[str, Any]:
     }
 
     logger.debug(
-        "从环境变量加载默认 Milvus 配置: host=%s, port=%s",
+        "Loaded default Milvus configuration from environment variables: host=%s, port=%s",
         config["host"],
         config["port"],
     )
@@ -159,52 +161,52 @@ def load_milvus_config_from_env() -> Dict[str, Any]:
 
 def get_tenant_aware_collection_name(original_name: str) -> str:
     """
-    生成租户感知的 Collection 名称
+    Generate tenant-aware Collection name
 
-    根据当前租户上下文为 Collection 名称添加租户前缀。
-    如果在非租户模式或无租户上下文，返回原始名称。
+    Add tenant prefix to the Collection name based on the current tenant context.
+    If in non-tenant mode or without tenant context, return the original name.
 
-    命名规则：
-    - 添加租户前缀：{tenant_id}_{original_name}
-    - 替换特殊字符：将 "-" 和 "." 替换为 "_" 以符合 Milvus 命名规范
+    Naming rules:
+    - Add tenant prefix: {tenant_id}_{original_name}
+    - Replace special characters: replace "-" and "." with "_" to comply with Milvus naming conventions
 
     Args:
-        original_name: 原始的 Collection 名称
+        original_name: Original Collection name
 
     Returns:
-        str: 租户感知的 Collection 名称
+        str: Tenant-aware Collection name
 
     Examples:
-        >>> # 租户模式下
+        >>> # In tenant mode
         >>> set_current_tenant(TenantInfo(tenant_id="tenant-001", ...))
         >>> get_tenant_aware_collection_name("my_collection")
         'tenant_001_my_collection'
 
-        >>> # 非租户模式或无租户上下文
+        >>> # In non-tenant mode or without tenant context
         >>> get_tenant_aware_collection_name("my_collection")
         'my_collection'
     """
     try:
 
-        # 检查是否为非租户模式
+        # Check if in non-tenant mode
         config = get_tenant_config()
         if config.non_tenant_mode:
             return original_name
 
-        # 获取当前租户信息
+        # Retrieve current tenant information
         tenant_info = get_current_tenant()
         if not tenant_info:
             return original_name
 
-        # 生成租户前缀（替换特殊字符以符合 Milvus 命名规范）
+        # Generate tenant prefix (replace special characters to comply with Milvus naming conventions)
         tenant_prefix = tenant_info.tenant_id.replace("-", "_").replace(".", "_")
 
-        # 返回租户感知的表名
+        # Return tenant-aware table name
         return f"{tenant_prefix}_{original_name}"
 
     except Exception as e:
         logger.warning(
-            "生成租户感知的 Collection 名称失败，使用原始名称 [%s]: %s",
+            "Failed to generate tenant-aware Collection name, using original name [%s]: %s",
             original_name,
             e,
         )

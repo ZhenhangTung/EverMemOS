@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Bean排序策略模块
+Bean ordering strategy module
 
-用于根据BeanDefinition的属性（如is_primary、metadata等）来确定Bean的优先级顺序
+Used to determine the priority order of Beans based on BeanDefinition attributes (such as is_primary, metadata, etc.)
 
-优先级排序规则（从高到低）：
-1. is_mock: Mock模式下，Mock Bean > 非Mock Bean；非Mock模式下，Mock Bean被直接过滤掉
-2. 匹配方式: 直接匹配 > 实现类匹配
-3. primary: Primary Bean > 非Primary Bean
+Priority ranking rules (from highest to lowest):
+1. is_mock: In mock mode, Mock Bean > Non-Mock Bean; in non-mock mode, Mock Beans are filtered out directly
+2. Matching method: Direct match > Implementation class match
+3. primary: Primary Bean > Non-Primary Bean
 4. scope: Factory Bean > Regular Bean
 """
 
@@ -17,13 +17,13 @@ from core.di.bean_definition import BeanDefinition, BeanScope
 
 class BeanOrderStrategy:
     """
-    Bean排序策略类
+    Bean ordering strategy class
 
-    根据BeanDefinition的各种属性来计算和排序Bean的优先级
-    用于在有多个候选Bean时确定使用顺序
+    Calculates and sorts Bean priorities based on various attributes of BeanDefinition
+    Used to determine usage order when there are multiple candidate Beans
 
-    排序键格式: (mock_priority, match_priority, primary_priority, scope_priority)
-    数值越小，优先级越高
+    Order key format: (mock_priority, match_priority, primary_priority, scope_priority)
+    Smaller values indicate higher priority
     """
 
     @staticmethod
@@ -31,36 +31,36 @@ class BeanOrderStrategy:
         bean_def: BeanDefinition, is_direct_match: bool, mock_mode: bool = False
     ) -> Tuple[int, int, int, int]:
         """
-        计算Bean的排序键
+        Calculate the ordering key for a Bean
 
         Args:
-            bean_def: Bean定义对象
-            is_direct_match: 是否为直接匹配（True=直接匹配，False=实现类匹配）
-            mock_mode: 是否处于Mock模式
+            bean_def: Bean definition object
+            is_direct_match: Whether it is a direct match (True = direct match, False = implementation class match)
+            mock_mode: Whether in mock mode
 
         Returns:
-            Tuple[int, int, int, int]: 排序键元组
-            格式: (mock_priority, match_priority, primary_priority, scope_priority)
+            Tuple[int, int, int, int]: Order key tuple
+            Format: (mock_priority, match_priority, primary_priority, scope_priority)
 
-        优先级规则:
-            - mock_priority: Mock模式下，Mock Bean=0, 非Mock Bean=1；非Mock模式下都为0
-            - match_priority: 直接匹配=0, 实现类匹配=1
-            - primary_priority: Primary Bean=0, 非Primary Bean=1
-            - scope_priority: Factory Bean=0, 非Factory Bean=1
+        Priority rules:
+            - mock_priority: In mock mode, Mock Bean = 0, Non-Mock Bean = 1; in non-mock mode, both are 0
+            - match_priority: Direct match = 0, Implementation class match = 1
+            - primary_priority: Primary Bean = 0, Non-Primary Bean = 1
+            - scope_priority: Factory Bean = 0, Non-Factory Bean = 1
         """
-        # 1. Mock优先级（仅在Mock模式下区分）
+        # 1. Mock priority (only differentiated in mock mode)
         if mock_mode:
             mock_priority = 0 if bean_def.is_mock else 1
         else:
-            mock_priority = 0  # 非Mock模式下不区分
+            mock_priority = 0  # No distinction in non-mock mode
 
-        # 2. 匹配方式优先级（直接匹配优先）
+        # 2. Match method priority (direct match takes precedence)
         match_priority = 0 if is_direct_match else 1
 
-        # 3. Primary优先级（Primary优先）
+        # 3. Primary priority (Primary takes precedence)
         primary_priority = 0 if bean_def.is_primary else 1
 
-        # 4. Scope优先级（Factory优先）
+        # 4. Scope priority (Factory takes precedence)
         scope_priority = 0 if bean_def.scope == BeanScope.FACTORY else 1
 
         return (mock_priority, match_priority, primary_priority, scope_priority)
@@ -72,25 +72,25 @@ class BeanOrderStrategy:
         mock_mode: bool = False,
     ) -> List[BeanDefinition]:
         """
-        根据上下文信息对Bean定义列表进行排序
+        Sort the list of Bean definitions based on context information
 
         Args:
-            bean_defs: Bean定义列表
-            direct_match_types: 直接匹配的类型集合
-            mock_mode: 是否处于Mock模式
+            bean_defs: List of Bean definitions
+            direct_match_types: Set of types that directly match
+            mock_mode: Whether in mock mode
 
         Returns:
-            List[BeanDefinition]: 排序后的Bean定义列表
+            List[BeanDefinition]: Sorted list of Bean definitions
 
-        注意:
-            - 在非Mock模式下，Mock Bean会被直接过滤掉，不参与排序
-            - 在Mock模式下，Mock Bean优先于非Mock Bean
+        Note:
+            - In non-mock mode, Mock Beans are filtered out directly and do not participate in sorting
+            - In mock mode, Mock Beans take precedence over non-Mock Beans
         """
-        # 在非Mock模式下，过滤掉所有Mock Bean
+        # Filter out all Mock Beans in non-mock mode
         if not mock_mode:
             bean_defs = [bd for bd in bean_defs if not bd.is_mock]
 
-        # 为每个Bean计算排序键，然后按键排序
+        # Calculate order key for each Bean, then sort by key
         sorted_beans = sorted(
             bean_defs,
             key=lambda bd: BeanOrderStrategy.calculate_order_key(
@@ -104,24 +104,24 @@ class BeanOrderStrategy:
     @staticmethod
     def sort_beans(bean_defs: List[BeanDefinition]) -> List[BeanDefinition]:
         """
-        对Bean定义列表进行简单排序（兼容旧接口）
+        Sort the list of Bean definitions simply (compatible with old interface)
 
         Args:
-            bean_defs: Bean定义列表
+            bean_defs: List of Bean definitions
 
         Returns:
-            List[BeanDefinition]: 排序后的Bean定义列表
+            List[BeanDefinition]: Sorted list of Bean definitions
 
-        注意:
-            此方法仅考虑primary和scope，不考虑匹配方式和Mock模式
-            建议使用 sort_beans_with_context 方法以获得完整的排序功能
+        Note:
+            This method only considers primary and scope, not matching method or mock mode
+            It is recommended to use the sort_beans_with_context method for complete sorting functionality
         """
-        # 按 (primary_priority, scope_priority) 排序
+        # Sort by (primary_priority, scope_priority)
         sorted_beans = sorted(
             bean_defs,
             key=lambda bd: (
-                0 if bd.is_primary else 1,  # Primary优先
-                0 if bd.scope == BeanScope.FACTORY else 1,  # Factory优先
+                0 if bd.is_primary else 1,  # Primary takes precedence
+                0 if bd.scope == BeanScope.FACTORY else 1,  # Factory takes precedence
             ),
         )
         return sorted_beans

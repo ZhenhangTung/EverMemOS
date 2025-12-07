@@ -7,16 +7,16 @@ from core.di.decorators import component
 
 @component(name="database_session_provider", primary=True)
 class DatabaseSessionProvider:
-    """数据库会话提供者"""
+    """Database session provider"""
 
     def __init__(self):
-        """初始化数据库会话提供者"""
+        """Initialize the database session provider"""
         self.database_url = os.getenv("DATABASE_URL", "")
 
-        # 从环境变量读取时区配置，默认为上海时区
+        # Read timezone configuration from environment variables, default to Asia/Shanghai
         timezone = os.getenv("TZ", "Asia/Shanghai")
 
-        # 将 postgresql:// 替换为 postgresql+asyncpg:// 以支持异步
+        # Replace postgresql:// with postgresql+asyncpg:// to support async
         if self.database_url.startswith("postgresql://"):
             self.async_database_url = self.database_url.replace(
                 "postgresql://", "postgresql+asyncpg://", 1
@@ -24,33 +24,35 @@ class DatabaseSessionProvider:
         else:
             self.async_database_url = self.database_url
 
-        # 创建异步引擎
+        # Create async engine
         self.async_engine = create_async_engine(
             self.async_database_url,
-            echo=False,  # 设置为True可以看到SQL日志
+            echo=False,  # Set to True to see SQL logs
             future=True,
             pool_pre_ping=True,
-            pool_recycle=int(os.getenv("DB_POOL_RECYCLE", "300")),  # 5分钟回收连接
+            pool_recycle=int(
+                os.getenv("DB_POOL_RECYCLE", "300")
+            ),  # Recycle connections every 5 minutes
             pool_size=int(
                 os.getenv("DB_POOL_SIZE", "40")
-            ),  # 🔧 增加连接池大小（默认5 → 10）
+            ),  # 🔧 Increase connection pool size (default 5 → 10)
             max_overflow=int(
                 os.getenv("DB_MAX_OVERFLOW", "25")
-            ),  # 🔧 增加最大溢出连接（默认10 → 15）
+            ),  # 🔧 Increase maximum overflow connections (default 10 → 15)
             connect_args={"server_settings": {"timezone": timezone}},
         )
 
-        # 创建异步会话工厂
+        # Create async session factory
         self.async_session_factory = async_sessionmaker(
             bind=self.async_engine, class_=AsyncSession, expire_on_commit=False
         )
 
     def create_session(self) -> AsyncSession:
-        """创建新的异步数据库会话"""
+        """Create a new async database session"""
         return self.async_session_factory()
 
     async def get_async_session(self) -> AsyncGenerator[AsyncSession, None]:
-        """获取异步数据库会话（上下文管理器形式）"""
+        """Get async database session (in context manager form)"""
         async with self.async_session_factory() as session:
             try:
                 yield session

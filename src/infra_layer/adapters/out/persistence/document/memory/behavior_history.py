@@ -9,29 +9,37 @@ from core.oxm.mongo.audit_base import AuditBase
 
 class BehaviorHistory(DocumentBase, AuditBase):
     """
-    行为历史文档模型
+    Behavior history document model
 
-    记录用户的各种行为历史，包括聊天、邮件、文件操作等。
+    Records various user behaviors, including chat, email, file operations, etc.
     """
 
-    # 联合主键
-    user_id: Indexed(str) = Field(..., description="用户ID，联合主键")
-    timestamp: Indexed(datetime) = Field(..., description="行为发生时间戳，联合主键")
+    # Composite primary key
+    user_id: Indexed(str) = Field(
+        ..., description="User ID, part of composite primary key"
+    )
+    timestamp: Indexed(datetime) = Field(
+        ...,
+        description="Timestamp when behavior occurred, part of composite primary key",
+    )
 
-    # 行为信息
+    # Behavior information
     behavior_type: List[str] = Field(
         ...,
-        description="行为类型列表（chat、follow-up、Smart-Reply、Vote、file、Email、link-doc等）",
+        description="List of behavior types (chat, follow-up, Smart-Reply, Vote, file, Email, link-doc, etc.)",
     )
     event_id: Optional[str] = Field(
-        default=None, description="关联记忆单元ID（若存在）"
+        default=None, description="Associated memory unit ID (if exists)"
     )
     meta: Optional[Dict[str, Any]] = Field(
-        default=None, description="元信息：对话详情、Email原文等"
+        default=None,
+        description="Metadata: conversation details, original email content, etc.",
     )
 
-    # 通用字段
-    extend: Optional[Dict[str, Any]] = Field(default=None, description="备用拓展字段")
+    # Generic fields
+    extend: Optional[Dict[str, Any]] = Field(
+        default=None, description="Reserved extension field"
+    )
 
     model_config = ConfigDict(
         collection="behavior_histories",
@@ -47,7 +55,7 @@ class BehaviorHistory(DocumentBase, AuditBase):
                     "conversation_id": "conv_001",
                     "message_count": 5,
                     "duration_minutes": 15,
-                    "topics": ["技术讨论", "项目规划"],
+                    "topics": ["Technical discussion", "Project planning"],
                 },
                 "extend": {"priority": "high", "location": "office"},
             }
@@ -55,7 +63,7 @@ class BehaviorHistory(DocumentBase, AuditBase):
     )
 
     class Settings:
-        """Beanie 设置"""
+        """Beanie settings"""
 
         name = "behavior_histories"
         indexes = [

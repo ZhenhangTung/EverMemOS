@@ -1,7 +1,7 @@
 """
-Elasticsearch 索引迁移工具
+Elasticsearch index migration tool
 
-提供通用的 Elasticsearch 索引重建和迁移功能。
+Provides generic Elasticsearch index rebuilding and migration functionality.
 """
 
 import time
@@ -19,18 +19,18 @@ logger = get_logger(__name__)
 
 def find_document_class_by_index_name(index_name: str) -> Type[AsyncDocument]:
     """
-    通过索引别名查找文档类
+    Find document class by index alias
 
-    使用 `get_index_ns()` 进行命名空间拼接，确保与 `AliasDoc` 的别名规则一致。
+    Uses `get_index_ns()` for namespace concatenation, ensuring consistency with `AliasDoc` alias rules.
 
     Args:
-        index_name: 索引别名（例如: "episodic-memory"）
+        index_name: Index alias (e.g., "episodic-memory")
 
     Returns:
-        匹配到的 ES 文档类
+        Matched ES document class
 
     Raises:
-        ValueError: 找不到或找到多个匹配的文档类
+        ValueError: If no match or multiple matches are found
     """
 
     all_doc_classes = get_all_subclasses(DocBase)
@@ -45,27 +45,35 @@ def find_document_class_by_index_name(index_name: str) -> Type[AsyncDocument]:
 
         ipdb.set_trace()
         available_indexes = [cls.get_index_name() for cls in all_doc_classes]
-        logger.error("找不到索引别名 '%s' 对应的文档类", index_name)
-        logger.info("可用的索引别名: %s", ", ".join(available_indexes))
-        raise ValueError(f"找不到索引别名 '{index_name}' 对应的文档类")
+        logger.error(
+            "Cannot find document class corresponding to index alias '%s'", index_name
+        )
+        logger.info("Available index aliases: %s", ", ".join(available_indexes))
+        raise ValueError(
+            f"Cannot find document class corresponding to index alias '{index_name}'"
+        )
 
     if len(matched_classes) > 1:
         logger.error(
-            "找到多个索引别名为 '%s' 的文档类: %s",
+            "Found multiple document classes with index alias '%s': %s",
             index_name,
             [cls.__module__ + "." + cls.__name__ for cls in matched_classes],
         )
         raise ValueError(
-            f"找到多个索引别名为 '{index_name}' 的文档类: {', '.join([f'{cls.__module__}.{cls.__name__}' for cls in matched_classes])}"
+            f"Found multiple document classes with index alias '{index_name}': {', '.join([f'{cls.__module__}.{cls.__name__}' for cls in matched_classes])}"
         )
 
     document_class = matched_classes[0]
 
-    # 基本校验
+    # Basic validation
     if not hasattr(document_class, "PATTERN"):
-        raise ValueError(f"文档类 {document_class.__name__} 必须有 PATTERN 属性")
+        raise ValueError(
+            f"Document class {document_class.__name__} must have PATTERN attribute"
+        )
     if not hasattr(document_class, "dest"):
-        raise ValueError(f"文档类 {document_class.__name__} 必须有 dest() 方法")
+        raise ValueError(
+            f"Document class {document_class.__name__} must have dest() method"
+        )
 
     return document_class
 
@@ -76,97 +84,105 @@ async def rebuild_index(
     delete_old: bool = False,
 ) -> None:
     """
-    重建 Elasticsearch 索引
+    Rebuild Elasticsearch index
 
-    基于现有索引创建新索引，并更新别名指向。支持关闭或删除旧索引。
+    Create a new index based on the existing one and update the alias to point to it. Supports closing or deleting the old index.
 
     Args:
-        document_class: ES文档类，必须有 PATTERN 属性和 dest() 方法
-        es_connect: Elasticsearch 连接对象
-        close_old: 是否关闭旧索引
-        delete_old: 是否删除旧索引
+        document_class: ES document class, must have PATTERN attribute and dest() method
+        es_connect: Elasticsearch connection object
+        close_old: Whether to close the old index
+        delete_old: Whether to delete the old index
 
     Returns:
         None
 
     Raises:
-        ValueError: 如果文档类缺少必要的属性或方法
+        ValueError: If the document class is missing required attributes or methods
     """
-    # 验证文档类
+    # Validate document class
     if not hasattr(document_class, 'PATTERN'):
-        raise ValueError("文档类 %s 必须有 PATTERN 属性" % document_class.__name__)
+        raise ValueError(
+            "Document class %s must have PATTERN attribute" % document_class.__name__
+        )
     if not hasattr(document_class, 'dest'):
-        raise ValueError("文档类 %s 必须有 dest() 方法" % document_class.__name__)
+        raise ValueError(
+            "Document class %s must have dest() method" % document_class.__name__
+        )
 
-    # 获取索引信息
+    # Get index information
     alias_name = document_class.get_index_name()
     es_connect = document_class._get_connection()
     pattern = document_class.PATTERN
     dest_index = document_class.dest()
 
-    logger.info("开始重建索引: %s", alias_name)
-    logger.info("源索引模式: %s", pattern)
-    logger.info("目标索引: %s", dest_index)
+    logger.info("Starting index rebuild: %s", alias_name)
+    logger.info("Source index pattern: %s", pattern)
+    logger.info("Destination index: %s", dest_index)
 
-    # 检查目标索引是否已存在
+    # Check if destination index already exists
     if await es_connect.indices.exists(index=dest_index):
-        logger.warning("目标索引 %s 已存在，跳过重建", dest_index)
+        logger.warning(
+            "Destination index %s already exists, skipping rebuild", dest_index
+        )
         return
 
-    # 初始化新索引
+    # Initialize new index
     await document_class.init(index=dest_index)
-    logger.info("已创建新索引: %s", dest_index)
+    logger.info("New index created: %s", dest_index)
 
-    # 开始重建索引任务
+    # Start reindexing task
     reindex_body = {"source": {"index": alias_name}, "dest": {"index": dest_index}}
 
-    logger.info("开始数据迁移...")
+    logger.info("Starting data migration...")
     result = await es_connect.reindex(body=reindex_body, wait_for_completion=False)
     task_id = result["task"]
-    logger.info("重建任务ID: %s", task_id)
+    logger.info("Rebuild task ID: %s", task_id)
 
-    # 等待任务完成
+    # Wait for task completion
     await wait_for_task_completion(es_connect, task_id)
 
-    # 更新别名
+    # Update aliases
     await update_aliases(es_connect, alias_name, dest_index, close_old, delete_old)
 
-    logger.info("索引重建完成: %s", alias_name)
+    logger.info("Index rebuild completed: %s", alias_name)
 
 
 async def wait_for_task_completion(es_connect: Any, task_id: str) -> None:
     """
-    等待 Elasticsearch 任务完成
+    Wait for Elasticsearch task to complete
 
     Args:
-        es_connect: Elasticsearch 连接对象
-        task_id: 任务ID
+        es_connect: Elasticsearch connection object
+        task_id: Task ID
     """
-    logger.info("等待重建任务完成...")
+    logger.info("Waiting for rebuild task to complete...")
 
     while True:
         try:
             task_result = await es_connect.tasks.get(task_id=task_id)
 
             if task_result.get("completed", False):
-                logger.info("重建任务已完成")
+                logger.info("Rebuild task completed")
                 break
 
-            # 显示进度信息
+            # Display progress information
             status = task_result.get("task", {}).get("status", {})
             if status:
                 created = status.get("created", 0)
                 total = status.get("total", 0)
                 if total > 0:
                     progress = (created / total) * 100
-                    logger.info("重建进度: %d/%d (%.1f%%)", created, total, progress)
+                    logger.info(
+                        "Rebuild progress: %d/%d (%.1f%%)", created, total, progress
+                    )
 
-            time.sleep(5)  # 每5秒检查一次
+            time.sleep(5)  # Check every 5 seconds
 
         except (NotFoundError, RequestError) as e:
             traceback.print_exc()
-            logger.error("检查任务状态失败: %s", e)
-            time.sleep(10)  # 出错时等待更长时间
+            logger.error("Failed to check task status: %s", e)
+            time.sleep(10)  # Wait longer when error occurs
 
 
 async def update_aliases(
@@ -177,51 +193,53 @@ async def update_aliases(
     delete_old: bool = False,
 ) -> None:
     """
-    更新 Elasticsearch 索引别名
+    Update Elasticsearch index aliases
 
     Args:
-        es_connect: Elasticsearch 连接对象
-        alias_name: 别名
-        dest_index: 目标索引
-        close_old: 是否关闭旧索引
-        delete_old: 是否删除旧索引
+        es_connect: Elasticsearch connection object
+        alias_name: Alias name
+        dest_index: Destination index
+        close_old: Whether to close old index
+        delete_old: Whether to delete old index
     """
-    logger.info("更新索引别名...")
+    logger.info("Updating index aliases...")
 
-    # 获取当前别名指向的索引
+    # Get indices currently pointed by the alias
     try:
         existing_indices = list(
             (await es_connect.indices.get_alias(name=alias_name)).keys()
         )
-        logger.info("当前别名 %s 指向的索引: %s", alias_name, existing_indices)
+        logger.info(
+            "Current indices pointed by alias %s: %s", alias_name, existing_indices
+        )
     except NotFoundError:
         existing_indices = []
-        logger.info("别名 %s 不存在，将创建新别名", alias_name)
+        logger.info("Alias %s does not exist, will create new alias", alias_name)
 
-    # 刷新新索引
+    # Refresh the new index
     await es_connect.indices.refresh(index=dest_index)
 
-    # 构建别名更新操作
+    # Build alias update operations
     actions = []
 
-    # 移除旧的别名关联
+    # Remove old alias associations
     for old_index in existing_indices:
         actions.append({"remove": {"alias": alias_name, "index": old_index}})
 
-    # 添加新的别名关联
+    # Add new alias association
     actions.append(
         {"add": {"alias": alias_name, "index": dest_index, "is_write_index": True}}
     )
 
-    # 执行别名更新
+    # Execute alias update
     await es_connect.indices.update_aliases(body={"actions": actions})
-    logger.info("已更新别名 %s 指向 %s", alias_name, dest_index)
+    logger.info("Alias %s updated to point to %s", alias_name, dest_index)
 
-    # 处理旧索引
+    # Handle old indices
     for old_index in existing_indices:
         if close_old:
-            logger.info("关闭旧索引: %s", old_index)
+            logger.info("Closing old index: %s", old_index)
             await es_connect.indices.close(index=old_index)
         elif delete_old:
-            logger.info("删除旧索引: %s", old_index)
+            logger.info("Deleting old index: %s", old_index)
             await es_connect.indices.delete(index=old_index)

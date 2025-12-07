@@ -17,46 +17,53 @@ logger = get_logger(__name__)
 @repository("episodic_memory_raw_repository", primary=True)
 class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
     """
-    情景记忆原始数据仓库
-    会生成向量化的文本内容，并保存到数据库中
-    提供情景记忆的 CRUD 操作和基础查询功能。
+    Episodic memory raw data repository
+    Generates vectorized text content and saves it to the database
+    Provides CRUD operations and basic query functions for episodic memory.
     """
 
     def __init__(self):
         super().__init__(EpisodicMemory)
         self.vectorize_service = get_vectorize_service()
 
-    # ==================== 基础 CRUD 方法 ====================
+    # ==================== Basic CRUD Methods ====================
 
     async def get_by_event_id(
         self, event_id: str, user_id: str, session: Optional[AsyncClientSession] = None
     ) -> Optional[EpisodicMemory]:
         """
-        根据事件ID和用户ID获取情景记忆
+        Retrieve episodic memory by event ID and user ID
 
         Args:
-            event_id: 事件ID
-            user_id: 用户ID
-            session: 可选的 MongoDB 会话，用于事务支持
+            event_id: Event ID
+            user_id: User ID
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            EpisodicMemory 或 None
+            EpisodicMemory or None
         """
         try:
-            # 将字符串 event_id 转换为 ObjectId
+            # Convert string event_id to ObjectId
             object_id = ObjectId(event_id)
             result = await self.model.find_one(
                 {"_id": object_id, "user_id": user_id}, session=session
             )
             if result:
-                logger.debug("✅ 根据事件ID和用户ID获取情景记忆成功: %s", event_id)
+                logger.debug(
+                    "✅ Successfully retrieved episodic memory by event ID and user ID: %s",
+                    event_id,
+                )
             else:
                 logger.debug(
-                    "ℹ️  未找到情景记忆: event_id=%s, user_id=%s", event_id, user_id
+                    "ℹ️  Episodic memory not found: event_id=%s, user_id=%s",
+                    event_id,
+                    user_id,
                 )
             return result
         except Exception as e:
-            logger.error("❌ 根据事件ID和用户ID获取情景记忆失败: %s", e)
+            logger.error(
+                "❌ Failed to retrieve episodic memory by event ID and user ID: %s", e
+            )
             return None
 
     async def get_by_event_ids(
@@ -66,51 +73,51 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
         session: Optional[AsyncClientSession] = None,
     ) -> Dict[str, EpisodicMemory]:
         """
-        根据事件ID列表和用户ID批量获取情景记忆
+        Batch retrieve episodic memories by event ID list and user ID
 
         Args:
-            event_ids: 事件ID列表
-            user_id: 用户ID
-            session: 可选的 MongoDB 会话，用于事务支持
+            event_ids: List of event IDs
+            user_id: User ID
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            Dict[str, EpisodicMemory]: 以 event_id 为 key 的字典，方便快速查找
+            Dict[str, EpisodicMemory]: Dictionary with event_id as key, for fast lookup
         """
         if not event_ids:
             return {}
 
         try:
-            # 将字符串 event_id 列表转换为 ObjectId 列表
+            # Convert list of string event_ids to list of ObjectIds
             object_ids = []
             for event_id in event_ids:
                 try:
                     object_ids.append(ObjectId(event_id))
                 except Exception as e:
-                    logger.warning(f"⚠️  无效的 event_id: {event_id}, 错误: {e}")
+                    logger.warning(f"⚠️  Invalid event_id: {event_id}, error: {e}")
                     continue
 
             if not object_ids:
                 return {}
 
-            # 批量查询
+            # Batch query
             query = {"_id": {"$in": object_ids}}
             if user_id:
                 query["user_id"] = user_id
 
             results = await self.model.find(query, session=session).to_list()
 
-            # 转换为字典，方便后续使用
+            # Convert to dictionary for easier subsequent use
             result_dict = {str(doc.id): doc for doc in results}
 
             logger.debug(
-                "✅ 批量获取情景记忆成功: user_id=%s, 请求 %d 个, 找到 %d 个",
+                "✅ Successfully batch retrieved episodic memories: user_id=%s, requested %d, found %d",
                 user_id,
                 len(event_ids),
                 len(result_dict),
             )
             return result_dict
         except Exception as e:
-            logger.error("❌ 批量获取情景记忆失败: %s", e)
+            logger.error("❌ Failed to batch retrieve episodic memories: %s", e)
             return {}
 
     async def get_by_user_id(
@@ -122,17 +129,17 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
         session: Optional[AsyncClientSession] = None,
     ) -> List[EpisodicMemory]:
         """
-        根据用户ID获取情景记忆列表
+        Retrieve list of episodic memories by user ID
 
         Args:
-            user_id: 用户ID
-            limit: 限制返回数量
-            skip: 跳过数量
-            sort_desc: 是否按时间降序排序
-            session: 可选的 MongoDB 会话，用于事务支持
+            user_id: User ID
+            limit: Limit number of returned results
+            skip: Number of results to skip
+            sort_desc: Whether to sort by time in descending order
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            EpisodicMemory 列表
+            List of EpisodicMemory
         """
         try:
             query = self.model.find({"user_id": user_id})
@@ -149,13 +156,13 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据用户ID获取情景记忆成功: %s, 找到 %d 条记录",
+                "✅ Successfully retrieved episodic memories by user ID: %s, found %d records",
                 user_id,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据用户ID获取情景记忆失败: %s", e)
+            logger.error("❌ Failed to retrieve episodic memories by user ID: %s", e)
             return []
 
     async def append_episodic_memory(
@@ -164,57 +171,57 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
         session: Optional[AsyncClientSession] = None,
     ) -> Optional[EpisodicMemory]:
         """
-        追加新的情景记忆
+        Append new episodic memory
 
         Args:
-            episodic_memory: 情景记忆对象
-            session: 可选的 MongoDB 会话，用于事务支持
+            episodic_memory: Episodic memory object
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            追加的 EpisodicMemory 或 None
+            Appended EpisodicMemory or None
         """
 
-        # 同步向量
+        # Synchronize vector
         if episodic_memory.episode and not episodic_memory.vector:
             try:
                 vector = await self.vectorize_service.get_embedding(
                     episodic_memory.episode
                 )
                 episodic_memory.vector = vector.tolist()
-                # 设置向量化模型信息
+                # Set vectorization model information
                 episodic_memory.vector_model = self.vectorize_service.get_model_name()
             except Exception as e:
-                logger.error("❌ 同步向量失败: %s", e)
+                logger.error("❌ Failed to synchronize vector: %s", e)
         try:
             await episodic_memory.insert(session=session)
             logger.info(
-                "✅ 追加情景记忆成功: event_id=%s, user_id=%s",
+                "✅ Successfully appended episodic memory: event_id=%s, user_id=%s",
                 episodic_memory.event_id,
                 episodic_memory.user_id,
             )
             return episodic_memory
         except Exception as e:
-            logger.error("❌ 追加情景记忆失败: %s", e)
+            logger.error("❌ Failed to append episodic memory: %s", e)
             return None
 
     async def delete_by_event_id(
         self, event_id: str, user_id: str, session: Optional[AsyncClientSession] = None
     ) -> bool:
         """
-        根据事件ID和用户ID删除情景记忆
+        Delete episodic memory by event ID and user ID
 
         Args:
-            event_id: 事件ID
-            user_id: 用户ID
-            session: 可选的 MongoDB 会话，用于事务支持
+            event_id: Event ID
+            user_id: User ID
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            是否删除成功
+            Whether deletion was successful
         """
         try:
-            # 将字符串 event_id 转换为 ObjectId
+            # Convert string event_id to ObjectId
             object_id = ObjectId(event_id)
-            # 直接删除并检查删除数量
+            # Directly delete and check deletion count
             result = await self.model.find(
                 {"_id": object_id, "user_id": user_id}, session=session
             ).delete()
@@ -225,41 +232,48 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
             success = deleted_count > 0
 
             if success:
-                logger.info("✅ 根据事件ID和用户ID删除情景记忆成功: %s", event_id)
+                logger.info(
+                    "✅ Successfully deleted episodic memory by event ID and user ID: %s",
+                    event_id,
+                )
                 return True
             else:
                 logger.warning(
-                    "⚠️  未找到要删除的情景记忆: event_id=%s, user_id=%s",
+                    "⚠️  Episodic memory to delete not found: event_id=%s, user_id=%s",
                     event_id,
                     user_id,
                 )
                 return False
         except Exception as e:
-            logger.error("❌ 根据事件ID和用户ID删除情景记忆失败: %s", e)
+            logger.error(
+                "❌ Failed to delete episodic memory by event ID and user ID: %s", e
+            )
             return False
 
     async def delete_by_user_id(
         self, user_id: str, session: Optional[AsyncClientSession] = None
     ) -> int:
         """
-        根据用户ID删除所有情景记忆
+        Delete all episodic memories by user ID
 
         Args:
-            user_id: 用户ID
-            session: 可选的 MongoDB 会话，用于事务支持
+            user_id: User ID
+            session: Optional MongoDB session, for transaction support
 
         Returns:
-            删除的记录数量
+            Number of deleted records
         """
         try:
             result = await self.model.find({"user_id": user_id}).delete(session=session)
             count = result.deleted_count if result else 0
             logger.info(
-                "✅ 根据用户ID删除情景记忆成功: %s, 删除 %d 条记录", user_id, count
+                "✅ Successfully deleted episodic memories by user ID: %s, deleted %d records",
+                user_id,
+                count,
             )
             return count
         except Exception as e:
-            logger.error("❌ 根据用户ID删除情景记忆失败: %s", e)
+            logger.error("❌ Failed to delete episodic memories by user ID: %s", e)
             return 0
 
     async def find_by_time_range(
@@ -271,17 +285,17 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
         sort_desc: bool = False,
     ) -> List[EpisodicMemory]:
         """
-        根据时间范围查询 EpisodicMemory
+        Query EpisodicMemory by time range
 
         Args:
-            start_time: 开始时间
-            end_time: 结束时间
-            limit: 限制返回数量
-            skip: 跳过数量
-            sort_desc: 是否按时间降序排序，默认False（升序）
+            start_time: Start time
+            end_time: End time
+            limit: Limit number of returned results
+            skip: Number of results to skip
+            sort_desc: Whether to sort by time in descending order, default False (ascending)
 
         Returns:
-            EpisodicMemory 列表
+            List of EpisodicMemory
         """
         try:
             query = self.model.find(
@@ -300,14 +314,14 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
 
             results = await query.to_list()
             logger.debug(
-                "✅ 根据时间范围查询 EpisodicMemory 成功: 时间范围: %s - %s, 找到 %d 条记录",
+                "✅ Successfully queried EpisodicMemory by time range: time range: %s - %s, found %d records",
                 start_time,
                 end_time,
                 len(results),
             )
             return results
         except Exception as e:
-            logger.error("❌ 根据时间范围查询 EpisodicMemory 失败: %s", e)
+            logger.error("❌ Failed to query EpisodicMemory by time range: %s", e)
             return []
 
     async def find_by_filter_paginated(
@@ -319,35 +333,35 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
         sort_desc: bool = False,
     ) -> List[EpisodicMemory]:
         """
-        根据过滤条件分页查询 EpisodicMemory，用于数据同步等场景
+        Paginated query of EpisodicMemory by filter conditions, used for data synchronization scenarios
 
         Args:
-            query_filter: 查询过滤条件，为 None 时查询全部
-            skip: 跳过数量
-            limit: 限制返回数量
-            sort_field: 排序字段，默认 created_at
-            sort_desc: 是否降序排序，默认False（升序）
+            query_filter: Query filter conditions, query all if None
+            skip: Number of results to skip
+            limit: Limit number of returned results
+            sort_field: Sort field, default is created_at
+            sort_desc: Whether to sort in descending order, default False (ascending)
 
         Returns:
-            EpisodicMemory 列表
+            List of EpisodicMemory
         """
         try:
-            # 构建查询
+            # Build query
             filter_dict = query_filter if query_filter else {}
             query = self.model.find(filter_dict)
 
-            # 排序
+            # Sort
             if sort_desc:
                 query = query.sort(f"-{sort_field}")
             else:
                 query = query.sort(sort_field)
 
-            # 分页
+            # Paginate
             query = query.skip(skip).limit(limit)
 
             results = await query.to_list()
             logger.debug(
-                "✅ 分页查询 EpisodicMemory 成功: filter=%s, skip=%d, limit=%d, 找到 %d 条记录",
+                "✅ Successfully paginated query of EpisodicMemory: filter=%s, skip=%d, limit=%d, found %d records",
                 filter_dict,
                 skip,
                 limit,
@@ -355,9 +369,9 @@ class EpisodicMemoryRawRepository(BaseRepository[EpisodicMemory]):
             )
             return results
         except Exception as e:
-            logger.error("❌ 分页查询 EpisodicMemory 失败: %s", e)
+            logger.error("❌ Failed to paginate query of EpisodicMemory: %s", e)
             return []
 
 
-# 导出
+# Export
 __all__ = ["EpisodicMemoryRawRepository"]

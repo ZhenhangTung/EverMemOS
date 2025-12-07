@@ -1,8 +1,8 @@
 """
-异常处理模块
+Exception handling module
 
-本模块定义了项目中使用的所有自定义异常类和错误代码。
-遵循统一的异常处理规范，便于错误追踪和调试。
+This module defines all custom exception classes and error codes used in the project.
+Follows a unified exception handling specification, facilitating error tracking and debugging.
 """
 
 from enum import Enum
@@ -11,10 +11,10 @@ from core.constants.errors import ErrorCode
 
 
 class BaseException(Exception):
-    """基础异常类
+    """Base exception class
 
-    所有自定义异常的基类，提供统一的异常处理接口。
-    包含错误代码、错误消息和可选的详细信息。
+    Base class for all custom exceptions, providing a unified exception handling interface.
+    Includes error code, error message, and optional details.
     """
 
     def __init__(
@@ -25,13 +25,13 @@ class BaseException(Exception):
         original_exception: Optional[Exception] = None,
     ):
         """
-        初始化基础异常
+        Initialize base exception
 
         Args:
-            code: 错误代码
-            message: 错误消息
-            details: 可选的详细信息字典
-            original_exception: 原始异常对象
+            code: Error code
+            message: Error message
+            details: Optional dictionary of detailed information
+            original_exception: Original exception object
         """
         super().__init__(message)
         self.code = code
@@ -40,11 +40,11 @@ class BaseException(Exception):
         self.original_exception = original_exception
 
     def __str__(self) -> str:
-        """返回异常的字符串表示"""
+        """Return string representation of the exception"""
         return f"[{self.code}] {self.message}"
 
     def __repr__(self) -> str:
-        """返回异常的详细表示"""
+        """Return detailed representation of the exception"""
         details_str = f", details={self.details}" if self.details else ""
         original_str = (
             f", original={self.original_exception}" if self.original_exception else ""
@@ -52,7 +52,7 @@ class BaseException(Exception):
         return f"{self.__class__.__name__}(code='{self.code}', message='{self.message}'{details_str}{original_str})"
 
     def to_dict(self) -> Dict[str, Any]:
-        """将异常转换为字典格式，便于序列化"""
+        """Convert exception to dictionary format for easy serialization"""
         return {
             "code": self.code,
             "message": self.message,
@@ -62,9 +62,9 @@ class BaseException(Exception):
 
 
 class AgentException(BaseException):
-    """Agent相关异常基类
+    """Base class for Agent-related exceptions
 
-    所有与Agent执行相关的异常的基类。
+    Base class for all exceptions related to Agent execution.
     """
 
     def __init__(
@@ -78,9 +78,9 @@ class AgentException(BaseException):
 
 
 class ValidationException(BaseException):
-    """数据验证异常
+    """Data validation exception
 
-    当输入数据验证失败时抛出此异常。
+    Raised when input data validation fails.
     """
 
     def __init__(
@@ -98,9 +98,9 @@ class ValidationException(BaseException):
 
 
 class ResourceNotFoundException(BaseException):
-    """资源未找到异常
+    """Resource not found exception
 
-    当请求的资源不存在时抛出此异常。
+    Raised when the requested resource does not exist.
     """
 
     def __init__(
@@ -116,9 +116,9 @@ class ResourceNotFoundException(BaseException):
 
 
 class ConfigurationException(BaseException):
-    """配置异常
+    """Configuration exception
 
-    当系统配置错误或缺失时抛出此异常。
+    Raised when system configuration is incorrect or missing.
     """
 
     def __init__(
@@ -136,9 +136,9 @@ class ConfigurationException(BaseException):
 
 
 class DatabaseException(BaseException):
-    """数据库异常
+    """Database exception
 
-    当数据库操作失败时抛出此异常。
+    Raised when a database operation fails.
     """
 
     def __init__(
@@ -160,9 +160,9 @@ class DatabaseException(BaseException):
 
 
 class ExternalServiceException(BaseException):
-    """外部服务异常
+    """External service exception
 
-    当调用外部服务失败时抛出此异常。
+    Raised when calling an external service fails.
     """
 
     def __init__(
@@ -187,9 +187,9 @@ class ExternalServiceException(BaseException):
 
 
 class AuthenticationException(BaseException):
-    """认证异常
+    """Authentication exception
 
-    当用户认证失败时抛出此异常。
+    Raised when user authentication fails.
     """
 
     def __init__(
@@ -207,9 +207,9 @@ class AuthenticationException(BaseException):
 
 
 class LLMOutputParsingException(AgentException):
-    """LLM输出解析异常
+    """LLM output parsing exception
 
-    当LLM返回的内容无法正确解析时抛出此异常。
+    Raised when the content returned by LLM cannot be parsed correctly.
     """
 
     def __init__(
@@ -222,15 +222,17 @@ class LLMOutputParsingException(AgentException):
         original_exception: Optional[Exception] = None,
     ):
         if expected_format:
-            message = f"LLM输出解析失败，期望格式: {expected_format}, 错误: {message}"
+            message = f"LLM output parsing failed, expected format: {expected_format}, error: {message}"
         if attempt_count:
-            message = f"{message} [第{attempt_count}次尝试]"
+            message = f"{message} [Attempt {attempt_count}]"
 
-        # 将LLM输出内容添加到详细信息中
+        # Add LLM output to details
         if details is None:
             details = {}
         if llm_output:
-            details["llm_output"] = llm_output[:500]  # 限制长度避免过长
+            details["llm_output"] = llm_output[
+                :500
+            ]  # Limit length to avoid being too long
 
         super().__init__(
             code=ErrorCode.LLM_OUTPUT_PARSING_ERROR.value,
@@ -247,16 +249,16 @@ def create_exception_from_error_code(
     original_exception: Optional[Exception] = None,
 ) -> BaseException:
     """
-    根据错误代码创建对应的异常对象
+    Create corresponding exception object based on error code
 
     Args:
-        error_code: 错误代码枚举
-        message: 错误消息
-        details: 可选的详细信息
-        original_exception: 原始异常对象
+        error_code: Error code enumeration
+        message: Error message
+        details: Optional detailed information
+        original_exception: Original exception object
 
     Returns:
-        对应的异常对象
+        Corresponding exception object
     """
     return BaseException(
         code=error_code.value,
@@ -266,7 +268,7 @@ def create_exception_from_error_code(
     )
 
 
-# Long Job System Errors - 长任务系统错误类
+# Long Job System Errors - Long job system error classes
 from core.longjob.longjob_error import (
     FatalError,
     BusinessLogicError,
@@ -278,9 +280,9 @@ from core.longjob.longjob_error import (
     MaxConcurrentJobsError,
 )
 
-# 导出长任务系统错误类
+# Export long job system error classes
 __all__ = [
-    # 错误代码和基础异常
+    # Error codes and base exception
     'ErrorCode',
     'BaseException',
     'AgentException',
@@ -292,7 +294,7 @@ __all__ = [
     'AuthenticationException',
     'LLMOutputParsingException',
     'create_exception_from_error_code',
-    # 长任务系统错误类
+    # Long job system error classes
     'FatalError',
     'BusinessLogicError',
     'LongJobError',

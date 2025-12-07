@@ -10,7 +10,7 @@ from api_specs.memory_models import MemoryType, Metadata, MemoryModel, RetrieveM
 
 @dataclass
 class FetchMemRequest:
-    """记忆获取请求"""
+    """Memory retrieval request"""
 
     user_id: str
     limit: Optional[int] = 40
@@ -20,13 +20,13 @@ class FetchMemRequest:
     sort_by: Optional[str] = None
     sort_order: str = "desc"  # "asc" or "desc"
     version_range: Optional[tuple[Optional[str], Optional[str]]] = (
-        None  # 版本范围 (start, end)，左闭右闭区间 [start, end]
+        None  # Version range (start, end), closed interval [start, end]
     )
 
     def get_memory_types(self) -> List[MemoryType]:
-        """获取要查询的记忆类型列表"""
+        """Get the list of memory types to query"""
         if self.memory_type == MemoryType.MULTIPLE:
-            # 当为MULTIPLE时，返回BASE_MEMORY、PROFILE、PREFERENCE三类
+            # When MULTIPLE, return BASE_MEMORY, PROFILE, PREFERENCE
             return [MemoryType.BASE_MEMORY, MemoryType.PROFILE, MemoryType.PREFERENCE]
         else:
             return [self.memory_type]
@@ -34,7 +34,7 @@ class FetchMemRequest:
 
 @dataclass
 class FetchMemResponse:
-    """记忆获取响应"""
+    """Memory retrieval response"""
 
     memories: List[MemoryModel]
     total_count: int
@@ -44,7 +44,7 @@ class FetchMemResponse:
 
 @dataclass
 class RetrieveMemRequest:
-    """记忆检索请求"""
+    """Memory retrieval request"""
 
     user_id: str
     memory_types: List[MemoryType] = field(default_factory=list)
@@ -53,24 +53,28 @@ class RetrieveMemRequest:
     include_metadata: bool = True
     start_time: Optional[str] = None
     end_time: Optional[str] = None
-    query: Optional[str] = None  # retrieve的时候
+    query: Optional[str] = None  # when retrieving
     retrieve_method: RetrieveMethod = field(default=RetrieveMethod.KEYWORD)
     current_time: Optional[str] = (
-        None  # 当前时间，用于过滤有效期内的前瞻 happened_at cuurent_time的事件
+        None  # Current time, used to filter forward-looking events within validity period happened_at current_time
     )
-    radius: Optional[float] = None  # COSINE 相似度阈值（None 时使用默认值 0.6）
+    radius: Optional[float] = (
+        None  # COSINE similarity threshold (use default 0.6 if None)
+    )
 
 
 @dataclass
 class RetrieveMemResponse:
-    """记忆检索响应"""
+    """Memory retrieval response"""
 
     memories: List[Dict[str, List[Memory]]]
     scores: List[Dict[str, List[float]]]
-    importance_scores: List[float] = field(default_factory=list)  # 新增：群组重要性得分
+    importance_scores: List[float] = field(
+        default_factory=list
+    )  # New: group importance scores
     original_data: List[Dict[str, List[Dict[str, Any]]]] = field(
         default_factory=list
-    )  # 新增：原始数据
+    )  # New: original data
     total_count: int = 0
     has_more: bool = False
     query_metadata: Metadata = field(default_factory=Metadata)
@@ -79,29 +83,31 @@ class RetrieveMemResponse:
 
 @dataclass
 class UserDetail:
-    """用户详情
+    """User details
 
-    用于 ConversationMetaRequest.user_details 的值结构
+    Structure for the value of ConversationMetaRequest.user_details
     """
 
-    full_name: str  # 用户全名
-    role: Optional[str] = None  # 用户角色
-    extra: Optional[Dict[str, Any]] = None  # 额外信息，schema是动态的
+    full_name: str  # User's full name
+    role: Optional[str] = None  # User role
+    extra: Optional[Dict[str, Any]] = None  # Additional information, schema is dynamic
 
 
 @dataclass
 class ConversationMetaRequest:
-    """对话元数据请求"""
+    """Conversation metadata request"""
 
-    version: str  # 版本号
-    scene: str  # 场景标识
-    scene_desc: Dict[str, Any]  # 场景描述，通常包含bot_ids等字段
-    name: str  # 对话名称
-    group_id: str  # 群组ID
-    created_at: str  # 创建时间，ISO格式字符串
-    description: Optional[str] = None  # 对话描述
-    default_timezone: Optional[str] = "Asia/Shanghai"  # 默认时区
+    version: str  # Version number
+    scene: str  # Scene identifier
+    scene_desc: Dict[
+        str, Any
+    ]  # Scene description, usually contains fields like bot_ids
+    name: str  # Conversation name
+    group_id: str  # Group ID
+    created_at: str  # Creation time, ISO format string
+    description: Optional[str] = None  # Conversation description
+    default_timezone: Optional[str] = "Asia/Shanghai"  # Default timezone
     user_details: Dict[str, UserDetail] = field(
         default_factory=dict
-    )  # 用户详情，key是动态的（如user_001, robot_001），value结构固定
-    tags: List[str] = field(default_factory=list)  # 标签列表
+    )  # User details, key is dynamic (e.g., user_001, robot_001), value structure is fixed
+    tags: List[str] = field(default_factory=list)  # List of tags

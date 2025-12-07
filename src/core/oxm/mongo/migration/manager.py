@@ -132,7 +132,7 @@ class Backward:
             else:
                 base_uri = f"mongodb://{host}:{port}/{database}"
 
-        # 追加 URI 参数（如果有）
+        # Append URI parameters (if any)
         uri_params = os.getenv("MONGODB_URI_PARAMS", "").strip()
         if uri_params:
             separator = '&' if ('?' in base_uri) else '?'
@@ -168,7 +168,7 @@ class Backward:
 
         # Check if file already exists
         if filepath.exists():
-            raise FileExistsError(f"迁移文件已存在: {filepath}")
+            raise FileExistsError(f"Migration file already exists: {filepath}")
 
         # Generate migration content
         content = self.MIGRATION_TEMPLATE.format(
@@ -178,7 +178,7 @@ class Backward:
 
         # Write file
         filepath.write_text(content, encoding='utf-8')
-        logger.info(f"✅ 创建迁移文件: {filepath}")
+        logger.info(f"✅ Created migration file: {filepath}")
 
         return filepath
 
@@ -212,29 +212,33 @@ class Backward:
             str(self.migrations_path),
         ]
 
-        logger.info(f"🚀 执行命令: {' '.join(cmd[3:])}")  # Hide python path
-        logger.info(f"📍 数据库: {self.database}")
-        logger.info(f"📁 迁移目录: {self.migrations_path}")
+        logger.info(f"🚀 Executing command: {' '.join(cmd[3:])}")  # Hide python path
+        logger.info(f"📍 Database: {self.database}")
+        logger.info(f"📁 Migration directory: {self.migrations_path}")
 
-        # 检查迁移目录中是否有迁移文件
+        # Check if there are migration files in the directory
         migration_files = list(self.migrations_path.glob("*.py"))
         migration_files = [f for f in migration_files if not f.name.startswith("_")]
         if not migration_files:
-            logger.info("🧭 迁移目录中没有迁移文件，跳过迁移")
+            logger.info("🧭 No migration files found in directory, skipping migration")
             return 0
-        logger.info(f"📄 发现 {len(migration_files)} 个迁移文件")
+        logger.info(f"📄 Found {len(migration_files)} migration files")
 
         # Snapshot migration logs before running
         before_names, before_current = self._snapshot_migration_log()
         if before_names is not None:
-            logger.info(f"🧭 迁移前记录数量: {len(before_names)}")
-            logger.info(f"⭐ 迁移前当前指针: {before_current or '<无>'}")
+            logger.info(f"🧭 Number of records before migration: {len(before_names)}")
+            logger.info(
+                f"⭐ Current pointer before migration: {before_current or '<none>'}"
+            )
         else:
-            logger.info("🧭 migrations_log 集合尚未初始化（首次迁移）")
+            logger.info(
+                "🧭 migrations_log collection not initialized (first migration)"
+            )
         try:
             # Execute command
             if self.stream_output:
-                # 将子进程输出重定向到当前进程的标准输出/错误，实时打印
+                # Redirect subprocess output to current process stdout/stderr for real-time printing
                 result = subprocess.run(
                     cmd,
                     check=True,
@@ -243,7 +247,7 @@ class Backward:
                     text=True,
                     env=os.environ.copy(),
                 )
-                # 实时模式下输出已直接打印，此处无需再次记录 result.stdout/stderr
+                # In streaming mode, output is printed directly, no need to log result.stdout/stderr again
             else:
                 result = subprocess.run(
                     cmd,
@@ -264,19 +268,21 @@ class Backward:
             return result.returncode
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ 命令执行失败: {e}")
+            logger.error(f"❌ Command execution failed: {e}")
             if e.stdout:
-                logger.info(f"标准输出: {e.stdout}")
+                logger.info(f"Standard output: {e.stdout}")
             if e.stderr:
-                logger.error(f"错误输出: {e.stderr}")
-            # Snapshot and log diff even on failure (迁移可能部分执行)
+                logger.error(f"Error output: {e.stderr}")
+            # Snapshot and log diff even on failure (migration may have partially executed)
             self._log_migration_diff(before_names, before_current)
             return e.returncode
 
         except FileNotFoundError:
-            logger.error("❌ 找不到 beanie 命令，请确保已安装 beanie")
-            logger.error("安装命令: pip install beanie")
-            # Snapshot and log diff even if command not found (应无变化)
+            logger.error(
+                "❌ beanie command not found, please ensure beanie is installed"
+            )
+            logger.error("Installation command: pip install beanie")
+            # Snapshot and log diff even if command not found (should be no changes)
             self._log_migration_diff(before_names, before_current)
             return 1
 
@@ -308,7 +314,7 @@ class Backward:
                         break
                 return names, current
         except Exception as e:
-            logger.warning("读取迁移日志失败: %s", str(e))
+            logger.warning("Failed to read migration logs: %s", str(e))
             return None, None
 
     def _snapshot_migration_log(self):
@@ -322,14 +328,14 @@ class Backward:
         """Compare before/after migration log snapshots and print diffs."""
         after_names, after_current = self._snapshot_migration_log()
         if after_names is None:
-            logger.info("🧭 无法读取迁移后日志快照")
+            logger.info("🧭 Unable to read post-migration log snapshot")
             return
 
-        logger.info("🧭 迁移后记录数量: %d", len(after_names))
+        logger.info("🧭 Number of records after migration: %d", len(after_names))
         if after_current:
-            logger.info("⭐ 迁移后当前指针: %s", after_current)
+            logger.info("⭐ Current pointer after migration: %s", after_current)
         else:
-            logger.info("⭐ 迁移后当前指针: <无>")
+            logger.info("⭐ Current pointer after migration: <none>")
 
         if before_names is None:
             return
@@ -338,20 +344,20 @@ class Backward:
         removed = sorted(list(before_names - after_names))
 
         if added:
-            logger.info("✅ 新增执行脚本: %s", ", ".join(added))
+            logger.info("✅ Newly executed scripts: %s", ", ".join(added))
         else:
-            logger.info("✅ 新增执行脚本: <无>")
+            logger.info("✅ Newly executed scripts: <none>")
 
         if removed:
-            logger.info("↩️ 回滚移除脚本: %s", ", ".join(removed))
+            logger.info("↩️ Scripts removed due to rollback: %s", ", ".join(removed))
         else:
-            logger.info("↩️ 回滚移除脚本: <无>")
+            logger.info("↩️ Scripts removed due to rollback: <none>")
 
         if before_current != after_current:
             logger.info(
-                "📍 当前指针变更: %s -> %s",
-                before_current or "<无>",
-                after_current or "<无>",
+                "📍 Current pointer changed: %s -> %s",
+                before_current or "<none>",
+                after_current or "<none>",
             )
 
     # ---------- Public utility for manual query ----------
@@ -368,57 +374,66 @@ class Backward:
                 )
                 return docs
         except Exception as e:
-            logger.warning("获取迁移历史失败: %s", str(e))
+            logger.warning("Failed to get migration history: %s", str(e))
             return []
 
     def log_migration_history(self) -> None:
         """Log migration history and current pointer."""
         names, current = self._snapshot_migration_log()
         if names is None:
-            logger.info("无法读取迁移历史")
+            logger.info("Unable to read migration history")
             return
-        logger.info("📜 已记录迁移脚本(%d): %s", len(names), ", ".join(sorted(names)))
-        logger.info("⭐ 当前指针: %s", current or "<无>")
+        logger.info(
+            "📜 Recorded migration scripts (%d): %s",
+            len(names),
+            ", ".join(sorted(names)),
+        )
+        logger.info("⭐ Current pointer: %s", current or "<none>")
 
     @classmethod
     def run_migrations_on_startup(cls, enabled: bool = True) -> int:
         """
-        在应用启动时执行 MongoDB 数据库迁移
+        Run MongoDB database migrations on application startup
 
-        使用默认配置（从环境变量读取连接信息）执行所有待执行的迁移脚本
+        Execute all pending migration scripts using default configuration (connection info from environment variables)
 
         Args:
-            enabled: 是否启用迁移，False 则跳过迁移步骤
+            enabled: Whether to enable migration, False to skip migration step
 
         Returns:
-            int: 迁移执行的退出码，0 表示成功，-1 表示跳过
+            int: Exit code from migration execution, 0 means success, -1 means skipped
         """
         if not enabled:
-            logger.info("MongoDB 启动时迁移已禁用，跳过迁移步骤")
+            logger.info(
+                "MongoDB startup migration is disabled, skipping migration step"
+            )
             return -1
 
-        logger.info("正在执行 MongoDB 数据库迁移...")
+        logger.info("Running MongoDB database migrations...")
 
         try:
-            # 创建迁移管理器实例，使用默认配置
+            # Create migration manager instance with default configuration
             migration_manager = cls(
-                use_transaction=False,  # 默认不使用事务
-                distance=None,  # 执行所有待执行的迁移
-                backward=False,  # 不进行回滚
-                stream_output=True,  # 实时输出
+                use_transaction=False,  # Default not to use transaction
+                distance=None,  # Execute all pending migrations
+                backward=False,  # Do not rollback
+                stream_output=True,  # Stream output in real time
             )
 
-            # 执行迁移
-            logger.info("开始执行 MongoDB 迁移操作...")
+            # Execute migration
+            logger.info("Starting MongoDB migration operation...")
             exit_code = migration_manager.run_migration()
 
             if exit_code != 0:
-                logger.warning("⚠️ MongoDB 迁移进程返回非零退出码: %s", exit_code)
+                logger.warning(
+                    "⚠️ MongoDB migration process returned non-zero exit code: %s",
+                    exit_code,
+                )
             else:
-                logger.info("✅ MongoDB 数据库迁移完成")
+                logger.info("✅ MongoDB database migration completed")
 
             return exit_code
 
         except Exception as e:
-            logger.error("❌ MongoDB 迁移过程中出错: %s", str(e))
+            logger.error("❌ Error during MongoDB migration: %s", str(e))
             return 1

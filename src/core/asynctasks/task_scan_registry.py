@@ -2,22 +2,22 @@ from typing import List
 
 
 class TaskScanDirectoriesRegistry:
-    """扫描目录注册器"""
+    """Scan directory registry"""
 
     def __init__(self):
-        """初始化扫描目录注册器"""
+        """Initialize scan directory registry"""
         self.scan_directories: List[str] = []
 
     def add_scan_path(self, path: str) -> 'TaskScanDirectoriesRegistry':
-        """添加扫描目录"""
+        """Add scan directory"""
         self.scan_directories.append(path)
         return self
 
     def get_scan_directories(self) -> List[str]:
-        """获取扫描目录"""
+        """Get scan directories"""
         return self.scan_directories
 
     def clear(self) -> 'TaskScanDirectoriesRegistry':
-        """清空扫描目录"""
+        """Clear scan directories"""
         self.scan_directories = []
         return self

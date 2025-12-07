@@ -1,10 +1,10 @@
 """
-租户感知的带 Suffix 和 Alias 机制的 Milvus Collection 管理类
+Tenant-aware Milvus Collection Management Class with Suffix and Alias Mechanism
 
-本模块结合了 TenantAwareCollection 和 MilvusCollectionWithSuffix 的功能：
-1. 租户感知：根据租户上下文自动选择正确的连接和表名
-2. 动态表名：支持通过 suffix 或环境变量动态设置表名后缀
-3. Alias 机制：真实表名带时间戳，通过 alias 访问
+This module combines the functionalities of TenantAwareCollection and MilvusCollectionWithSuffix:
+1. Tenant awareness: Automatically selects the correct connection and table name based on tenant context
+2. Dynamic table names: Supports dynamic suffix setting via suffix parameter or environment variables
+3. Alias mechanism: Real table names include timestamps, accessed via alias
 """
 
 from typing import Optional
@@ -29,50 +29,50 @@ logger = get_logger(__name__)
 
 class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
     """
-    租户感知的带 Suffix 和 Alias 机制的 Milvus Collection 管理类
+    Tenant-aware Milvus Collection Management Class with Suffix and Alias Mechanism
 
-    继承自 MilvusCollectionWithSuffix，增加租户感知能力：
-    1. 自动根据租户上下文选择正确的 Milvus 连接
-    2. 支持租户感知的表名（自动添加租户前缀）
-    3. 保留 MilvusCollectionWithSuffix 的所有功能（suffix、alias、创建管理等）
+    Inherits from MilvusCollectionWithSuffix, adding tenant awareness capabilities:
+    1. Automatically selects the correct Milvus connection based on tenant context
+    2. Supports tenant-aware table names (automatically adds tenant prefix)
+    3. Retains all functionalities of MilvusCollectionWithSuffix (suffix, alias, creation management, etc.)
 
-    核心特性：
-    - 租户隔离：不同租户使用不同的连接和表名
-    - 动态表名：支持 suffix 和环境变量
-    - Alias 机制：真实表名带时间戳，通过 alias 访问
-    - 版本管理：可以创建新版本并灰度切换
-    - 租户前缀：所有操作都会自动添加租户前缀（如 tenant_001_movies）
+    Key features:
+    - Tenant isolation: Different tenants use different connections and table names
+    - Dynamic table names: Supports suffix and environment variables
+    - Alias mechanism: Real table names include timestamps, accessed via alias
+    - Version management: Can create new versions and perform gradual switching
+    - Tenant prefix: All operations automatically add tenant prefix (e.g., tenant_001_movies)
 
-    表名规则：
-    - 原始基础名: movies
-    - 带 suffix: movies_production
-    - 带租户前缀: tenant_001_movies_production  (alias)
-    - 真实表名: tenant_001_movies_production-20231015123456789000
+    Table naming rules:
+    - Original base name: movies
+    - With suffix: movies_production
+    - With tenant prefix: tenant_001_movies_production (alias)
+    - Real name: tenant_001_movies_production-20231015123456789000
 
-    使用方式：
-    1. 子类定义：
-       - _COLLECTION_NAME: Collection 的基础名称（必需）
-       - _SCHEMA: Collection 的 Schema 定义（必需）
-       - _INDEX_CONFIGS: 索引配置列表（可选）
-       - _DB_USING: Milvus 连接别名（可选，会被租户感知的连接覆盖）
+    Usage:
+    1. Subclass definition:
+       - _COLLECTION_NAME: Base name of the Collection (required)
+       - _SCHEMA: Schema definition of the Collection (required)
+       - _INDEX_CONFIGS: List of index configurations (optional)
+       - _DB_USING: Milvus connection alias (optional, will be overridden by tenant-aware connection)
 
-    2. 实例化：
+    2. Instantiation:
        mgr = TenantAwareMovieCollection(suffix="customer_a")
-       # 在租户上下文中：
-       # - 使用租户的 Milvus 连接
+       # Within tenant context:
+       # - Uses tenant's Milvus connection
        # - Alias: tenant_001_movies_customer_a
-       # - 真实名: tenant_001_movies_customer_a-20231015123456789000
+       # - Real name: tenant_001_movies_customer_a-20231015123456789000
 
-    3. 初始化：
+    3. Initialization:
        with tenant_context(tenant_info):
-           mgr.ensure_all()  # 一键初始化
+           mgr.ensure_all()  # One-click initialization
 
-    4. 使用：
+    4. Usage:
        with tenant_context(tenant_info):
            mgr.collection.insert([...])
            mgr.collection.search(...)
 
-    示例：
+    Example:
         class MovieCollection(TenantAwareMilvusCollectionWithSuffix):
             _COLLECTION_NAME = "movies"
             _SCHEMA = CollectionSchema(fields=[...])
@@ -80,18 +80,18 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
                 IndexConfig(field_name="embedding", index_type="IVF_FLAT", ...),
             ]
 
-        # 多租户场景使用
+        # Multi-tenant scenario usage
         tenant_a = TenantInfo(tenant_id="tenant_001", ...)
         tenant_b = TenantInfo(tenant_id="tenant_002", ...)
 
         mgr = MovieCollection(suffix="production")
 
-        # 租户 A 的操作
+        # Tenant A operations
         with tenant_context(tenant_a):
             mgr.ensure_all()
             mgr.collection.insert([...])
 
-        # 租户 B 的操作
+        # Tenant B operations
         with tenant_context(tenant_b):
             mgr.ensure_all()
             mgr.collection.insert([...])
@@ -99,69 +99,69 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
 
     def __init__(self, suffix: Optional[str] = None):
         """
-        初始化租户感知的 Collection 管理器
+        Initialize the tenant-aware Collection manager
 
         Args:
-            suffix: Collection 名称后缀，如果不提供则从环境变量读取
+            suffix: Collection name suffix; if not provided, read from environment variable
 
-        注意：
-            - 保存原始的 _alias_name（不带租户前缀）
-            - 实际使用的表名会在运行时动态添加租户前缀
+        Note:
+            - Save the original _alias_name (without tenant prefix)
+            - The actual table name will dynamically add tenant prefix at runtime
         """
         super().__init__(suffix=suffix)
-        # 保存原始的 alias 名称（不带租户前缀）
-        # 用于在 name property 中动态计算租户感知的名称
+        # Save the original alias name (without tenant prefix)
+        # Used in the name property to dynamically compute tenant-aware names
         self._original_alias_name = self._alias_name
 
     @property
     def name(self) -> str:
         """
-        获取租户感知的 Collection 名称（alias）
+        Get the tenant-aware Collection name (alias)
 
-        覆盖父类的 name property，动态添加租户前缀。
-        这样所有使用 self.name 的地方都会自动获得租户感知的表名。
+        Override parent class's name property to dynamically add tenant prefix.
+        This ensures all places using self.name automatically get tenant-aware table names.
 
         Returns:
-            str: 租户感知的 alias 名称
+            str: Tenant-aware alias name
 
-        示例：
-            原始 alias: movies_production
-            租户 A: tenant_001_movies_production
-            租户 B: tenant_002_movies_production
+        Example:
+            Original alias: movies_production
+            Tenant A: tenant_001_movies_production
+            Tenant B: tenant_002_movies_production
         """
         return TenantAwareCollection.get_tenant_aware_name(self._original_alias_name)
 
     @property
     def using(self) -> str:
         """
-        获取租户感知的连接别名
+        Get the tenant-aware connection alias
         """
         return TenantAwareCollection._get_tenant_aware_using()
 
     def ensure_connection_registered(self) -> None:
         """
-        确保租户感知的连接已注册
+        Ensure the tenant-aware connection is registered
         """
         TenantAwareCollection._ensure_connection_registered(self.using)
 
     def load_collection(self) -> TenantAwareCollection:
         """
-        加载或创建租户感知的 Collection
+        Load or create a tenant-aware Collection
 
-        覆盖父类方法，使用 TenantAwareCollection 替代普通的 Collection。
-        这样可以确保所有 Collection 操作都是租户感知的。
+        Override parent class method, using TenantAwareCollection instead of regular Collection.
+        This ensures all Collection operations are tenant-aware.
 
         Args:
-            name: Collection 名称（alias 名称，已包含租户前缀）
+            name: Collection name (alias name, already includes tenant prefix)
 
         Returns:
-            TenantAwareCollection 实例
+            TenantAwareCollection instance
 
-        注意：
-            - 使用 TenantAwareCollection 自动处理租户连接
-            - 保持 MilvusCollectionWithSuffix 的 alias 机制
-            - 如果 alias 不存在，会创建新的带时间戳的 Collection
-            - name 参数应该已经是租户感知的（通过 self.name 传入）
+        Note:
+            - Use TenantAwareCollection to automatically handle tenant connections
+            - Maintain MilvusCollectionWithSuffix's alias mechanism
+            - If alias does not exist, create a new timestamped Collection
+            - The name parameter should already be tenant-aware (passed via self.name)
         """
         using = self.using
         origin_alias_name = self._original_alias_name
@@ -169,20 +169,20 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
         new_real_name = generate_new_collection_name(origin_alias_name)
         tenant_aware_new_real_name = get_tenant_aware_collection_name(new_real_name)
 
-        # 先探测 alias 是否存在（使用租户感知的连接）
-        # 注意：TenantAwareCollection 会自动处理 using 参数
+        # First check if alias exists (using tenant-aware connection)
+        # Note: TenantAwareCollection automatically handles the using parameter
         self.ensure_connection_registered()
 
         if not utility.has_collection(tenant_aware_alias_name, using=using):
-            # Collection 不存在，创建新的带时间戳的 Collection
+            # Collection does not exist, create a new tenant-aware Collection
             logger.info(
-                "Collection '%s' 不存在，创建新的租户感知 Collection: %s",
+                "Collection '%s' does not exist, creating new tenant-aware Collection: %s",
                 origin_alias_name,
                 tenant_aware_new_real_name,
             )
 
-            # 创建租户感知的 Collection
-            # 使用原生的 Collection，需要显式传入 using 参数
+            # Create tenant-aware Collection
+            # Use native Collection, need to explicitly pass using parameter
             _coll = Collection(
                 name=tenant_aware_new_real_name,
                 schema=self._SCHEMA,
@@ -190,12 +190,12 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
                 using=using,
             )
 
-            # 创建 alias 指向新 Collection
-            # 注意：先删除可能存在的旧 alias
+            # Create alias pointing to new Collection
+            # Note: First delete any existing old alias
             try:
                 utility.drop_alias(tenant_aware_alias_name, using=using)
             except Exception:
-                pass  # alias 不存在，忽略
+                pass  # alias does not exist, ignore
 
             utility.create_alias(
                 collection_name=tenant_aware_new_real_name,
@@ -203,12 +203,12 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
                 using=using,
             )
             logger.info(
-                "已创建 Alias '%s' -> '%s'",
+                "Alias '%s' -> '%s' created",
                 tenant_aware_alias_name,
                 tenant_aware_new_real_name,
             )
 
-        # 统一通过 alias 加载租户感知的 Collection
+        # Uniformly load tenant-aware Collection via alias
         coll = TenantAwareCollection(
             name=origin_alias_name,
             schema=self._SCHEMA,
@@ -219,46 +219,46 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
 
     def ensure_create(self) -> None:
         """
-        确保 Collection 已创建
+        Ensure Collection has been created
 
-        覆盖父类方法，使用租户感知的 alias 名称。
+        Override parent class method, using tenant-aware alias name.
 
-        此方法会触发 Collection 的懒加载，如果 alias 不存在则创建新 Collection。
+        This method triggers lazy loading of Collection; if alias does not exist, creates a new Collection.
         """
         if self._collection_instance is None:
-            # 使用租户感知的 alias 名称
+            # Use tenant-aware alias name
             self._collection_instance = self.load_collection()
-        logger.info("Collection '%s' 已就绪", self.name)
+        logger.info("Collection '%s' is ready", self.name)
 
     def create_new_collection(self) -> TenantAwareCollection:
         """
-        创建一个新的租户感知的真实 Collection（不切换 alias）
+        Create a new tenant-aware real Collection (without switching alias)
 
-        覆盖父类方法，使用 TenantAwareCollection 和租户感知的名称。
+        Override parent class method, using TenantAwareCollection and tenant-aware names.
 
         Returns:
-            新的租户感知 Collection 实例（已创建索引并 load）
+            New tenant-aware Collection instance (with indexes created and loaded)
 
-        注意：
-            - 使用原生 Collection 创建（需要显式传入 using 参数）
-            - 新 Collection 的名称包含租户前缀和时间戳
-            - 返回 TenantAwareCollection 实例确保租户隔离
-            - 自动创建索引并加载到内存
+        Note:
+            - Use native Collection for creation (need to explicitly pass using parameter)
+            - New Collection name includes tenant prefix and timestamp
+            - Return TenantAwareCollection instance to ensure tenant isolation
+            - Automatically create indexes and load into memory
         """
         if not self._SCHEMA:
             raise NotImplementedError(
-                f"{self.__class__.__name__} 必须定义 '_SCHEMA' 以支持集合创建"
+                f"{self.__class__.__name__} must define '_SCHEMA' to support collection creation"
             )
 
-        # 使用租户感知的 alias 名称
+        # Use tenant-aware alias name
         using = self.using
         origin_alias_name = self._original_alias_name
         tenant_aware_alias_name = get_tenant_aware_collection_name(origin_alias_name)
         new_real_name = generate_new_collection_name(origin_alias_name)
         tenant_aware_new_real_name = get_tenant_aware_collection_name(new_real_name)
 
-        # 创建新的租户感知集合
-        # 使用原生的 Collection，需要显式传入 using 参数
+        # Create new tenant-aware collection
+        # Use native Collection, need to explicitly pass using parameter
         _coll = Collection(
             name=tenant_aware_new_real_name,
             schema=self._SCHEMA,
@@ -266,19 +266,24 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
             using=using,
         )
 
-        logger.info("已创建新的租户感知 Collection: %s", tenant_aware_new_real_name)
+        logger.info(
+            "New tenant-aware Collection created: %s", tenant_aware_new_real_name
+        )
 
-        # 为新集合创建索引并加载
+        # Create indexes for new collection and load
         try:
             self._create_indexes_for_collection(_coll)
             _coll.load()
-            logger.info("为新 Collection '%s' 创建索引并加载完成", new_real_name)
+            logger.info(
+                "Indexes created and loading completed for new Collection '%s'",
+                new_real_name,
+            )
         except Exception as e:
-            logger.warning("为新集合创建索引时出错: %s", e)
+            logger.warning("Error creating indexes for new collection: %s", e)
             raise
 
-        # 返回 TenantAwareCollection 实例，使用原始 alias 名称
-        # 注意：这里使用 _original_alias_name，TenantAwareCollection 会自动添加租户前缀
+        # Return TenantAwareCollection instance, using original alias name
+        # Note: Use _original_alias_name here, TenantAwareCollection will automatically add tenant prefix
         new_coll = TenantAwareCollection(
             name=new_real_name,
             schema=self._SCHEMA,
@@ -291,26 +296,26 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
         self, new_collection: TenantAwareCollection, drop_old: bool = False
     ) -> None:
         """
-        将 alias 切换到指定的新集合，并可选删除旧集合
+        Switch alias to specified new collection, optionally delete old collection
 
-        覆盖父类方法，使用租户感知的 alias 名称。
+        Override parent class method, using tenant-aware alias name.
 
         Args:
-            new_collection: 新的 Collection 实例
-            drop_old: 是否删除旧集合（默认 False）
+            new_collection: New Collection instance
+            drop_old: Whether to delete old collection (default False)
 
-        注意：
-            - 使用租户感知的 alias 名称进行切换
-            - 优先使用 alter_alias，失败则使用 drop/create
-            - 切换后刷新类级缓存
+        Note:
+            - Use tenant-aware alias name for switching
+            - Prefer alter_alias, fall back to drop/create if failed
+            - Refresh class-level cache after switching
         """
-        # 使用租户感知的 alias 名称
+        # Use tenant-aware alias name
         using = self.using
         origin_alias_name = self._original_alias_name
         tenant_aware_alias_name = get_tenant_aware_collection_name(origin_alias_name)
         tenant_aware_new_real_name = new_collection.name
 
-        # 获取旧集合真实名（若存在）
+        # Get old collection real name (if exists)
         old_real_name: Optional[str] = None
         try:
             conn = connections._fetch_handler(using)
@@ -321,17 +326,17 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
         except Exception:
             old_real_name = None
 
-        # 别名切换
+        # Alias switching
         try:
             conn = connections._fetch_handler(using)
             conn.alter_alias(tenant_aware_new_real_name, tenant_aware_alias_name)
             logger.info(
-                "已将别名 '%s' 切换至 '%s'",
+                "Alias '%s' switched to '%s'",
                 tenant_aware_alias_name,
                 tenant_aware_new_real_name,
             )
         except Exception as e:
-            logger.warning("alter_alias 失败，尝试 drop/create: %s", e)
+            logger.warning("alter_alias failed, trying drop/create: %s", e)
             try:
                 utility.drop_alias(tenant_aware_alias_name, using=using)
             except Exception:
@@ -342,20 +347,22 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
                 using=using,
             )
             logger.info(
-                "已创建别名 '%s' -> '%s'",
+                "Alias '%s' -> '%s' created",
                 tenant_aware_alias_name,
                 tenant_aware_new_real_name,
             )
 
-        # 可选删除旧集合（在切换完成之后执行）
+        # Optionally delete old collection (after switching completes)
         if drop_old and old_real_name:
             try:
                 utility.drop_collection(old_real_name, using=using)
-                logger.info("已删除旧集合: %s", old_real_name)
+                logger.info("Old collection deleted: %s", old_real_name)
             except Exception as e:
-                logger.warning("删除旧集合失败（可手动处理）: %s", e)
+                logger.warning(
+                    "Failed to delete old collection (can handle manually): %s", e
+                )
 
-        # 刷新类级别缓存为 alias 集合
+        # Refresh class-level cache to alias collection
         try:
             self.__class__._collection_instance = TenantAwareCollection(
                 name=origin_alias_name,
@@ -367,12 +374,12 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
 
     def exists(self) -> bool:
         """
-        检查 Collection 是否存在（通过 alias）
+        Check if Collection exists (via alias)
 
-        覆盖父类方法，使用租户感知的 name 和 using。
+        Override parent class method, using tenant-aware name and using.
 
         Returns:
-            bool: Collection 是否存在
+            bool: Whether Collection exists
         """
         name = self.name
         using = self.using
@@ -380,19 +387,21 @@ class TenantAwareMilvusCollectionWithSuffix(MilvusCollectionWithSuffix):
 
     def drop(self) -> None:
         """
-        删除当前 Collection（包括 alias 和真实 Collection）
+        Delete current Collection (including alias and real Collection)
 
-        覆盖父类方法，使用租户感知的 name、using 和 TenantAwareCollection。
+        Override parent class method, using tenant-aware name, using, and TenantAwareCollection.
 
-        注意：
-            - 使用租户感知的连接别名
-            - 使用 TenantAwareCollection 确保租户隔离
-            - 删除的是真实的 Collection（不是 alias）
+        Note:
+            - Use tenant-aware connection alias
+            - Use TenantAwareCollection to ensure tenant isolation
+            - Delete the real Collection (not the alias)
         """
         using = self.using
         name = self.name
         try:
             utility.drop_collection(name, using=using)
-            logger.info("已删除 Collection '%s'", name)
+            logger.info("Collection '%s' deleted", name)
         except Exception as e:  # pylint: disable=broad-except
-            logger.warning("Collection '%s' 不存在或删除失败: %s", name, e)
+            logger.warning(
+                "Collection '%s' does not exist or deletion failed: %s", name, e
+            )

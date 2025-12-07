@@ -1,7 +1,7 @@
 """
-基础应用模块
+Base application module
 
-包含业务无关的FastAPI基础配置，如CORS、中间件、生命周期管理等
+Contains business-agnostic FastAPI base configurations such as CORS, middleware, lifecycle management, etc.
 """
 
 import os
@@ -17,7 +17,7 @@ from component.database_connection_provider import DatabaseConnectionProvider
 
 from core.lifespan.lifespan_factory import LifespanFactory
 
-# 推荐用法：模块顶部获取一次logger，后续直接使用（高性能）
+# Recommended usage: obtain logger once at the module top, then use directly (high performance)
 logger = get_logger(__name__)
 
 
@@ -29,31 +29,31 @@ def create_base_app(
     lifespan_context=None,
 ):
     """
-    创建基础FastAPI应用
+    Create a base FastAPI application
 
     Args:
-        cors_origins (list[str], optional): CORS允许的源列表，默认为["*"]
-        cors_allow_credentials (bool): 是否允许凭据，默认为True
-        cors_allow_methods (list[str], optional): 允许的HTTP方法，默认为["*"]
-        cors_allow_headers (list[str], optional): 允许的HTTP头，默认为["*"]
-        lifespan_context (callable, optional): 生命周期上下文管理器，默认使用数据库生命周期
+        cors_origins (list[str], optional): List of allowed CORS origins, default is ["*"]
+        cors_allow_credentials (bool): Whether to allow credentials, default is True
+        cors_allow_methods (list[str], optional): Allowed HTTP methods, default is ["*"]
+        cors_allow_headers (list[str], optional): Allowed HTTP headers, default is ["*"]
+        lifespan_context (callable, optional): Lifecycle context manager, default uses database lifecycle
 
     Returns:
-        FastAPI: 配置好的FastAPI应用实例
+        FastAPI: Configured FastAPI application instance
     """
-    # 使用传入的生命周期管理器或默认的数据库生命周期
+    # Use the provided lifespan context or default database lifecycle
     if lifespan_context is None:
         lifespan_factory = get_bean_by_type(LifespanFactory)
         lifespan_context = lifespan_factory.create_lifespan_with_names(
             ["database_lifespan_provider"]
         )
 
-    # 根据环境变量控制docs的显示
-    # 只有在开发环境(ENV=dev)时才启用docs
+    # Control docs display based on environment variable
+    # Only enable docs in development environment (ENV=dev)
     env = os.environ.get('ENV', 'prod').upper()
     enable_docs = env == 'DEV'
 
-    # 创建FastAPI应用
+    # Create FastAPI application
     app = FastAPI(
         lifespan=lifespan_context,
         docs_url="/docs" if enable_docs else None,
@@ -62,11 +62,11 @@ def create_base_app(
     )
 
     if enable_docs:
-        logger.info("FastAPI文档已启用 (ENV=%s)", env)
+        logger.info("FastAPI documentation enabled (ENV=%s)", env)
     else:
-        logger.info("FastAPI文档已禁用 (ENV=%s)", env)
+        logger.info("FastAPI documentation disabled (ENV=%s)", env)
 
-    # 设置CORS默认值
+    # Set default CORS values
     if cors_origins is None:
         cors_origins = ["*"]
     if cors_allow_methods is None:
@@ -74,14 +74,14 @@ def create_base_app(
     if cors_allow_headers is None:
         cors_allow_headers = ["*"]
 
-    # 添加HTTP异常处理器，否则HTTPException不会被global_exception_handler处理
+    # Add HTTP exception handler, otherwise HTTPException won't be handled by global_exception_handler
     app.add_exception_handler(HTTPException, global_exception_handler)
 
-    # 添加全局异常处理器
-    # 在middleware外面兜底
+    # Add global exception handler
+    # Acts as a fallback outside middleware
     app.add_exception_handler(Exception, global_exception_handler)
 
-    # 添加CORS中间件
+    # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
@@ -90,14 +90,14 @@ def create_base_app(
         allow_headers=cors_allow_headers,
     )
 
-    # 添加基础中间件
-    # middleware 的顺序很重要，先添加的后执行
+    # Add basic middleware
+    # The order of middleware matters: the earlier added, the later executed
     # app.add_middleware(DatabaseSessionMiddleware)
 
-    # 添加性能分析中间件（最后添加，最先执行）
+    # Add performance profiling middleware (add last, executes first)
     app.add_middleware(ProfileMiddleware)
 
-    # 挂载lifespan管理方法到app实例
+    # Mount lifespan management methods to app instance
     _mount_lifespan_methods(app)
 
     return app
@@ -105,106 +105,106 @@ def create_base_app(
 
 def _mount_lifespan_methods(app: FastAPI):
     """
-    将lifespan管理方法挂载到FastAPI应用实例上
+    Mount lifespan management methods to the FastAPI application instance
 
-    挂载后可以直接使用:
-    - app.start_lifespan(): 启动lifespan
-    - app.exit_lifespan(): 退出lifespan
+    After mounting, you can directly use:
+    - app.start_lifespan(): Start lifespan
+    - app.exit_lifespan(): Exit lifespan
 
     Args:
-        app (FastAPI): FastAPI应用实例
+        app (FastAPI): FastAPI application instance
     """
-    # 存储lifespan管理器的引用
+    # Store reference to lifespan manager
     app.lifespan_manager = None
 
     async def start_lifespan():
-        """启动应用的lifespan上下文管理器"""
+        """Start the application's lifespan context manager"""
         if app.lifespan_manager is not None:
-            logger.warning("Lifespan已经启动，无需重复启动")
+            logger.warning("Lifespan already started, no need to start again")
             return app.lifespan_manager
 
-        # 获取lifespan上下文管理器
+        # Get lifespan context manager
         lifespan_context = app.router.lifespan_context
 
         if lifespan_context:
-            # 创建上下文管理器实例
+            # Create context manager instance
             lifespan_manager = lifespan_context(app)
 
-            # 手动进入上下文（相当于启动）
+            # Manually enter context (equivalent to starting)
             await lifespan_manager.__aenter__()
 
-            # 存储管理器引用
+            # Store manager reference
             app.lifespan_manager = lifespan_manager
 
-            logger.info("应用Lifespan启动完成")
+            logger.info("Application Lifespan startup completed")
             return lifespan_manager
         else:
-            logger.warning("该应用没有配置lifespan")
+            logger.warning("This application has no lifespan configured")
             return None
 
     async def exit_lifespan():
-        """退出应用的lifespan上下文管理器"""
+        """Exit the application's lifespan context manager"""
         if app.lifespan_manager is None:
-            logger.warning("Lifespan尚未启动或已经退出")
+            logger.warning("Lifespan not started or already exited")
             return
 
         try:
-            # 手动退出上下文
+            # Manually exit context
             await app.lifespan_manager.__aexit__(None, None, None)
-            logger.info("应用Lifespan退出完成")
+            logger.info("Application Lifespan exit completed")
         except (AttributeError, RuntimeError) as e:
-            logger.error("退出Lifespan时出错: %s", str(e))
+            logger.error("Error occurred when exiting Lifespan: %s", str(e))
         finally:
-            # 清理引用
+            # Clean up reference
             app.lifespan_manager = None
 
-    # 将方法挂载到app实例上
+    # Mount methods to app instance
     app.start_lifespan = start_lifespan
     app.exit_lifespan = exit_lifespan
 
 
 async def manually_start_lifespan(app: FastAPI):
     """
-    手动启动FastAPI应用的lifespan上下文管理器
+    Manually start the lifespan context manager of a FastAPI application
 
-    注意：推荐使用挂载到app实例上的便捷方法：
-    - app.start_lifespan(): 启动lifespan
-    - app.exit_lifespan(): 退出lifespan
+    Note: It is recommended to use the convenient methods mounted on the app instance:
+    - app.start_lifespan(): Start lifespan
+    - app.exit_lifespan(): Exit lifespan
 
-    这个函数用于在不启动HTTP服务器的情况下初始化应用的生命周期，
-    包括数据库连接、业务图结构等。适用于脚本、测试或其他需要应用
-    上下文但不需要HTTP服务的场景。
+    This function is used to initialize the application lifecycle without starting an HTTP server,
+    including database connections, business graph structures, etc. Suitable for scripts, tests,
+    or other scenarios requiring application context but not HTTP services.
 
     Args:
-        app (FastAPI): FastAPI应用实例
+        app (FastAPI): FastAPI application instance
 
     Returns:
-        context_manager: 生命周期上下文管理器实例，可用于手动退出
+        context_manager: Lifecycle context manager instance, can be used for manual exit
 
     Example:
         ```python
         from app import app
 
-        # 推荐方式：直接使用挂载的方法
+        # Recommended way: directly use mounted methods
         await app.start_lifespan()
-        # 执行需要应用上下文的操作
+        # Perform operations requiring application context
         # ...
         await app.exit_lifespan()
 
-        # 或者使用传统方式
+        # Or use traditional way
         from base_app import manually_start_lifespan
         lifespan_manager = await manually_start_lifespan(app)
         # await lifespan_manager.__aexit__(None, None, None)
         ```
     """
-    # 直接调用挂载的方法
+    # Directly call the mounted method
     return await app.start_lifespan()
 
 
 async def close_database_connection():
-    """关闭数据库连接池"""
+    """Close the database connection pool"""
     try:
         db_provider = get_bean_by_type(DatabaseConnectionProvider)
         await db_provider.close()
     except (AttributeError, RuntimeError) as e:
-        logger.error("关闭数据库连接时出错: %s", str(e))
+        logger.error("Error occurred when closing database connection: %s", str(e))

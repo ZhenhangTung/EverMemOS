@@ -1,9 +1,9 @@
 """
-事件日志 Milvus Collection 定义
+Event Log Milvus Collection Definition
 
-基于 MilvusCollectionWithSuffix 实现的事件日志专用 Collection 类。
-提供了与 EventLogMilvusRepository 兼容的 Schema 定义和索引配置。
-支持个人和群组事件日志。
+An Event Log specific Collection class implemented based on MilvusCollectionWithSuffix.
+Provides Schema definition and index configuration compatible with EventLogMilvusRepository.
+Supports both personal and group event logs.
 """
 
 from pymilvus import DataType, FieldSchema, CollectionSchema
@@ -16,21 +16,21 @@ from memory_layer.constants import VECTORIZE_DIMENSIONS
 
 class EventLogCollection(TenantAwareMilvusCollectionWithSuffix):
     """
-    事件日志 Milvus Collection
+    Event Log Milvus Collection
 
-    存储原子事实（atomic facts），支持细粒度的事实检索。
-    同时支持个人和群组事件日志，通过 group_id 字段区分。
+    Stores atomic facts, supporting fine-grained fact retrieval.
+    Supports both personal and group event logs, distinguished by the group_id field.
 
-    使用方式：
-        # 使用 Collection
+    Usage:
+        # Use the Collection
         collection.async_collection().insert([...])
         collection.async_collection().search([...])
     """
 
-    # Collection 基础名称
+    # Base name for the Collection
     _COLLECTION_NAME = "event_log"
 
-    # Collection Schema 定义
+    # Collection Schema definition
     _SCHEMA = CollectionSchema(
         fields=[
             FieldSchema(
@@ -39,25 +39,25 @@ class EventLogCollection(TenantAwareMilvusCollectionWithSuffix):
                 is_primary=True,
                 auto_id=False,
                 max_length=100,
-                description="事件日志唯一标识",
+                description="Unique identifier for event log",
             ),
             FieldSchema(
                 name="vector",
                 dtype=DataType.FLOAT_VECTOR,
-                dim=VECTORIZE_DIMENSIONS,  # BAAI/bge-m3 模型的向量维度
-                description="文本向量",
+                dim=VECTORIZE_DIMENSIONS,  # Vector dimension of the BAAI/bge-m3 model
+                description="Text vector",
             ),
             FieldSchema(
                 name="user_id",
                 dtype=DataType.VARCHAR,
                 max_length=100,
-                description="用户ID",
+                description="User ID",
             ),
             FieldSchema(
                 name="group_id",
                 dtype=DataType.VARCHAR,
                 max_length=100,
-                description="群组ID",
+                description="Group ID",
             ),
             FieldSchema(
                 name="participants",
@@ -65,67 +65,70 @@ class EventLogCollection(TenantAwareMilvusCollectionWithSuffix):
                 element_type=DataType.VARCHAR,
                 max_capacity=100,
                 max_length=100,
-                description="相关参与者列表",
+                description="List of related participants",
             ),
             FieldSchema(
                 name="parent_episode_id",
                 dtype=DataType.VARCHAR,
                 max_length=100,
-                description="父情景记忆ID",
+                description="Parent episodic memory ID",
             ),
             FieldSchema(
                 name="event_type",
                 dtype=DataType.VARCHAR,
                 max_length=50,
-                description="事件类型（如 Conversation, Email 等）",
+                description="Event type (e.g., Conversation, Email, etc.)",
             ),
             FieldSchema(
-                name="timestamp", dtype=DataType.INT64, description="事件发生时间戳"
+                name="timestamp", dtype=DataType.INT64, description="Event timestamp"
             ),
             FieldSchema(
                 name="atomic_fact",
                 dtype=DataType.VARCHAR,
                 max_length=5000,
-                description="原子事实内容",
+                description="Atomic fact content",
             ),
             FieldSchema(
                 name="search_content",
                 dtype=DataType.VARCHAR,
                 max_length=5000,
-                description="搜索内容（JSON格式）",
+                description="Search content (in JSON format)",
             ),
             FieldSchema(
                 name="metadata",
                 dtype=DataType.VARCHAR,
                 max_length=50000,
-                description="详细信息JSON（元数据）",
+                description="Detailed information JSON (metadata)",
             ),
             FieldSchema(
-                name="created_at", dtype=DataType.INT64, description="创建时间戳"
+                name="created_at",
+                dtype=DataType.INT64,
+                description="Creation timestamp",
             ),
             FieldSchema(
-                name="updated_at", dtype=DataType.INT64, description="更新时间戳"
+                name="updated_at", dtype=DataType.INT64, description="Update timestamp"
             ),
         ],
-        description="事件日志向量集合",
+        description="Vector collection for event logs",
         enable_dynamic_field=True,
     )
 
-    # 索引配置
+    # Index configurations
     _INDEX_CONFIGS = [
-        # 向量字段索引（用于相似度搜索）
+        # Vector field index (for similarity search)
         IndexConfig(
             field_name="vector",
-            index_type="HNSW",  # 高效的近似最近邻搜索
-            metric_type="COSINE",  # 统一使用余弦相似度
+            index_type="HNSW",  # Efficient approximate nearest neighbor search
+            metric_type="COSINE",  # Use cosine similarity consistently
             params={
-                "M": 16,  # 每个节点的最大边数
-                "efConstruction": 200,  # 构建时的搜索宽度
+                "M": 16,  # Maximum number of connections per node
+                "efConstruction": 200,  # Search width during index construction
             },
         ),
-        # 标量字段索引（用于过滤）
+        # Scalar field indexes (for filtering)
         IndexConfig(
-            field_name="user_id", index_type="AUTOINDEX"  # 自动选择最适合的索引类型
+            field_name="user_id",
+            index_type="AUTOINDEX",  # Automatically select the best index type
         ),
         IndexConfig(field_name="group_id", index_type="AUTOINDEX"),
         IndexConfig(field_name="parent_episode_id", index_type="AUTOINDEX"),

@@ -1,7 +1,7 @@
 """
-Redis分组队列项接口
+Redis group queue item interface
 
-定义队列中存储项目的标准接口，支持JSON和BSON序列化和反序列化。
+Defines a standard interface for items stored in the queue, supporting JSON and BSON serialization and deserialization.
 """
 
 import json
@@ -12,22 +12,22 @@ import bson
 
 
 class SerializationMode(Enum):
-    """序列化模式枚举"""
+    """Serialization mode enumeration"""
 
-    JSON = "json"  # JSON字符串序列化
-    BSON = "bson"  # BSON字节序列化
+    JSON = "json"  # JSON string serialization
+    BSON = "bson"  # BSON bytes serialization
 
 
 class RedisGroupQueueItem(ABC):
-    """Redis分组队列项接口"""
+    """Redis group queue item interface"""
 
     @abstractmethod
     def to_dict(self) -> Dict[str, Any]:
         """
-        将对象转换为字典
+        Convert object to dictionary
 
         Returns:
-            Dict[str, Any]: 对象的字典表示
+            Dict[str, Any]: Dictionary representation of the object
         """
         raise NotImplementedError
 
@@ -35,16 +35,16 @@ class RedisGroupQueueItem(ABC):
     @abstractmethod
     def from_json_str(cls, json_str: str) -> 'RedisGroupQueueItem':
         """
-        从JSON字符串创建对象实例
+        Create an object instance from a JSON string
 
         Args:
-            json_str: JSON字符串
+            json_str: JSON string
 
         Returns:
-            RedisGroupQueueItem: 对象实例
+            RedisGroupQueueItem: Object instance
 
         Raises:
-            ValueError: JSON格式错误或数据无效
+            ValueError: Invalid JSON format or data
         """
         raise NotImplementedError
 
@@ -52,75 +52,75 @@ class RedisGroupQueueItem(ABC):
     @abstractmethod
     def from_bson_bytes(cls, bson_bytes: bytes) -> 'RedisGroupQueueItem':
         """
-        从BSON字节数据反序列化对象
+        Deserialize object from BSON bytes
 
         Args:
-            bson_bytes: BSON字节数据
+            bson_bytes: BSON byte data
 
         Returns:
-            RedisGroupQueueItem: 对象实例
+            RedisGroupQueueItem: Object instance
 
         Raises:
-            ValueError: BSON格式错误或数据无效
+            ValueError: Invalid BSON format or data
         """
         raise NotImplementedError
 
     def to_json_str(self) -> str:
         """
-        将对象转换为JSON字符串
+        Convert object to JSON string
 
         Returns:
-            str: JSON字符串
+            str: JSON string
         """
         return json.dumps(self.to_dict(), ensure_ascii=False)
 
     def to_bson_bytes(self) -> bytes:
         """
-        将对象序列化为BSON字节数据
+        Serialize object to BSON byte data
 
         Returns:
-            bytes: BSON字节数据
+            bytes: BSON byte data
         """
         return bson.encode(self.to_dict())
 
 
 class SimpleQueueItem(RedisGroupQueueItem):
-    """简单队列项实现示例"""
+    """Simple queue item implementation example"""
 
     def __init__(self, data: Any, item_type: str = "simple"):
         """
-        初始化简单队列项
+        Initialize simple queue item
 
         Args:
-            data: 数据内容
-            item_type: 项目类型标识
+            data: Data content
+            item_type: Item type identifier
         """
         self.data = data
         self.item_type = item_type
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """Convert to dictionary"""
         return {"data": self.data, "item_type": self.item_type}
 
     @classmethod
     def from_json_str(cls, json_str: str) -> 'SimpleQueueItem':
-        """从JSON字符串创建实例"""
+        """Create instance from JSON string"""
         try:
             json_dict = json.loads(json_str)
             return cls(
                 data=json_dict["data"], item_type=json_dict.get("item_type", "simple")
             )
         except (json.JSONDecodeError, KeyError) as e:
-            raise ValueError(f"无效的JSON数据: {e}") from e
+            raise ValueError(f"Invalid JSON data: {e}") from e
 
     @classmethod
     def from_bson_bytes(cls, bson_bytes: bytes) -> 'SimpleQueueItem':
-        """从BSON字节数据创建实例"""
+        """Create instance from BSON bytes"""
         try:
             data = bson.decode(bson_bytes)
             return cls(data=data["data"], item_type=data.get("item_type", "simple"))
         except (Exception, KeyError) as e:
-            raise ValueError(f"无效的BSON数据: {e}") from e
+            raise ValueError(f"Invalid BSON data: {e}") from e
 
     def __repr__(self) -> str:
         return f"SimpleQueueItem(data={self.data}, item_type={self.item_type})"

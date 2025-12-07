@@ -1,7 +1,7 @@
 """
-应用模块
+Application module
 
-包含业务相关的特定逻辑，如控制器注册、图结构创建、能力加载等
+Contains business-specific logic such as controller registration, graph structure creation, capability loading, etc.
 """
 
 from fastapi import FastAPI
@@ -17,69 +17,75 @@ from base_app import create_base_app
 from core.lifespan.lifespan_factory import LifespanFactory
 
 
-# 推荐用法：模块顶部获取一次logger，后续直接使用（高性能）
+# Recommended usage: obtain logger once at the module top level, then use directly (high performance)
 logger = get_logger(__name__)
 
 
 def register_controllers(fastapi_app: FastAPI):
     """
-    注册所有控制器到FastAPI应用
+    Register all controllers to the FastAPI application.
 
     Args:
-        fastapi_app (FastAPI): FastAPI应用实例
+        fastapi_app (FastAPI): FastAPI application instance
     """
     all_controllers = get_beans_by_type(BaseController)
     for controller in all_controllers:
         controller.register_to_app(fastapi_app)
-    logger.info("控制器注册完成，共注册 %d 个控制器", len(all_controllers))
+    logger.info(
+        "Controller registration completed, %d controllers registered",
+        len(all_controllers),
+    )
 
 
 def create_graphs(checkpointer):
     """
-    创建所有业务图结构
+    Create all business graph structures.
 
     Args:
-        checkpointer: 检查点保存器
+        checkpointer: Checkpointer
 
     Returns:
-        dict: 包含所有图结构的字典
+        dict: Dictionary containing all graph structures
     """
-    logger.info("正在创建业务图结构...")
+    logger.info("Creating business graph structures...")
 
     graphs = {}
 
-    logger.info("业务图结构创建完成，共创建 %d 个图", len(graphs))
+    logger.info("Business graph structures created, %d graphs created", len(graphs))
     return graphs
 
 
 def register_capabilities(fastapi_app: FastAPI):
     """
-    注册所有应用能力
+    Register all application capabilities.
 
     Args:
-        fastapi_app (FastAPI): FastAPI应用实例
+        fastapi_app (FastAPI): FastAPI application instance
     """
     capability_beans = get_beans_by_type(ApplicationCapability)
     for capability in capability_beans:
         capability.enable(fastapi_app)
-    logger.info("应用能力注册完成，共注册 %d 个能力", len(capability_beans))
+    logger.info(
+        "Application capabilities registered, %d capabilities registered",
+        len(capability_beans),
+    )
 
 
 def register_graphs(fastapi_app: FastAPI):
     """
-    注册所有图结构到FastAPI应用
+    Register all graph structures to the FastAPI application.
 
     Args:
-        fastapi_app (FastAPI): FastAPI应用实例
+        fastapi_app (FastAPI): FastAPI application instance
     """
     checkpointer = fastapi_app.state.checkpointer
     graphs = create_graphs(checkpointer)
     fastapi_app.state.graphs = graphs
-    logger.info("图结构注册完成，共注册 %d 个图", len(graphs))
+    logger.info("Graph structures registered, %d graphs registered", len(graphs))
 
 
-# 注意：create_business_lifespan 现在从 core.lifespan 导入
-# 这里保留原有的注册函数供新的业务组件使用
+# Note: create_business_lifespan is now imported from core.lifespan
+# The original registration functions are kept here for use by new business components
 
 
 def create_business_app(
@@ -89,22 +95,22 @@ def create_business_app(
     cors_allow_headers=None,
 ):
     """
-    创建包含业务逻辑的完整应用
+    Create a complete application with business logic.
 
     Args:
-        cors_origins (list[str], optional): CORS允许的源列表
-        cors_allow_credentials (bool): 是否允许凭据
-        cors_allow_methods (list[str], optional): 允许的HTTP方法
-        cors_allow_headers (list[str], optional): 允许的HTTP头
+        cors_origins (list[str], optional): List of allowed CORS origins
+        cors_allow_credentials (bool): Whether to allow credentials
+        cors_allow_methods (list[str], optional): Allowed HTTP methods
+        cors_allow_headers (list[str], optional): Allowed HTTP headers
 
     Returns:
-        FastAPI: 配置好的FastAPI应用实例
+        FastAPI: Configured FastAPI application instance
     """
-    # 使用DI获取lifespan工厂，自动创建包含所有提供者的生命周期
+    # Use DI to get lifespan factory, automatically creating a lifespan with all providers
     lifespan_factory = get_bean_by_type(LifespanFactory)
     combined_lifespan = lifespan_factory.create_auto_lifespan()
 
-    # 创建基础应用，传入组合的生命周期管理器
+    # Create base app with combined lifespan manager
     fastapi_app = create_base_app(
         cors_origins=cors_origins,
         cors_allow_credentials=cors_allow_credentials,
@@ -113,13 +119,13 @@ def create_business_app(
         lifespan_context=combined_lifespan,
     )
 
-    # 添加业务相关的中间件
+    # Add business-related middleware
     fastapi_app.user_middleware.append(Middleware(AppLogicMiddleware))
-    # 不直接对接用户
+    # Not directly interfacing with users
     # fastapi_app.user_middleware.append(Middleware(UserContextMiddleware))
 
     return fastapi_app
 
 
-# 创建默认的业务应用实例
+# Create default business application instance
 app = create_business_app()

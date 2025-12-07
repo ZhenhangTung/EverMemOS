@@ -1,7 +1,7 @@
 """
-MongoDB 文档基类
+MongoDB Document Base Class
 
-基于 Beanie ODM 的文档基类，提供通用的文档基础功能。
+Base document class based on Beanie ODM, providing common foundational document functionality.
 """
 
 from datetime import datetime
@@ -20,18 +20,18 @@ DEFAULT_DATABASE = "default"
 
 class DocumentBase(Document):
     """
-    文档基类
+    Document base class
 
-    基于 Beanie Document 的基础文档类，提供通用的文档基础功能
+    Base document class based on Beanie Document, providing common foundational document functionality.
     """
 
     @classmethod
     def get_bind_database(cls) -> str | None:
         """
-        读取绑定数据库名（只读）。
+        Read the bound database name (read-only).
 
-        仅从 `Settings.bind_database` 读取，不提供任何运行时修改入口。
-        子类可通过覆写内部 `Settings` 的类变量 `bind_database` 进行绑定：
+        Only reads from `Settings.bind_database`, no runtime modification allowed.
+        Subclasses can bind by overriding the class variable `bind_database` in the internal `Settings`:
 
         class MyDoc(DocumentBase):
             class Settings:
@@ -44,69 +44,69 @@ class DocumentBase(Document):
 
     def _recursive_datetime_check(self, obj, path: str = "", depth: int = 0):
         """
-        递归检查并转换所有datetime对象到上海时区
+        Recursively check and convert all datetime objects to Shanghai timezone
 
         Args:
-            obj: 要检查的对象
-            path: 当前对象的路径（用于调试）
-            depth: 当前递归深度
+            obj: Object to check
+            path: Current object path (for debugging)
+            depth: Current recursion depth
 
         Returns:
-            转换后的对象
+            Converted object
         """
-        # 控制最大递归深度
+        # Control maximum recursion depth
         if depth >= MAX_RECURSION_DEPTH:
             return obj
 
-        # 情况一：对象是datetime
+        # Case 1: Object is datetime
         if isinstance(obj, datetime):
             if obj.tzinfo is None:
-                # 没有时区信息，转换为默认时区；一般是进程里面创建的放到参数里面
+                # No timezone info, convert to default timezone; usually created within the process and passed as parameter
                 return to_timezone(obj)
             else:
-                # 读取的时候带时区且是默认时区（shanghai）返回
+                # Return if read with timezone and it's the default timezone (Shanghai)
                 return obj
 
-        # 情况二：对象是BaseModel
+        # Case 2: Object is BaseModel
         if isinstance(obj, BaseModel):
             for field_name, value in obj:
                 new_path = f"{path}.{field_name}" if path else field_name
                 new_value = self._recursive_datetime_check(value, new_path, depth + 1)
-                # 使用 __dict__ 直接更新值，避免触发验证器
+                # Directly update value using __dict__ to avoid triggering validators
                 obj.__dict__[field_name] = new_value
             return obj
 
-        # 情况三：对象是列表、元组或集合（性能优化）
+        # Case 3: Object is list, tuple, or set (performance optimization)
         if isinstance(obj, (list, tuple, set)):
-            # 如果集合为空，直接返回
+            # If collection is empty, return directly
             if not obj:
                 return obj
 
-            # list：只检查第一个元素
+            # List: only check the first element
             if isinstance(obj, list):
                 first_item = obj[0]
                 first_checked = self._recursive_datetime_check(
                     first_item, f"{path}[0]", depth + 2
                 )
 
-                # 如果第一个元素没有变化，认为整个列表都不需要转换
+                # If the first element hasn't changed, assume the whole list doesn't need conversion
                 if first_checked is first_item:
                     return obj
 
-            # set：取任意一个元素检查（set 本身无序，取第一个即可）
+            # Set: check any one element (set is unordered, take the first one)
             elif isinstance(obj, set):
                 sample_item = next(iter(obj))
                 sample_checked = self._recursive_datetime_check(
                     sample_item, f"{path}[sample]", depth + 2
                 )
 
-                # 如果抽样元素没有变化，认为整个集合都不需要转换
+                # If the sampled element hasn't changed, assume the whole set doesn't need conversion
                 if sample_checked is sample_item:
                     return obj
 
-            # tuple：只检查前3个元素
+            # Tuple: only check the first 3 elements
             elif isinstance(obj, tuple):
-                # 检查前5个元素（或全部，如果长度小于5）
+                # Check first 3 elements (or all if length < 3)
                 check_count = min(3, len(obj))
                 need_transform = False
 
@@ -119,18 +119,18 @@ class DocumentBase(Document):
                         need_transform = True
                         break
 
-                # 如果前5个元素都不需要转换，认为整个 tuple 都不需要转换
+                # If first 3 elements don't need conversion, assume the whole tuple doesn't need conversion
                 if not need_transform:
                     return obj
 
-            # 需要处理所有元素
+            # Need to process all elements
             cls = type(obj)
             return cls(
                 self._recursive_datetime_check(item, f"{path}[{i}]", depth + 2)
                 for i, item in enumerate(obj)
             )
 
-        # 情况四：对象是字典
+        # Case 4: Object is dictionary
         if isinstance(obj, dict):
             return {
                 key: self._recursive_datetime_check(
@@ -144,17 +144,17 @@ class DocumentBase(Document):
     @model_validator(mode='after')
     def check_datetimes_are_aware(self) -> Self:
         """
-        递归遍历模型的所有字段，确保任何 datetime 对象都是 'aware' (包含时区信息).
-        最多递归3层以避免潜在的问题。
+        Recursively traverse all fields of the model to ensure any datetime object is 'aware' (contains timezone information).
+        Maximum recursion depth is 3 to avoid potential issues.
 
         Returns:
-            Self: 当前对象实例
+            Self: Current object instance
         """
         for field_name, value in self:
             new_value = self._recursive_datetime_check(value, field_name, depth=0)
-            if new_value is not value:  # 只在值发生变化时更新
+            if new_value is not value:  # Only update if value has changed
 
-                # 使用 __dict__ 直接更新值，避免触发验证器
+                # Directly update value using __dict__ to avoid triggering validators
                 self.__dict__[field_name] = new_value
         return self
 
@@ -167,41 +167,41 @@ class DocumentBase(Document):
         **pymongo_kwargs,
     ) -> InsertManyResult:
         """
-        重写批量插入方法，委托审计逻辑给 AuditBase
+        Override bulk insert method, delegate audit logic to AuditBase
 
-        作为技术入口，检查模型是否继承了 AuditBase，如果是则委托审计字段处理。
-        这样保持了职责内聚：DocumentBase 负责协调，AuditBase 负责审计逻辑。
+        As a technical entry point, check if the model inherits from AuditBase, if so, delegate audit field handling.
+        This maintains responsibility cohesion: DocumentBase handles coordination, AuditBase handles audit logic.
 
         Args:
-            documents: 待插入的文档列表
-            session: 可选的 MongoDB 会话，用于事务支持
-            link_rule: 关联文档的写入规则
-            **pymongo_kwargs: 其他传递给 PyMongo 的参数
+            documents: List of documents to insert
+            session: Optional MongoDB session, used for transaction support
+            link_rule: Write rule for linked documents
+            **pymongo_kwargs: Other parameters passed to PyMongo
 
         Returns:
-            InsertManyResult: 插入结果，包含 inserted_ids
+            InsertManyResult: Insert result, containing inserted_ids
         """
-        # 检查模型是否继承了 AuditBase，如果是则委托审计处理
+        # Check if model inherits from AuditBase, if so, delegate audit handling
 
         if issubclass(cls, AuditBase):
-            # 委托给 AuditBase 处理审计字段
+            # Delegate to AuditBase to handle audit fields
             AuditBase.prepare_for_insert_many(documents)
 
-        # 调用父类的 insert_many 方法
+        # Call parent class's insert_many method
         return await super().insert_many(
             documents, session=session, link_rule=link_rule, **pymongo_kwargs
         )
 
     class Settings:
-        """文档设置"""
+        """Document settings"""
 
-        # 可以在这里设置通用的文档配置
-        # 例如：索引、验证规则等
+        # Common document configurations can be set here
+        # For example: indexes, validation rules, etc.
 
     def __str__(self) -> str:
-        """字符串表示"""
+        """String representation"""
         return f"{self.__class__.__name__}({self.id})"
 
     def __repr__(self) -> str:
-        """开发者表示"""
+        """Developer representation"""
         return f"{self.__class__.__name__}(id={self.id})"

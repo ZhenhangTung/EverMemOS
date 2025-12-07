@@ -1,8 +1,8 @@
 """
-租户感知的 MongoDB 客户端工厂
+Tenant-aware MongoDB Client Factory
 
-本模块提供租户化的 MongoDB 客户端工厂实现，基于租户上下文管理客户端。
-Factory 只负责创建和缓存客户端，模式判断由 TenantAwareMongoClient 内部处理。
+This module provides a tenant-isolated MongoDB client factory implementation based on tenant context management.
+The Factory is only responsible for creating and caching clients; mode determination is handled internally by TenantAwareMongoClient.
 """
 
 import asyncio
@@ -26,99 +26,99 @@ logger = get_logger(__name__)
 @component(name="tenant_aware_mongodb_client_factory", primary=True)
 class TenantAwareMongoDBClientFactory(MongoDBClientFactory):
     """
-    租户感知的 MongoDB 客户端工厂实现
+    Tenant-aware MongoDB Client Factory Implementation
 
-    此工厂类负责创建和管理租户感知的 MongoDB 客户端。
-    所有租户模式 vs 非租户模式的逻辑都由 TenantAwareMongoClient 内部处理，
-    Factory 只负责简单的创建、缓存和生命周期管理。
+    This factory class is responsible for creating and managing tenant-aware MongoDB clients.
+    All logic regarding tenant mode vs non-tenant mode is handled internally by TenantAwareMongoClient.
+    The Factory only handles simple creation, caching, and lifecycle management.
 
-    标记为 primary=True，作为系统默认的 MongoDB 客户端工厂。
+    Marked with primary=True, serving as the system's default MongoDB client factory.
     """
 
     def __init__(self):
-        """初始化租户感知的客户端工厂"""
-        # 租户感知的客户端包装器（全局单例）
+        """Initialize the tenant-aware client factory"""
+        # Tenant-aware client wrapper (global singleton)
         self._client_wrapper: Optional[MongoDBClientWrapper] = None
 
-        # 并发访问保护锁
+        # Lock for concurrent access protection
         self._lock = asyncio.Lock()
 
-        logger.info("🏭 租户感知的 MongoDB 客户端工厂已初始化 (primary=True)")
+        logger.info("🏭 Tenant-aware MongoDB client factory initialized (primary=True)")
 
     async def get_client(
         self, config: Optional[MongoDBConfig] = None, **connection_kwargs
     ) -> MongoDBClientWrapper:
         """
-        获取 MongoDB 客户端
+        Get MongoDB client
 
-        返回租户感知的客户端包装器。模式判断由 TenantAwareMongoClient 内部处理。
+        Returns a tenant-aware client wrapper. Mode determination is handled internally by TenantAwareMongoClient.
 
         Args:
-            config: MongoDB 配置（保留用于接口兼容，实际配置由租户上下文或环境变量提供）
-            **connection_kwargs: 额外的连接参数
+            config: MongoDB configuration (retained for interface compatibility; actual configuration is provided via tenant context or environment variables)
+            **connection_kwargs: Additional connection parameters
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
         return await self._get_client_wrapper()
 
     async def _get_client_wrapper(self) -> MongoDBClientWrapper:
         """
-        获取租户感知的客户端包装器（内部方法）
+        Get tenant-aware client wrapper (internal method)
 
-        单例模式，整个工厂只创建一个客户端包装器实例。
+        Singleton pattern: only one client wrapper instance is created for the entire factory.
 
         Returns:
-            MongoDBClientWrapper: 包装了租户感知客户端的包装器
+            MongoDBClientWrapper: Wrapper containing the tenant-aware client
         """
         if self._client_wrapper is None:
             async with self._lock:
-                # 双重检查
+                # Double-check
                 if self._client_wrapper is None:
-                    logger.info("🔧 创建租户感知的 MongoDB 客户端包装器")
+                    logger.info("🔧 Creating tenant-aware MongoDB client wrapper")
 
-                    # 创建租户感知的 MongoDB 客户端
+                    # Create tenant-aware MongoDB client
                     tenant_aware_client = TenantAwareMongoClient()
 
-                    # 创建一个虚拟配置（用于兼容接口）
+                    # Create a dummy configuration (for interface compatibility)
                     dummy_config = MongoDBConfig(
                         host="tenant-aware",
                         port=27017,
                         database=get_default_database_name(),
                     )
 
-                    # 包装成 MongoDBClientWrapper
+                    # Wrap into MongoDBClientWrapper
                     self._client_wrapper = TenantAwareClientWrapper(
                         tenant_aware_client, dummy_config
                     )
 
-                    logger.info("✅ 租户感知的 MongoDB 客户端包装器已创建")
+                    logger.info("✅ Tenant-aware MongoDB client wrapper created")
 
         return self._client_wrapper
 
     async def get_default_client(self) -> MongoDBClientWrapper:
         """
-        获取默认 MongoDB 客户端
+        Get default MongoDB client
 
         Returns:
-            MongoDBClientWrapper: 默认 MongoDB 客户端包装器
+            MongoDBClientWrapper: Default MongoDB client wrapper
         """
         return await self._get_client_wrapper()
 
     async def get_named_client(self, name: str) -> MongoDBClientWrapper:
         """
-        按名称获取 MongoDB 客户端
+        Get MongoDB client by name
 
-        注意：在当前实现中，name 参数被忽略，因为租户信息从上下文中获取。
-        保留此方法是为了接口兼容性。
+        Note: In the current implementation, the name parameter is ignored because tenant information is obtained from context.
+        This method is retained for interface compatibility.
 
         Args:
-            name: 前缀名称（保留用于接口兼容）
+            name: Prefix name (retained for interface compatibility)
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
-        logger.info("📋 获取命名客户端 name=%s（租户感知模式）", name)
+        logger.info("📋 Getting named client name=%s (tenant-aware mode)", name)
         return await self._get_client_wrapper()
 
     async def create_client_with_config(
@@ -131,73 +131,73 @@ class TenantAwareMongoDBClientFactory(MongoDBClientFactory):
         **kwargs,
     ) -> MongoDBClientWrapper:
         """
-        使用指定配置创建客户端
+        Create client with specified configuration
 
-        注意：在租户感知模式下，配置参数会被传递给 TenantAwareMongoClient，
-        用于非租户模式。在租户模式下，这些参数会被忽略。
+        Note: In tenant-aware mode, configuration parameters are passed to TenantAwareMongoClient for non-tenant mode usage.
+        In tenant mode, these parameters are ignored.
 
         Args:
-            host: MongoDB 主机
-            port: MongoDB 端口
-            username: 用户名
-            password: 密码
-            database: 数据库名
-            **kwargs: 其他连接参数
+            host: MongoDB host
+            port: MongoDB port
+            username: Username
+            password: Password
+            database: Database name
+            **kwargs: Other connection parameters
 
         Returns:
-            MongoDBClientWrapper: MongoDB 客户端包装器
+            MongoDBClientWrapper: MongoDB client wrapper
         """
         if database is None:
             database = get_default_database_name()
         logger.info(
-            "📋 使用指定配置创建客户端（租户感知模式）: host=%s, port=%s, database=%s",
+            "📋 Creating client with specified configuration (tenant-aware mode): host=%s, port=%s, database=%s",
             host,
             port,
             database,
         )
-        # 在租户感知模式下，配置参数会传递给 TenantAwareMongoClient
-        # 如果启用了非租户模式，TenantAwareMongoClient 会使用这些参数
+        # In tenant-aware mode, configuration parameters are passed to TenantAwareMongoClient
+        # If non-tenant mode is enabled, TenantAwareMongoClient will use these parameters
         return await self._get_client_wrapper()
 
     async def close_client(self, config: Optional[MongoDBConfig] = None):
         """
-        关闭指定客户端
+        Close specified client
 
-        在租户感知模式下，关闭全局的客户端包装器。
+        In tenant-aware mode, close the global client wrapper.
 
         Args:
-            config: 配置（保留用于接口兼容）
+            config: Configuration (retained for interface compatibility)
         """
         async with self._lock:
             if self._client_wrapper:
                 await self._client_wrapper.close()
                 self._client_wrapper = None
-                logger.info("🔌 MongoDB 客户端已关闭（租户感知工厂）")
+                logger.info("🔌 MongoDB client closed (tenant-aware factory)")
 
     async def close_all_clients(self):
-        """关闭所有客户端"""
+        """Close all clients"""
         await self.close_client()
 
 
 class TenantAwareClientWrapper(MongoDBClientWrapper):
     """
-    租户感知的客户端包装器
+    Tenant-aware Client Wrapper
 
-    继承自 MongoDBClientWrapper，适配租户感知的 MongoDB 客户端。
-    提供与 MongoDBClientWrapper 相同的接口，但内部使用 TenantAwareMongoClient。
+    Inherits from MongoDBClientWrapper, adapted for tenant-aware MongoDB client.
+    Provides the same interface as MongoDBClientWrapper but uses TenantAwareMongoClient internally.
     """
 
     def __init__(
         self, tenant_aware_client: TenantAwareMongoClient, config: MongoDBConfig
     ):
         """
-        初始化租户感知的客户端包装器
+        Initialize tenant-aware client wrapper
 
         Args:
-            tenant_aware_client: 租户感知的 MongoDB 客户端
-            config: MongoDB 配置（用于兼容性）
+            tenant_aware_client: Tenant-aware MongoDB client
+            config: MongoDB configuration (for compatibility)
         """
-        # 直接设置属性，不调用父类 __init__
+        # Directly set attributes without calling parent __init__
         self.client = tenant_aware_client
         self.config = config
         self._initialized = False
@@ -206,31 +206,31 @@ class TenantAwareClientWrapper(MongoDBClientWrapper):
     @property
     def database(self):
         """
-        获取数据库对象
+        Get database object
 
-        返回租户感知的数据库代理。
+        Returns the tenant-aware database proxy.
         """
         return self.client[self.config.database]
 
     async def test_connection(self) -> bool:
         """
-        测试连接
+        Test connection
 
-        注意：在租户模式下，需要在有租户上下文的情况下调用。
-        在非租户模式下，使用提供的配置进行测试。
+        Note: In tenant mode, this must be called with a tenant context.
+        In non-tenant mode, the provided configuration is used for testing.
         """
         try:
-            # TenantAwareMongoClient 会根据配置和上下文选择正确的客户端
+            # TenantAwareMongoClient will select the correct client based on configuration and context
             real_client = await self.client._get_real_client()
             await real_client.admin.command('ping')
-            logger.info("✅ MongoDB 连接测试成功（租户感知）")
+            logger.info("✅ MongoDB connection test succeeded (tenant-aware)")
             return True
         except Exception as e:
-            logger.error("❌ MongoDB 连接测试失败（租户感知）: %s", e)
+            logger.error("❌ MongoDB connection test failed (tenant-aware): %s", e)
             return False
 
     async def close(self):
-        """关闭所有连接"""
+        """Close all connections"""
         if self.client:
             await self.client.close()
-            logger.info("🔌 MongoDB 连接已关闭（租户感知）")
+            logger.info("🔌 MongoDB connection closed (tenant-aware)")

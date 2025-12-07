@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 """
-组件模块初始化文件
+Component module initialization file
 """

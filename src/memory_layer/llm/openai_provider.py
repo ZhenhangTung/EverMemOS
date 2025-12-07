@@ -36,7 +36,7 @@ class OpenAIProvider(LLMProvider):
         base_url: str | None = None,
         temperature: float = 0.3,
         max_tokens: int | None = 100 * 1024,
-        enable_stats: bool = False,  # 新增：可选的统计功能，默认关闭
+        enable_stats: bool = False,  # New: optional statistics feature, disabled by default
         **kwargs,
     ):
         """
@@ -54,15 +54,15 @@ class OpenAIProvider(LLMProvider):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.enable_stats = enable_stats  # 新增
+        self.enable_stats = enable_stats  # New
 
         # Use OpenRouter API key and base URL
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         self.base_url = base_url or "https://openrouter.ai/api/v1"
 
-        # 新增：可选的单次调用统计（默认不开启，不影响现有使用）
+        # New: optional per-call statistics (disabled by default, does not affect existing usage)
         if self.enable_stats:
-            self.current_call_stats = None  # 存储当前调用的统计信息
+            self.current_call_stats = None  # Store statistics for current call
 
     async def generate(
         self,
@@ -86,7 +86,7 @@ class OpenAIProvider(LLMProvider):
         Raises:
             LLMError: If generation fails
         """
-        # 使用 time.perf_counter() 获得更精确的时间测量
+        # Use time.perf_counter() for more precise time measurement
         start_time = time.perf_counter()
         # Prepare request data
         if os.getenv("LLM_OPENROUTER_PROVIDER", "default") != "default":
@@ -111,7 +111,7 @@ class OpenAIProvider(LLMProvider):
         elif self.max_tokens is not None:
             data["max_tokens"] = self.max_tokens
 
-        # 使用异步的 aiohttp 替代同步的 urllib
+        # Use asynchronous aiohttp instead of synchronous urllib
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.api_key}',
@@ -130,16 +130,16 @@ class OpenAIProvider(LLMProvider):
                         test = b"".join(chunks).decode()
                         response_data = json.loads(test)
                         # print(response_data)
-                        # 处理错误响应
+                        # Handle error responses
                         if response.status != 200:
                             error_msg = response_data.get('error', {}).get(
                                 'message', f"HTTP {response.status}"
                             )
                             logger.error(
-                                f"❌ [OpenAI-{self.model}] HTTP错误 {response.status}:"
+                                f"❌ [OpenAI-{self.model}] HTTP error {response.status}:"
                             )
-                            logger.error(f"   💬 错误信息: {error_msg}")
-                            # Debug: 429 Too Many Requests 断点调试
+                            logger.error(f"   💬 Error message: {error_msg}")
+                            # Debug: 429 Too Many Requests breakpoint debugging
                             if response.status == 429:
                                 logger.warning(
                                     f"429 Too Many Requests, waiting for 10 seconds"
@@ -148,38 +148,38 @@ class OpenAIProvider(LLMProvider):
 
                             raise LLMError(f"HTTP Error {response.status}: {error_msg}")
 
-                        # 使用 time.perf_counter() 获得更精确的时间测量
+                        # Use time.perf_counter() for more precise time measurement
                         end_time = time.perf_counter()
 
-                        # 提取finish_reason
+                        # Extract finish_reason
                         finish_reason = response_data.get('choices', [{}])[0].get(
                             'finish_reason', ''
                         )
                         if finish_reason == 'stop':
                             logger.debug(
-                                f"[OpenAI-{self.model}] 完成原因: {finish_reason}"
+                                f"[OpenAI-{self.model}] Finish reason: {finish_reason}"
                             )
                         else:
                             logger.warning(
-                                f"[OpenAI-{self.model}] 完成原因: {finish_reason}"
+                                f"[OpenAI-{self.model}] Finish reason: {finish_reason}"
                             )
 
-                        # 提取token使用信息
+                        # Extract token usage information
                         usage = response_data.get('usage', {})
                         prompt_tokens = usage.get('prompt_tokens', 0)
                         completion_tokens = usage.get('completion_tokens', 0)
                         total_tokens = usage.get('total_tokens', 0)
 
-                        # 打印详细的使用信息
+                        # Print detailed usage information
 
-                        logger.debug(f"[OpenAI-{self.model}] API调用完成:")
+                        logger.debug(f"[OpenAI-{self.model}] API call completed:")
                         logger.debug(
-                            f"[OpenAI-{self.model}] 耗时: {end_time - start_time:.2f}s"
+                            f"[OpenAI-{self.model}] Duration: {end_time - start_time:.2f}s"
                         )
-                        # 如果耗时太长
+                        # If the duration is too long
                         if end_time - start_time > 30:
                             logger.warning(
-                                f"[OpenAI-{self.model}] 耗时太长: {end_time - start_time:.2f}s"
+                                f"[OpenAI-{self.model}] Duration too long: {end_time - start_time:.2f}s"
                             )
                         logger.debug(
                             f"[OpenAI-{self.model}] Prompt Tokens: {prompt_tokens:,}"
@@ -188,10 +188,10 @@ class OpenAIProvider(LLMProvider):
                             f"[OpenAI-{self.model}] Completion Tokens: {completion_tokens:,}"
                         )
                         logger.debug(
-                            f"[OpenAI-{self.model}] 总Token数: {total_tokens:,}"
+                            f"[OpenAI-{self.model}] Total Tokens: {total_tokens:,}"
                         )
 
-                        # 新增：记录当前调用的统计信息（如果开启统计）
+                        # New: record statistics for current call (if statistics enabled)
                         if self.enable_stats:
                             self.current_call_stats = {
                                 'prompt_tokens': prompt_tokens,
@@ -206,9 +206,9 @@ class OpenAIProvider(LLMProvider):
             except aiohttp.ClientError as e:
                 error_time = time.perf_counter()
                 logger.error("aiohttp.ClientError: %s", e)
-                # logger.error(f"❌ [OpenAI-{self.model}] 请求失败:")
-                logger.error(f"   ⏱️  耗时: {error_time - start_time:.2f}s")
-                logger.error(f"   💬 错误信息: {str(e)}")
+                # logger.error(f"❌ [OpenAI-{self.model}] Request failed:")
+                logger.error(f"   ⏱️  Duration: {error_time - start_time:.2f}s")
+                logger.error(f"   💬 Error message: {str(e)}")
                 logger.error(f"retry_num: {retry_num}")
                 # raise LLMError(f"Request failed: {str(e)}")
                 if retry_num == max_retries - 1:
@@ -216,8 +216,8 @@ class OpenAIProvider(LLMProvider):
             except Exception as e:
                 error_time = time.perf_counter()
                 logger.error("Exception: %s", e)
-                logger.error(f"   ⏱️  耗时: {error_time - start_time:.2f}s")
-                logger.error(f"   💬 错误信息: {str(e)}")
+                logger.error(f"   ⏱️  Duration: {error_time - start_time:.2f}s")
+                logger.error(f"   💬 Error message: {str(e)}")
                 logger.error(f"retry_num: {retry_num}")
                 if retry_num == max_retries - 1:
                     raise LLMError(f"Request failed: {str(e)}")
@@ -230,17 +230,19 @@ class OpenAIProvider(LLMProvider):
             True if connection successful, False otherwise
         """
         try:
-            logger.info(f"🔗 [OpenAI-{self.model}] 测试API连接...")
+            logger.info(f"🔗 [OpenAI-{self.model}] Testing API connection...")
             # Try a simple generation to test connection
             test_response = await self.generate("Hello", temperature=0.1)
             success = len(test_response) > 0
             if success:
-                logger.info(f"✅ [OpenAI-{self.model}] API连接测试成功")
+                logger.info(f"✅ [OpenAI-{self.model}] API connection test succeeded")
             else:
-                logger.error(f"❌ [OpenAI-{self.model}] API连接测试失败: 空响应")
+                logger.error(
+                    f"❌ [OpenAI-{self.model}] API connection test failed: Empty response"
+                )
             return success
         except Exception as e:
-            logger.error(f"❌ [OpenAI-{self.model}] API连接测试失败: {e}")
+            logger.error(f"❌ [OpenAI-{self.model}] API connection test failed: {e}")
             return False
 
     def get_current_call_stats(self) -> Optional[dict]:

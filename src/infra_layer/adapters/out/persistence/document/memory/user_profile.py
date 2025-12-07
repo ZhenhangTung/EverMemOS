@@ -8,42 +8,41 @@ from core.oxm.mongo.audit_base import AuditBase
 
 class UserProfile(DocumentBase, AuditBase):
     """
-    用户画像文档模型
-    
-    存储从聚类对话中自动提取的用户画像信息
+    User profile document model
+
+    Stores user profile information automatically extracted from clustering conversations
     """
-    
-    # 联合主键
-    user_id: Indexed(str) = Field(..., description="用户ID")
-    group_id: Indexed(str) = Field(..., description="群组ID")
-    
-    # Profile 内容（JSON 格式存储）
+
+    # Composite primary key
+    user_id: Indexed(str) = Field(..., description="User ID")
+    group_id: Indexed(str) = Field(..., description="Group ID")
+
+    # Profile content (stored in JSON format)
     profile_data: Dict[str, Any] = Field(
         default_factory=dict,
-        description="用户画像数据（包含角色、技能、偏好、性格等）"
+        description="User profile data (including role, skills, preferences, personality, etc.)",
     )
-    
-    # 元信息
-    scenario: str = Field(default="group_chat", description="场景类型：group_chat 或 assistant")
-    confidence: float = Field(default=0.0, description="画像置信度 (0-1)")
-    version: int = Field(default=1, description="画像版本号")
-    
-    # 聚类关联
+
+    # Metadata
+    scenario: str = Field(
+        default="group_chat", description="Scenario type: group_chat or assistant"
+    )
+    confidence: float = Field(default=0.0, description="Profile confidence score (0-1)")
+    version: int = Field(default=1, description="Profile version number")
+
+    # Clustering association
     cluster_ids: List[str] = Field(
-        default_factory=list,
-        description="关联的聚类ID列表"
+        default_factory=list, description="List of associated cluster IDs"
     )
-    memcell_count: int = Field(default=0, description="参与提取的 MemCell 数量")
-    
-    # 历史记录
+    memcell_count: int = Field(
+        default=0, description="Number of MemCells involved in extraction"
+    )
+
+    # History
     last_updated_cluster: Optional[str] = Field(
-        default=None,
-        description="最后一次更新时使用的聚类ID"
+        default=None, description="Cluster ID used in the last update"
     )
-    
+
     class Settings:
         name = "user_profiles"
-        indexes = [
-            [("user_id", 1), ("group_id", 1)],  # 联合索引
-        ]
-
+        indexes = [[("user_id", 1), ("group_id", 1)]]  # Composite index

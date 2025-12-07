@@ -1,8 +1,8 @@
 """
-租户感知的 MongoDB 客户端代理
+Tenant-aware MongoDB Client Proxy
 
-本模块实现了 AsyncMongoClient 和 AsyncDatabase 的租户感知代理版本。
-核心功能：拦截所有方法调用，根据租户上下文动态切换到对应的真实客户端/数据库。
+This module implements tenant-aware proxy versions of AsyncMongoClient and AsyncDatabase.
+Core functionality: intercept all method calls and dynamically switch to the corresponding real client/database based on tenant context.
 """
 
 from typing import Dict, Optional, Any
@@ -28,29 +28,29 @@ logger = get_logger(__name__)
 
 class TenantAwareMongoClient(AsyncMongoClient):
     """
-    租户感知的 AsyncMongoClient 代理
+    Tenant-aware AsyncMongoClient Proxy
 
-    此类通过代理模式，拦截所有对 AsyncMongoClient 的调用，
-    根据当前租户上下文动态切换到对应租户的真实 MongoDB 客户端。
+    This class intercepts all calls to AsyncMongoClient via the proxy pattern,
+    dynamically switching to the real MongoDB client corresponding to the current tenant context.
 
-    核心特性：
-    1. 高效缓存：为每个租户缓存客户端实例，避免重复创建
-    2. 租户隔离：不同租户使用不同的客户端连接
-    3. 非租户模式支持：可通过配置禁用租户功能，回退到传统模式
-    4. 默认客户端支持：在租户模式下，如果没有租户上下文，自动使用默认客户端（从环境变量读取）
-    5. 类型兼容：通过虚拟子类注册，确保与 pymongo 和 beanie 的类型检查兼容
+    Core features:
+    1. Efficient caching: caches client instances per tenant to avoid redundant creation
+    2. Tenant isolation: different tenants use separate client connections
+    3. Non-tenant mode support: tenant functionality can be disabled via configuration, falling back to traditional mode
+    4. Default client support: in tenant mode, automatically uses the default client (read from environment variables) when no tenant context exists
+    5. Type compatibility: ensures compatibility with pymongo and beanie type checks through virtual subclass registration
 
-    使用示例：
-        >>> # 租户模式（从租户上下文读取配置）
+    Usage examples:
+        >>> # Tenant mode (reads configuration from tenant context)
         >>> client = TenantAwareMongoClient()
         >>> db = client["my_database"]
 
-        >>> # 租户模式下无租户上下文（使用默认客户端）
-        >>> # 会从环境变量 MONGODB_* 读取默认配置
+        >>> # Tenant mode without tenant context (uses default client)
+        >>> # Reads default configuration from environment variables MONGODB_*
         >>> client = TenantAwareMongoClient()
-        >>> db = client["my_database"]  # 使用默认客户端
+        >>> db = client["my_database"]  # uses default client
 
-        >>> # 非租户模式（使用传统参数）
+        >>> # Non-tenant mode (uses traditional parameters)
         >>> client = TenantAwareMongoClient(
         ...     host="localhost",
         ...     port=27017,
@@ -68,37 +68,37 @@ class TenantAwareMongoClient(AsyncMongoClient):
         **kwargs,
     ):
         """
-        初始化租户感知客户端
+        Initialize tenant-aware client
 
         Args:
-            host: MongoDB 主机地址（仅在非租户模式下使用）
-            port: MongoDB 端口（仅在非租户模式下使用）
-            username: 用户名（仅在非租户模式下使用）
-            password: 密码（仅在非租户模式下使用）
-            **kwargs: 其他 MongoDB 客户端参数
+            host: MongoDB host address (used only in non-tenant mode)
+            port: MongoDB port (used only in non-tenant mode)
+            username: Username (used only in non-tenant mode)
+            password: Password (used only in non-tenant mode)
+            **kwargs: Other MongoDB client parameters
 
-        缓存设计：
-            - self._client_cache: 真正存储客户端实例的地方（主体缓存）
-            - tenant_info_patch: 存储快捷引用（cache_key），用于快速定位应该使用哪个缓存客户端
+        Cache design:
+            - self._client_cache: The actual storage location for client instances (main cache)
+            - tenant_info_patch: Stores quick references (cache_key) for fast lookup of which cached client to use
         """
-        # 客户端缓存：基于连接参数（host/port/username/password）
-        # 这是真正存储客户端实例的主体缓存
-        # 相同配置的不同租户可以复用同一个客户端实例
+        # Client cache: based on connection parameters (host/port/username/password)
+        # This is the main cache that actually stores client instances
+        # Different tenants with the same configuration can reuse the same client instance
         # {cache_key: AsyncMongoClient}
         self._client_cache: Dict[str, AsyncMongoClient] = {}
 
-        # 后备客户端（fallback client）
-        # 用途：
-        # 1. 非租户模式时使用（配置来自构造参数）
-        # 2. 租户模式下无租户上下文时使用（配置来自环境变量）
-        # 注意：一个实例只会处于一种模式，所以这两种情况不会同时发生
+        # Fallback client
+        # Usage:
+        # 1. Used in non-tenant mode (configuration from constructor parameters)
+        # 2. Used in tenant mode when no tenant context exists (configuration from environment variables)
+        # Note: An instance will only be in one mode, so these two cases won't occur simultaneously
         self._fallback_client: Optional[AsyncMongoClient] = None
 
-        # 后备客户端的配置
-        # 优先使用构造参数，如果没有则从环境变量读取
+        # Configuration for fallback client
+        # Prioritize constructor parameters; if absent, read from environment variables
         self._fallback_config: Optional[Dict[str, Any]] = None
         if host or port or username or password:
-            # 构造参数优先（用于非租户模式）
+            # Constructor parameters take precedence (for non-tenant mode)
             self._fallback_config = {
                 "host": host or "localhost",
                 "port": port or 27017,
@@ -107,62 +107,62 @@ class TenantAwareMongoClient(AsyncMongoClient):
                 **kwargs,
             }
 
-        # 配置对象
+        # Configuration object
         self._config = get_tenant_config()
 
     def get_real_client(self) -> AsyncMongoClient:
         """
-        获取真实的 MongoDB 客户端（公开方法）
+        Get the real MongoDB client (public method)
 
-        根据配置和上下文决定返回哪个客户端：
-        1. 如果启用非租户模式，返回传统客户端
-        2. 如果启用租户模式，根据当前租户上下文返回对应的租户客户端
-        3. 如果租户模式下没有租户上下文，返回默认客户端（从环境变量读取）
+        Decides which client to return based on configuration and context:
+        1. If non-tenant mode is enabled, return the traditional client
+        2. If tenant mode is enabled, return the corresponding tenant client based on current tenant context
+        3. If no tenant context exists in tenant mode, return the default client (read from environment variables)
 
-        优化策略：
-        - 主体缓存：self._client_cache 存储真正的客户端实例（基于连接参数）
-        - 快捷引用：tenant_info_patch 存储客户端引用，用于快速访问
-        - 相同连接配置的不同租户会复用同一个客户端实例
+        Optimization strategy:
+        - Main cache: self._client_cache stores actual client instances (based on connection parameters)
+        - Quick reference: tenant_info_patch stores client references for fast access
+        - Different tenants with the same connection configuration will reuse the same client instance
 
-        注意：创建 AsyncMongoClient 对象本身是同步的，只是后续调用它的方法才是异步的。
+        Note: Creating an AsyncMongoClient object itself is synchronous; only subsequent method calls are asynchronous.
 
         Returns:
-            AsyncMongoClient: 真实的 MongoDB 客户端实例
+            AsyncMongoClient: The real MongoDB client instance
 
         Raises:
-            RuntimeError: 在非租户模式下但未提供连接参数，或租户配置缺失
+            RuntimeError: When in non-tenant mode but connection parameters are not provided, or tenant configuration is missing
         """
 
         def compute_client() -> AsyncMongoClient:
-            """计算（获取或创建）租户的 MongoDB 客户端"""
-            # 从租户配置中获取 MongoDB 配置
+            """Compute (get or create) the tenant's MongoDB client"""
+            # Get MongoDB configuration from tenant configuration
             mongo_config = get_tenant_mongo_config()
             if not mongo_config:
                 tenant_info = get_current_tenant()
                 raise RuntimeError(
-                    f"租户 {tenant_info.tenant_id} 缺少 MongoDB 配置信息。"
-                    f"请确保租户信息中包含 storage_info.mongodb 配置。"
+                    f"Tenant {tenant_info.tenant_id} is missing MongoDB configuration information. "
+                    f"Ensure the tenant information includes storage_info.mongodb configuration."
                 )
 
-            # 基于连接参数生成缓存键
+            # Generate cache key based on connection parameters
             cache_key = get_mongo_client_cache_key(mongo_config)
 
-            # 从主体缓存获取
+            # Get from main cache
             if cache_key in self._client_cache:
-                logger.debug("🔍 主体缓存命中 [cache_key=%s]", cache_key)
+                logger.debug("🔍 Main cache hit [cache_key=%s]", cache_key)
                 return self._client_cache[cache_key]
 
-            # 双重检查（防止并发创建）
+            # Double-check (prevent concurrent creation)
             if cache_key in self._client_cache:
                 return self._client_cache[cache_key]
 
-            # 创建新的客户端
-            logger.info("🔧 创建 MongoDB 客户端 [cache_key=%s]", cache_key)
+            # Create new client
+            logger.info("🔧 Creating MongoDB client [cache_key=%s]", cache_key)
             client = self._create_client_from_config(mongo_config)
 
-            # 缓存到主体缓存
+            # Cache in main cache
             self._client_cache[cache_key] = client
-            logger.info("✅ MongoDB 客户端已缓存 [cache_key=%s]", cache_key)
+            logger.info("✅ MongoDB client cached [cache_key=%s]", cache_key)
 
             return client
 
@@ -170,90 +170,90 @@ class TenantAwareMongoClient(AsyncMongoClient):
             patch_key=TenantPatchKey.MONGO_CLIENT_CACHE_KEY,
             compute_func=compute_client,
             fallback=lambda: self._get_fallback_client(),
-            cache_description="MongoDB 客户端",
+            cache_description="MongoDB client",
         )
 
     def _get_fallback_client(self) -> AsyncMongoClient:
         """
-        获取后备客户端（Fallback Client）
+        Get fallback client
 
-        后备客户端用于两种场景：
-        1. 非租户模式：使用构造参数提供的配置
-        2. 租户模式下无租户上下文：使用环境变量的配置
+        The fallback client is used in two scenarios:
+        1. Non-tenant mode: uses configuration provided via constructor parameters
+        2. Tenant mode without tenant context: uses configuration from environment variables
 
-        配置优先级：
-        - 如果有构造参数配置（self._fallback_config），使用它
-        - 否则从环境变量加载配置
+        Configuration priority:
+        - If constructor parameter configuration exists (self._fallback_config), use it
+        - Otherwise, load configuration from environment variables
 
         Returns:
-            AsyncMongoClient: 后备客户端实例
+            AsyncMongoClient: Fallback client instance
 
         Raises:
-            RuntimeError: 非租户模式下未提供连接参数，且无法从环境变量读取
+            RuntimeError: In non-tenant mode, if connection parameters are not provided and cannot be read from environment variables
         """
-        # 检查缓存
+        # Check cache
         if self._fallback_client is not None:
             return self._fallback_client
 
-        # 获取后备配置
+        # Get fallback configuration
         if self._fallback_config is None:
-            # 没有构造参数配置，从环境变量加载
+            # No constructor parameter configuration, load from environment variables
             self._fallback_config = load_mongo_config_from_env()
 
-        # 非租户模式下，如果没有配置则报错
+        # In non-tenant mode, raise error if no configuration
         if self._config.non_tenant_mode and not self._fallback_config:
             raise RuntimeError(
-                "非租户模式下必须提供连接参数。"
-                "请在创建 TenantAwareMongoClient 时传入 host、port 等参数，"
-                "或设置环境变量 MONGODB_* 配置。"
+                "Connection parameters must be provided in non-tenant mode. "
+                "Please pass host, port, etc., when creating TenantAwareMongoClient, "
+                "or set environment variables MONGODB_* configuration."
             )
 
-        # 创建后备客户端
-        logger.info("🔧 创建后备 MongoDB 客户端")
+        # Create fallback client
+        logger.info("🔧 Creating fallback MongoDB client")
         self._fallback_client = self._create_client_from_config(self._fallback_config)
-        logger.info("✅ 后备 MongoDB 客户端已创建")
+        logger.info("✅ Fallback MongoDB client created")
 
         return self._fallback_client
 
     def _create_client_from_config(self, config: Dict[str, Any]) -> AsyncMongoClient:
         """
-        根据配置创建 MongoDB 客户端
+        Create MongoDB client from configuration
 
         Args:
-            config: 包含 host、port、username、password 或 uri 等字段的配置字典
+            config: Configuration dictionary containing fields like host, port, username, password, or uri
 
         Returns:
-            AsyncMongoClient: 创建的客户端实例
+            AsyncMongoClient: Created client instance
         """
-        # 构建连接参数（包括时区和超时配置）
+        # Build connection parameters (including timezone and timeout settings)
         conn_kwargs = {
-            "serverSelectionTimeoutMS": 10000,  # PyMongo AsyncMongoClient 需要更长的超时时间
-            "connectTimeoutMS": 10000,  # 连接超时
-            "socketTimeoutMS": 10000,  # socket 超时
+            "serverSelectionTimeoutMS": 10000,  # PyMongo AsyncMongoClient requires longer timeout
+            "connectTimeoutMS": 10000,  # Connection timeout
+            "socketTimeoutMS": 10000,  # Socket timeout
             "maxPoolSize": 50,
             "minPoolSize": 5,
-            "tz_aware": True,  # 启用时区感知
-            "tzinfo": timezone,  # 设置时区信息
+            "tz_aware": True,  # Enable timezone awareness
+            "tzinfo": timezone,  # Set timezone information
         }
 
-        # 优先使用 uri（如果提供）
+        # Prioritize uri if provided
         uri = config.get("uri")
         if uri:
-            # 合并额外参数（排除 uri 和 database）
+            # Merge extra parameters (excluding uri and database)
             extra_kwargs = {
                 k: v for k, v in config.items() if k not in ("uri", "database")
             }
-            # 用户提供的参数优先级更高
+            # User-provided parameters have higher priority
             conn_kwargs.update(extra_kwargs)
             return AsyncMongoClient(uri, **conn_kwargs)
 
-        # 构建连接参数
+        # Build connection parameters
         host = config.get("host", "localhost")
         port = config.get("port", 27017)
         username = config.get("username")
         password = config.get("password")
 
-        # 构建连接字符串
+        # Build connection string
         if username and password:
             from urllib.parse import quote_plus
 
@@ -265,135 +265,137 @@ class TenantAwareMongoClient(AsyncMongoClient):
         else:
             connection_string = f"mongodb://{host}:{port}"
 
-        # 合并额外参数
+        # Merge extra parameters
         extra_kwargs = {
             k: v
             for k, v in config.items()
             if k not in ("host", "port", "username", "password", "database")
         }
-        # 用户提供的参数优先级更高
+        # User-provided parameters have higher priority
         conn_kwargs.update(extra_kwargs)
 
-        # 创建客户端
+        # Create client
         return AsyncMongoClient(connection_string, **conn_kwargs)
 
     def __getitem__(self, key: str) -> "TenantAwareDatabase":
         """
-        支持字典式访问数据库
+        Support dictionary-style database access
 
-        返回一个租户感知的 TenantAwareDatabase 对象。
-        数据库名称会根据租户配置动态确定，key 参数仅作为后备值。
+        Returns a tenant-aware TenantAwareDatabase object.
+        The database name will be dynamically determined according to tenant configuration; the key parameter is used only as a fallback.
 
         Args:
-            key: 请求的数据库名称（仅在租户配置未指定数据库时作为后备）
+            key: Requested database name (used as fallback only when tenant configuration does not specify a database)
 
         Returns:
-            TenantAwareDatabase: 租户感知的 MongoDB Database 对象
+            TenantAwareDatabase: Tenant-aware MongoDB Database object
         """
-        # 返回租户感知的数据库对象（不传递 key，因为会动态获取）
+        # Return tenant-aware database object (do not pass key, as it will be dynamically obtained)
         return TenantAwareDatabase(self)
 
     def __getattr__(self, name: str) -> Any:
         """
-        拦截属性访问（兜底机制）
+        Intercept attribute access (fallback mechanism)
 
-        当属性找不到时才调用此方法，用于代理到真实的 MongoDB 客户端。
-        这样可以方便地覆盖特定方法而不影响代理功能。
+        This method is called only when an attribute is not found, used to proxy to the real MongoDB client.
+        This allows specific methods to be overridden without affecting proxy functionality.
 
         Args:
-            name: 属性名称
+            name: Attribute name
 
         Returns:
-            Any: 代理属性或方法
+            Any: Proxied attribute or method
         """
-        # 获取真实客户端（同步）
+        # Get real client (synchronous)
         real_client = self.get_real_client()
-        # 直接返回真实客户端的属性或方法
+        # Directly return the attribute or method from the real client
         return getattr(real_client, name)
 
     async def close(self):
         """
-        关闭所有客户端连接
+        Close all client connections
 
-        清理所有缓存的客户端（主体缓存）和后备客户端。
+        Clean up all cached clients (main cache) and the fallback client.
 
-        注意：
-        - 主体缓存 self._client_cache 存储真正的客户端实例，需要管理生命周期
-        - tenant_info_patch 只存储快捷引用（cache_key），不需要清理
+        Note:
+        - Main cache self._client_cache stores actual client instances and requires lifecycle management
+        - tenant_info_patch only stores quick references (cache_key) and does not need cleanup
         """
-        # 关闭所有缓存的客户端（主体缓存）
+        # Close all cached clients (main cache)
         for cache_key, client in self._client_cache.items():
             try:
                 await client.close()
-                logger.info("🔌 已关闭 MongoDB 客户端 [cache_key=%s]", cache_key)
+                logger.info("🔌 MongoDB client closed [cache_key=%s]", cache_key)
             except Exception as e:
-                logger.error("❌ 关闭客户端失败 [cache_key=%s]: %s", cache_key, e)
+                logger.error(
+                    "❌ Failed to close client [cache_key=%s]: %s", cache_key, e
+                )
 
         self._client_cache.clear()
 
-        # 关闭后备客户端
+        # Close fallback client
         if self._fallback_client:
             try:
                 await self._fallback_client.close()
-                logger.info("🔌 已关闭后备 MongoDB 客户端")
+                logger.info("🔌 Fallback MongoDB client closed")
             except Exception as e:
-                logger.error("❌ 关闭后备客户端失败: %s", e)
+                logger.error("❌ Failed to close fallback client: %s", e)
 
             self._fallback_client = None
 
 
 class TenantAwareDatabase(AsyncDatabase):
     """
-    租户感知的 AsyncDatabase 代理
+    Tenant-aware AsyncDatabase Proxy
 
-    此类通过代理模式，拦截所有对 AsyncDatabase 的调用，
-    根据当前租户上下文动态切换到对应租户的真实数据库对象。
+    This class intercepts all calls to AsyncDatabase via the proxy pattern,
+    dynamically switching to the real database object corresponding to the current tenant context.
 
-    核心特性：
-    1. 租户隔离：不同租户使用不同的数据库实例
-    2. 透明代理：所有数据库操作都会自动路由到正确的租户数据库
-    3. 动态数据库名称：数据库名称根据租户上下文动态获取
-    4. 类型兼容：继承 AsyncDatabase，确保与 pymongo 和 beanie 的类型检查兼容
+    Core features:
+    1. Tenant isolation: different tenants use different database instances
+    2. Transparent proxy: all database operations are automatically routed to the correct tenant database
+    3. Dynamic database name: database name is dynamically obtained based on tenant context
+    4. Type compatibility: inherits from AsyncDatabase, ensuring compatibility with pymongo and beanie type checks
 
-    使用示例：
+    Usage examples:
         >>> client = TenantAwareMongoClient()
-        >>> db = client["my_database"]  # 返回 TenantAwareDatabase
-        >>> collection = db["my_collection"]  # 自动路由到正确的租户
-        >>> # 在不同租户上下文中，db.name 会返回不同的数据库名称
+        >>> db = client["my_database"]  # Returns TenantAwareDatabase
+        >>> collection = db["my_collection"]  # Automatically routed to correct tenant
+        >>> # In different tenant contexts, db.name will return different database names
     """
 
     def __init__(self, client: TenantAwareMongoClient):
         """
-        初始化租户感知数据库
+        Initialize tenant-aware database
 
         Args:
-            client: 租户感知的 MongoDB 客户端
+            client: Tenant-aware MongoDB client
 
-        注意：
-            - 不存储数据库名称，每次访问时动态获取
-            - 这样可以确保在不同租户上下文中使用正确的数据库
+        Note:
+            - Database name is not stored; it is dynamically obtained on each access
+            - This ensures the correct database is used in different tenant contexts
         """
-        # 保存客户端引用
-        # 注意：不调用父类 __init__，因为我们要完全代理行为
+        # Save client reference
+        # Note: Do not call parent class __init__ as we want to fully proxy behavior
         self._tenant_aware_client = client
 
     def _get_real_database(self) -> AsyncDatabase:
         """
-        获取真实的 MongoDB 数据库对象（带缓存）
+        Get the real MongoDB database object (with caching)
 
-        通过租户感知客户端获取真实的客户端，然后访问对应的数据库。
-        数据库名称会根据租户配置动态获取，确保每个租户使用正确的数据库。
+        Obtain the real client through the tenant-aware client, then access the corresponding database.
+        The database name is dynamically obtained according to tenant configuration, ensuring each tenant uses the correct database.
 
-        优化：数据库对象会缓存在 tenant_info_patch 中，避免重复创建
+        Optimization: The database object is cached in tenant_info_patch to avoid repeated creation
 
-        注意：一个租户只有一个数据库配置，所以使用固定的 patch_key
+        Note: A tenant has only one database configuration, so a fixed patch_key is used
 
         Returns:
-            AsyncDatabase: 真实的 MongoDB Database 对象
+            AsyncDatabase: The real MongoDB Database object
         """
 
         def compute_database() -> AsyncDatabase:
-            """计算数据库对象"""
+            """Compute database object"""
             actual_database_name = self._get_actual_database_name()
             real_client = self._tenant_aware_client.get_real_client()
             return real_client[actual_database_name]
@@ -401,47 +403,47 @@ class TenantAwareDatabase(AsyncDatabase):
         return get_or_compute_tenant_cache(
             patch_key=TenantPatchKey.MONGO_REAL_DATABASE,
             compute_func=compute_database,
-            fallback=compute_database,  # fallback 逻辑相同，直接复用
-            cache_description="MongoDB 数据库对象",
+            fallback=compute_database,  # fallback logic is the same, reuse directly
+            cache_description="MongoDB database object",
         )
 
     def _get_actual_database_name(self) -> str:
         """
-        获取实际的数据库名称（动态获取，带缓存）
+        Get the actual database name (dynamically obtained, with caching)
 
-        根据当前租户配置动态获取真实的数据库名称：
-        1. 如果在租户模式下，从租户配置中读取数据库名称（必须指定，不回退）
-        2. 如果在非租户模式下，从环境变量读取默认数据库名称
-        3. 如果无租户上下文，从环境变量读取默认数据库名称
+        Dynamically obtain the real database name based on current tenant configuration:
+        1. In tenant mode, read the database name from tenant configuration (must be specified, no fallback)
+        2. In non-tenant mode, read the default database name from environment variables
+        3. If no tenant context exists, read the default database name from environment variables
 
-        优化：数据库名称会缓存在 tenant_info_patch 中，避免重复计算
+        Optimization: The database name is cached in tenant_info_patch to avoid repeated computation
 
         Returns:
-            str: 实际的数据库名称
+            str: The actual database name
 
         Raises:
-            RuntimeError: 租户模式下如果租户配置缺失或未指定数据库名称
+            RuntimeError: In tenant mode if tenant configuration is missing or database name is not specified
         """
 
         def compute_database_name() -> str:
-            """计算数据库名称"""
-            # 使用公共函数获取租户 MongoDB 配置
+            """Compute database name"""
+            # Use common function to get tenant MongoDB configuration
             mongo_config = get_tenant_mongo_config()
             if not mongo_config:
                 tenant_info = get_current_tenant()
                 raise RuntimeError(
-                    f"租户 {tenant_info.tenant_id} 缺少 MongoDB 配置信息。"
-                    f"请确保租户信息中包含 storage_info.mongodb 配置。"
+                    f"Tenant {tenant_info.tenant_id} is missing MongoDB configuration information. "
+                    f"Ensure the tenant information includes storage_info.mongodb configuration."
                 )
 
-            # 从配置中获取数据库名称
+            # Get database name from configuration
             database_name = mongo_config.get("database")
             if not database_name:
-                # 租户模式下必须指定数据库名称，不能回退到默认值
+                # In tenant mode, database name must be specified; cannot fall back to default
                 tenant_info = get_current_tenant()
                 raise RuntimeError(
-                    f"租户 {tenant_info.tenant_id} 的 MongoDB 配置中未指定数据库名称。"
-                    f"请在租户配置的 storage_info.mongodb.database 中指定数据库名称。"
+                    f"Database name not specified in MongoDB configuration for tenant {tenant_info.tenant_id}. "
+                    f"Please specify the database name in storage_info.mongodb.database of the tenant configuration."
                 )
 
             return database_name
@@ -449,92 +451,94 @@ class TenantAwareDatabase(AsyncDatabase):
         return get_or_compute_tenant_cache(
             patch_key=TenantPatchKey.ACTUAL_DATABASE_NAME,
             compute_func=compute_database_name,
-            fallback=lambda: get_default_database_name(),  # 延迟计算，只在需要时调用
-            cache_description="数据库名称",
+            fallback=lambda: get_default_database_name(),  # Lazy evaluation, only called when needed
+            cache_description="database name",
         )
 
     def __getitem__(self, key: str) -> AsyncCollection:
         """
-        支持字典式访问集合
+        Support dictionary-style collection access
 
         Args:
-            key: 集合名称
+            key: Collection name
 
         Returns:
-            AsyncCollection: MongoDB Collection 对象
+            AsyncCollection: MongoDB Collection object
         """
-        # 获取真实数据库，然后访问集合
+        # Get real database, then access collection
         return AsyncCollection(self, key)
 
     def __getattr__(self, name: str) -> Any:
         """
-        拦截属性访问（兜底机制）
+        Intercept attribute access (fallback mechanism)
 
-        当属性找不到时才调用此方法，用于代理到真实的 MongoDB 数据库对象。
+        This method is called only when an attribute is not found, used to proxy to the real MongoDB database object.
 
         Args:
-            name: 属性名称
+            name: Attribute name
 
         Returns:
-            Any: 代理属性或方法
+            Any: Proxied attribute or method
         """
-        # 获取真实数据库
+        # Get real database
         real_database = self._get_real_database()
-        logger.debug("🔍 获取真实的 MongoDB 数据库对象属性或方法: %s", name)
-        # 直接返回真实数据库的属性或方法
+        logger.debug(
+            "🔍 Getting real MongoDB database object attribute or method: %s", name
+        )
+        # Directly return the attribute or method from the real database
         return getattr(real_database, name)
 
     @property
     def name(self) -> str:
         """
-        获取数据库名称（动态获取）
+        Get database name (dynamically obtained)
 
-        根据当前租户上下文动态返回实际的数据库名称。
-        在不同的租户上下文中，同一个 TenantAwareDatabase 对象的 name 可能不同。
+        Dynamically return the actual database name based on the current tenant context.
+        The name of the same TenantAwareDatabase object may differ in different tenant contexts.
 
         Returns:
-            str: 实际的数据库名称
+            str: The actual database name
         """
         return self._get_actual_database_name()
 
     @property
     def _name(self) -> str:
         """
-        获取数据库名称
+        Get database name
 
         Returns:
-            str: 数据库名称
+            str: Database name
         """
         return self._get_actual_database_name()
 
     @property
     def client(self) -> AsyncMongoClient:
         """
-        获取客户端引用（返回真实客户端）
+        Get client reference (return real client)
 
-        由于 TenantAwareDatabase 已经处于特定租户的上下文中，
-        直接返回真实的 MongoDB 客户端，避免不必要的二次代理。
+        Since TenantAwareDatabase is already in a specific tenant context,
+        return the real MongoDB client directly to avoid unnecessary secondary proxying.
 
         Returns:
-            AsyncMongoClient: 真实的 MongoDB 客户端
+            AsyncMongoClient: The real MongoDB client
         """
         return self._tenant_aware_client.get_real_client()
 
     def __bool__(self) -> bool:
         """
-        数据库对象的布尔值判断
+        Boolean evaluation of database object
 
         Returns:
-            bool: 始终返回 True（数据库对象始终为真）
+            bool: Always returns True (database object is always truthy)
         """
         return True
 
     def __repr__(self) -> str:
         """
-        数据库对象的字符串表示
+        String representation of database object
 
         Returns:
-            str: 数据库对象的描述
+            str: Description of the database object
         """
         return (
             f"TenantAwareDatabase(client={self._tenant_aware_client}, name={self.name})"
@@ -542,15 +546,15 @@ class TenantAwareDatabase(AsyncDatabase):
 
     def __eq__(self, other: Any) -> bool:
         """
-        数据库对象的相等性判断
+        Equality comparison of database objects
 
-        只比较客户端引用，因为数据库名称是动态的。
+        Only compare client references, as the database name is dynamic.
 
         Args:
-            other: 要比较的对象
+            other: Object to compare
 
         Returns:
-            bool: 是否相等
+            bool: Whether they are equal
         """
         if isinstance(other, TenantAwareDatabase):
             return self._tenant_aware_client == other._tenant_aware_client
@@ -558,11 +562,11 @@ class TenantAwareDatabase(AsyncDatabase):
 
     def __hash__(self) -> int:
         """
-        数据库对象的哈希值
+        Hash value of database object
 
-        只基于客户端引用生成哈希值。
+        Generate hash value based only on client reference.
 
         Returns:
-            int: 哈希值
+            int: Hash value
         """
         return hash(id(self._tenant_aware_client))

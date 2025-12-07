@@ -1,9 +1,9 @@
 """
-Redis消息分组队列管理器工厂
+Redis message group queue manager factory
 
-提供基于配置的 RedisGroupQueueManager 实例缓存和管理功能。
-支持从环境变量读取配置，提供默认实例和命名实例。
-参考 mongodb_client_factory.py 的设计模式。
+Provides caching and management functionality for RedisGroupQueueManager instances based on configuration.
+Supports reading configuration from environment variables, provides default and named instances.
+Follows the design pattern of mongodb_client_factory.py.
 """
 
 import os
@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 class RedisGroupQueueConfig:
-    """Redis分组队列配置类"""
+    """Redis group queue configuration class"""
 
     def __init__(
         self,
@@ -27,11 +27,11 @@ class RedisGroupQueueConfig:
         serialization_mode: SerializationMode = SerializationMode.JSON,
         sort_key_func: Optional[Callable[[RedisGroupQueueItem], int]] = None,
         max_total_messages: int = 1000,
-        queue_expire_seconds: int = 12 * 3600,  # 12小时
-        activity_expire_seconds: int = 7 * 24 * 3600,  # 7天
+        queue_expire_seconds: int = 12 * 3600,  # 12 hours
+        activity_expire_seconds: int = 7 * 24 * 3600,  # 7 days
         enable_metrics: bool = True,
         log_interval_seconds: int = 60,
-        cleanup_interval_seconds: int = 300,  # 5分钟
+        cleanup_interval_seconds: int = 300,  # 5 minutes
         **kwargs,
     ):
         self.key_prefix = key_prefix
@@ -47,11 +47,11 @@ class RedisGroupQueueConfig:
 
     def get_cache_key(self) -> str:
         """
-        获取缓存键
+        Get cache key
 
-        基于核心配置参数生成唯一标识
+        Generate unique identifier based on core configuration parameters
         """
-        # 排序函数使用函数名或默认值
+        # Use function name or default value for sort function
         sort_func_name = (
             getattr(self.sort_key_func, '__name__', 'default')
             if self.sort_key_func
@@ -68,32 +68,32 @@ class RedisGroupQueueConfig:
     @classmethod
     def from_env(cls, prefix: str = "") -> 'RedisGroupQueueConfig':
         """
-        从环境变量创建配置
+        Create configuration from environment variables
 
-        prefix 规则：若提供 prefix，将按 "{prefix}_XXX" 的形式读取变量，否则读取 "XXX"。
-        例如：prefix="CLIENT" 则读取 "CLIENT_REDIS_QUEUE_KEY_PREFIX"、"CLIENT_REDIS_QUEUE_MAX_TOTAL_MESSAGES" 等。
+        Prefix rule: if prefix is provided, variables will be read in the format "{prefix}_XXX", otherwise "XXX" is read.
+        For example: prefix="CLIENT" will read "CLIENT_REDIS_QUEUE_KEY_PREFIX", "CLIENT_REDIS_QUEUE_MAX_TOTAL_MESSAGES", etc.
 
         Args:
-            prefix: 环境变量前缀
+            prefix: environment variable prefix
 
         Returns:
-            RedisGroupQueueConfig: 配置实例
+            RedisGroupQueueConfig: configuration instance
         """
 
         def _env(name: str, default: str) -> str:
             key = f"{prefix}_{name}" if prefix else name
             return os.getenv(key, default)
 
-        # 读取配置项
+        # Read configuration items
         base_key_prefix = _env("REDIS_QUEUE_KEY_PREFIX", "default")
-        # 支持全局Redis前缀
+        # Support global Redis prefix
         global_redis_prefix = _env("GLOBAL_REDIS_PREFIX", "")
         key_prefix = (
             f"{global_redis_prefix}:{base_key_prefix}"
             if global_redis_prefix
             else base_key_prefix
         )
-        # 序列化模式配置
+        # Serialization mode configuration
         serialization_mode_str = _env("REDIS_QUEUE_SERIALIZATION_MODE", "json").lower()
         serialization_mode = (
             SerializationMode.JSON
@@ -131,14 +131,14 @@ class RedisGroupQueueConfig:
 
 @component(name="redis_group_queue_manager_factory", primary=True)
 class RedisGroupQueueManagerFactory:
-    """Redis消息分组队列管理器工厂"""
+    """Redis message group queue manager factory"""
 
     def __init__(self, redis_provider: RedisProvider):
         """
-        初始化工厂
+        Initialize factory
 
         Args:
-            redis_provider: Redis连接提供者
+            redis_provider: Redis connection provider
         """
         self.redis_provider = redis_provider
         self._managers: Dict[str, RedisGroupQueueManager] = {}
@@ -154,42 +154,42 @@ class RedisGroupQueueManagerFactory:
         redis_client_name: str = "default",
     ) -> RedisGroupQueueManager:
         """
-        获取Redis消息分组队列管理器
+        Get Redis message group queue manager
 
         Args:
-            config: 队列管理器配置，如果为 None 则使用默认配置
-            item_class: 队列项类型，必须继承自RedisGroupQueueItem，默认使用SimpleQueueItem
-            auto_start: 是否自动启动管理器
-            redis_client_name: Redis客户端名称
+            config: queue manager configuration, use default configuration if None
+            item_class: queue item type, must inherit from RedisGroupQueueItem, default uses SimpleQueueItem
+            auto_start: whether to automatically start the manager
+            redis_client_name: Redis client name
 
         Returns:
-            RedisGroupQueueManager: 队列管理器
+            RedisGroupQueueManager: queue manager
         """
         if config is None:
             config = await self._get_default_config()
 
-        # 生成缓存键，包含 item_class 信息
+        # Generate cache key, including item_class information
         item_class_name = item_class.__name__ if item_class else 'default'
         cache_key = f"{config.get_cache_key()}:{item_class_name}:{redis_client_name}"
 
         async with self._lock:
-            # 检查缓存
+            # Check cache
             if cache_key in self._managers:
                 manager = self._managers[cache_key]
                 return manager
 
-            # 创建新管理器
-            logger.info("正在创建新的 RedisGroupQueueManager: %s", config)
+            # Create new manager
+            logger.info("Creating new RedisGroupQueueManager: %s", config)
 
             try:
-                # 根据序列化模式获取Redis客户端
+                # Get Redis client based on serialization mode
                 if config.serialization_mode == SerializationMode.BSON:
-                    # BSON模式：使用binary_cache，不解码响应以支持字节数据
+                    # BSON mode: use binary_cache, do not decode responses to support byte data
                     redis_client = await self.redis_provider.get_named_client(
                         "binary_cache", decode_responses=False
                     )
                 else:
-                    # JSON模式：使用default客户端，自动解码响应
+                    # JSON mode: use default client, automatically decode responses
                     redis_client = await self.redis_provider.get_client()
 
                 manager = RedisGroupQueueManager(
@@ -210,24 +210,30 @@ class RedisGroupQueueManagerFactory:
                 if auto_start:
                     await manager.start()
 
-                # 缓存管理器
+                # Cache manager
                 self._managers[cache_key] = manager
-                logger.info("✅ RedisGroupQueueManager 创建成功并已缓存: %s", config)
+                logger.info(
+                    "✅ RedisGroupQueueManager created successfully and cached: %s",
+                    config,
+                )
 
                 return manager
 
             except Exception as e:
                 logger.error(
-                    "❌ 创建 RedisGroupQueueManager 失败: %s, 错误: %s", config, e
+                    "❌ Failed to create RedisGroupQueueManager: %s, error: %s",
+                    config,
+                    e,
                 )
                 raise
 
     async def _get_default_config(self) -> RedisGroupQueueConfig:
-        """获取默认配置"""
+        """Get default configuration"""
         if self._default_config is None:
             self._default_config = RedisGroupQueueConfig.from_env()
             logger.info(
-                "📋 加载默认 RedisGroupQueueManager 配置: %s", self._default_config
+                "📋 Loaded default RedisGroupQueueManager configuration: %s",
+                self._default_config,
             )
 
         return self._default_config
@@ -249,25 +255,25 @@ class RedisGroupQueueManagerFactory:
         **kwargs,
     ) -> RedisGroupQueueManager:
         """
-        使用指定配置创建管理器
+        Create manager with specified configuration
 
         Args:
-            key_prefix: Redis键前缀，用于区分不同的管理器实例
-            serialization_mode: 序列化模式（JSON或BSON）
-            item_class: 队列项类型，必须继承自RedisGroupQueueItem，默认使用SimpleQueueItem
-            sort_key_func: 排序键生成函数
-            max_total_messages: 最大总消息数量
-            queue_expire_seconds: 队列过期时间
-            activity_expire_seconds: 活动记录过期时间
-            enable_metrics: 是否启用统计
-            log_interval_seconds: 日志间隔
-            cleanup_interval_seconds: 清理间隔
-            auto_start: 是否自动启动
-            redis_client_name: Redis客户端名称
-            **kwargs: 其他参数
+            key_prefix: Redis key prefix, used to distinguish different manager instances
+            serialization_mode: serialization mode (JSON or BSON)
+            item_class: queue item type, must inherit from RedisGroupQueueItem, default uses SimpleQueueItem
+            sort_key_func: sort key generation function
+            max_total_messages: maximum total message count
+            queue_expire_seconds: queue expiration time
+            activity_expire_seconds: activity record expiration time
+            enable_metrics: whether to enable metrics
+            log_interval_seconds: log interval
+            cleanup_interval_seconds: cleanup interval
+            auto_start: whether to auto start
+            redis_client_name: Redis client name
+            **kwargs: additional parameters
 
         Returns:
-            RedisGroupQueueManager: 队列管理器
+            RedisGroupQueueManager: queue manager
         """
         config = RedisGroupQueueConfig(
             key_prefix=key_prefix,
@@ -291,19 +297,19 @@ class RedisGroupQueueManagerFactory:
         redis_client_name: str = "default",
     ):
         """
-        停止指定管理器
+        Stop specified manager
 
         Args:
-            config: 配置，如果为 None 则停止默认管理器
-            item_class: 队列项类型，必须继承自RedisGroupQueueItem
-            redis_client_name: Redis客户端名称
+            config: configuration, if None then stop default manager
+            item_class: queue item type, must inherit from RedisGroupQueueItem
+            redis_client_name: Redis client name
         """
         if config is None:
             if self._default_manager:
                 await self._default_manager.shutdown()
                 return
 
-        # 生成缓存键，包含 item_class 信息
+        # Generate cache key, including item_class information
         item_class_name = item_class.__name__ if item_class else 'default'
         cache_key = f"{config.get_cache_key()}:{item_class_name}:{redis_client_name}"
 
@@ -312,7 +318,7 @@ class RedisGroupQueueManagerFactory:
                 await self._managers[cache_key].shutdown()
 
     async def stop_all_managers(self):
-        """停止所有管理器"""
+        """Stop all managers"""
         async with self._lock:
             for manager in self._managers.values():
                 await manager.shutdown()
@@ -322,15 +328,15 @@ class RedisGroupQueueManagerFactory:
             if self._default_manager:
                 self._default_manager = None
 
-            logger.info("🔌 所有 RedisGroupQueueManager 已停止")
+            logger.info("🔌 All RedisGroupQueueManager instances have been stopped")
 
     def get_cached_managers_info(self) -> Dict[str, Dict]:
-        """获取缓存的管理器信息"""
+        """Get cached manager information"""
         return {
             cache_key: {
                 "key_prefix": manager.key_prefix,
                 "max_total_messages": manager.max_total_messages,
-                "manager_stats": "需要异步调用get_manager_stats()获取",
+                "manager_stats": "Need to call get_manager_stats() asynchronously to retrieve",
             }
             for cache_key, manager in self._managers.items()
         }

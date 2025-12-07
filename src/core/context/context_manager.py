@@ -24,9 +24,9 @@ F = TypeVar('F', bound=Callable[..., Coroutine[Any, Any, Any]])
 @component(name="database_session_manager")
 class DatabaseSessionManager:
     """
-    数据库会话管理器
+    Database session manager
 
-    负责数据库会话的创建、设置、提交、回滚和清理
+    Responsible for creating, setting, committing, rolling back, and cleaning up database sessions
     """
 
     def __init__(self, db_provider: DatabaseSessionProvider):
@@ -42,27 +42,29 @@ class DatabaseSessionManager:
         **kwargs,
     ) -> Any:
         """
-        在数据库会话中运行函数
+        Run function within a database session
 
         Args:
-            func: 要运行的函数
-            *args: 函数的位置参数
-            session: 数据库会话（可选，不提供则自动创建）
-            auto_commit: 是否自动提交事务
-            force_new_session: 是否强制创建新会话（用于避免会话并发冲突）
-            **kwargs: 函数的关键字参数
+            func: Function to run
+            *args: Positional arguments for the function
+            session: Database session (optional, a new one will be created if not provided)
+            auto_commit: Whether to automatically commit the transaction
+            force_new_session: Whether to force creation of a new session (to avoid session concurrency conflicts)
+            **kwargs: Keyword arguments for the function
 
         Returns:
-            函数的返回值
+            Return value of the function
         """
-        # 根据force_new_session参数决定session处理策略
+        # Decide session handling strategy based on force_new_session parameter
         if force_new_session:
-            # 强制创建新会话，忽略传入的session和当前上下文中的会话
+            # Force creation of a new session, ignoring passed session and session in current context
             session = self.db_provider.create_session()
             need_cleanup = True
-            logger.debug("强制创建新的数据库会话（避免并发冲突）")
+            logger.debug(
+                "Forcing creation of a new database session (to avoid concurrency conflicts)"
+            )
         else:
-            # 正常逻辑：优先使用传入的session，其次使用当前上下文中的session，最后创建新session
+            # Normal logic: prioritize passed session, then session in current context, finally create a new session
             if session is None:
                 try:
                     current_session = get_current_session()
@@ -71,60 +73,68 @@ class DatabaseSessionManager:
                 if current_session is not None:
                     session = current_session
                     need_cleanup = False
-                    logger.debug("使用当前上下文中的数据库会话")
+                    logger.debug("Using database session from current context")
                 else:
                     session = self.db_provider.create_session()
                     need_cleanup = True
-                    logger.debug("创建新的数据库会话")
+                    logger.debug("Creating a new database session")
             else:
-                # 使用传入的session
+                # Use passed session
                 need_cleanup = False
 
-        # 设置上下文
+        # Set context
         db_token = set_current_session(session)
 
         try:
-            # 运行函数
+            # Run function
             result = await func(*args, **kwargs)
 
-            # 如果没有异常且启用自动提交，提交事务
+            # If no exception and auto-commit is enabled, commit transaction
             if auto_commit and need_cleanup and session.is_active:
                 await session.commit()
-                logger.debug("数据库会话管理器：自动提交事务")
+                logger.debug(
+                    "Database session manager: automatically committed transaction"
+                )
 
             return result
 
         except Exception as e:
-            # 如果有异常，回滚事务
+            # If exception occurs, rollback transaction
             if need_cleanup and session.is_active:
                 try:
                     await session.rollback()
-                    logger.debug("数据库会话管理器：自动回滚事务")
+                    logger.debug(
+                        "Database session manager: automatically rolled back transaction"
+                    )
                 except Exception as rollback_error:
-                    logger.error(f"回滚事务时发生错误: {str(rollback_error)}")
+                    logger.error(
+                        f"Error occurred during transaction rollback: {str(rollback_error)}"
+                    )
 
-            # 重新抛出异常
+            # Re-raise the exception
             raise e
 
         finally:
-            # 清理上下文
+            # Clean up context
             clear_current_session(db_token)
 
-            # 关闭会话（如果是自动创建的）
+            # Close session (if it was auto-created)
             if need_cleanup:
                 try:
                     await session.close()
-                    logger.debug("数据库会话管理器：已关闭数据库会话")
+                    logger.debug("Database session manager: database session closed")
                 except Exception as close_error:
-                    logger.error(f"关闭数据库会话时发生错误: {str(close_error)}")
+                    logger.error(
+                        f"Error occurred when closing database session: {str(close_error)}"
+                    )
 
 
 @component(name="user_context_manager")
 class UserContextManager:
     """
-    用户上下文管理器
+    User context manager
 
-    负责用户上下文的设置、获取和清理
+    Responsible for setting, retrieving, and cleaning up user context
     """
 
     def __init__(self):
@@ -139,49 +149,49 @@ class UserContextManager:
         **kwargs,
     ) -> Any:
         """
-        在用户上下文中运行函数
+        Run function within user context
 
         Args:
-            func: 要运行的函数
-            *args: 函数的位置参数
-            user_data: 用户数据（可选）
-            auto_inherit: 是否自动继承当前用户上下文
-            **kwargs: 函数的关键字参数
+            func: Function to run
+            *args: Positional arguments for the function
+            user_data: User data (optional)
+            auto_inherit: Whether to automatically inherit current user context
+            **kwargs: Keyword arguments for the function
 
         Returns:
-            函数的返回值
+            Return value of the function
         """
-        # 决定使用的用户数据
+        # Determine which user data to use
         actual_user_data = user_data
         if auto_inherit and actual_user_data is None:
             actual_user_data = get_current_user_info()
 
-        # 设置用户上下文
+        # Set user context
         user_token = None
         if actual_user_data is not None:
             user_token = set_current_user_info(actual_user_data)
             logger.debug(
-                f"用户上下文管理器：设置用户上下文 user_id={actual_user_data.get('user_id')}"
+                f"User context manager: setting user context user_id={actual_user_data.get('user_id')}"
             )
 
         try:
-            # 运行函数
+            # Run function
             result = await func(*args, **kwargs)
             return result
 
         finally:
-            # 清理用户上下文
+            # Clean up user context
             if user_token is not None:
                 clear_current_user_context(user_token)
-                logger.debug("用户上下文管理器：已清理用户上下文")
+                logger.debug("User context manager: user context cleaned up")
 
 
 @component(name="context_manager")
 class ContextManager:
     """
-    综合上下文管理器
+    Comprehensive context manager
 
-    组合数据库会话管理器和用户上下文管理器，提供统一的上下文管理能力
+    Combines database session manager and user context manager to provide unified context management capability
     """
 
     def __init__(
@@ -204,23 +214,23 @@ class ContextManager:
         **kwargs,
     ) -> Any:
         """
-        在完整上下文（数据库会话 + 用户上下文）中运行函数
+        Run function within full context (database session + user context)
 
         Args:
-            func: 要运行的函数
-            *args: 函数的位置参数
-            user_data: 用户数据（可选）
-            session: 数据库会话（可选）
-            auto_commit: 是否自动提交事务
-            auto_inherit_user: 是否自动继承用户上下文
-            force_new_session: 是否强制创建新会话（用于避免会话并发冲突）
-            **kwargs: 函数的关键字参数
+            func: Function to run
+            *args: Positional arguments for the function
+            user_data: User data (optional)
+            session: Database session (optional)
+            auto_commit: Whether to automatically commit transaction
+            auto_inherit_user: Whether to automatically inherit user context
+            force_new_session: Whether to force creation of a new session (to avoid session concurrency conflicts)
+            **kwargs: Keyword arguments for the function
 
         Returns:
-            函数的返回值
+            Return value of the function
         """
-        # 先设置用户上下文，再设置数据库会话
-        # 这样在数据库操作中就能访问到用户信息
+        # Set user context first, then database session
+        # This way user information is accessible during database operations
         return await self.user_context_manager.run_with_user_context(
             self.db_session_manager.run_with_session,
             func,
@@ -243,18 +253,18 @@ class ContextManager:
         **kwargs,
     ) -> Any:
         """
-        仅在数据库会话中运行函数
+        Run function within database session only
 
         Args:
-            func: 要运行的函数
-            *args: 函数的位置参数
-            session: 数据库会话（可选）
-            auto_commit: 是否自动提交事务
-            force_new_session: 是否强制创建新会话
-            **kwargs: 函数的关键字参数
+            func: Function to run
+            *args: Positional arguments for the function
+            session: Database session (optional)
+            auto_commit: Whether to automatically commit transaction
+            force_new_session: Whether to force creation of a new session
+            **kwargs: Keyword arguments for the function
 
         Returns:
-            函数的返回值
+            Return value of the function
         """
         return await self.db_session_manager.run_with_session(
             func,
@@ -274,17 +284,17 @@ class ContextManager:
         **kwargs,
     ) -> Any:
         """
-        仅在用户上下文中运行函数
+        Run function within user context only
 
         Args:
-            func: 要运行的函数
-            *args: 函数的位置参数
-            user_data: 用户数据（可选）
-            auto_inherit: 是否自动继承用户上下文
-            **kwargs: 函数的关键字参数
+            func: Function to run
+            *args: Positional arguments for the function
+            user_data: User data (optional)
+            auto_inherit: Whether to automatically inherit user context
+            **kwargs: Keyword arguments for the function
 
         Returns:
-            函数的返回值
+            Return value of the function
         """
         return await self.user_context_manager.run_with_user_context(
             func, *args, user_data=user_data, auto_inherit=auto_inherit, **kwargs
@@ -292,19 +302,19 @@ class ContextManager:
 
     def copy_current_context(self) -> Context:
         """
-        复制当前上下文
+        Copy current context
 
         Returns:
-            Context: 当前上下文的副本
+            Context: A copy of the current context
         """
         return copy_context()
 
     def get_current_context_data(self) -> Dict[str, Any]:
         """
-        获取当前上下文的数据
+        Get current context data
 
         Returns:
-            Dict[str, Any]: 包含当前上下文数据的字典
+            Dict[str, Any]: Dictionary containing current context data
         """
         user_data = get_current_user_info()
         return {
@@ -314,7 +324,7 @@ class ContextManager:
         }
 
 
-# 装饰器工厂函数
+# Decorator factory functions
 def with_full_context(
     user_data: Optional[Dict[str, Any]] = None,
     session: Optional[AsyncSession] = None,
@@ -322,7 +332,7 @@ def with_full_context(
     auto_inherit_user: bool = True,
 ):
     """
-    装饰器：为函数提供完整上下文注入（数据库会话 + 用户上下文）
+    Decorator: provides full context injection (database session + user context) for functions
     """
 
     def decorator(func: F) -> F:
@@ -350,12 +360,12 @@ def with_database_session(
     force_new_session: bool = False,
 ):
     """
-    装饰器：为函数提供数据库会话注入
+    Decorator: provides database session injection for functions
 
     Args:
-        session: 数据库会话（可选）
-        auto_commit: 是否自动提交事务
-        force_new_session: 是否强制创建新会话（用于避免会话并发冲突）
+        session: Database session (optional)
+        auto_commit: Whether to automatically commit transaction
+        force_new_session: Whether to force creation of a new session (to avoid session concurrency conflicts)
     """
 
     def decorator(func: F) -> F:
@@ -380,7 +390,7 @@ def with_user_context(
     user_data: Optional[Dict[str, Any]] = None, auto_inherit: bool = True
 ):
     """
-    装饰器：为函数提供用户上下文注入
+    Decorator: provides user context injection for functions
     """
 
     def decorator(func: F) -> F:
