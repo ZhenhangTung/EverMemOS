@@ -405,7 +405,7 @@ import os
 # ============= Development Environment Initialization (Must be at top) =============
 # 1. Set environment variables and Python path
 from common_utils.load_env import setup_environment
-setup_environment(load_env_file_name=".env.development", check_env_var="GEMINI_API_KEY")
+setup_environment(load_env_file_name=".env.development", check_env_var="MONGODB_HOST")
 
 # 2. Enable Mock mode (enabled by default in development environment)
 from core.di.utils import enable_mock_mode

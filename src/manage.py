@@ -43,7 +43,7 @@ def setup_environment_and_app(env_file: str = ".env"):
     # Load environment variables
     from common_utils.load_env import setup_environment
 
-    setup_environment(load_env_file_name=env_file, check_env_var="GEMINI_API_KEY")
+    setup_environment(load_env_file_name=env_file, check_env_var="MONGODB_HOST")
 
     from application_startup import setup_all
 
