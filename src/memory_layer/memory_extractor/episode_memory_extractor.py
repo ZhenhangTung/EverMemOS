@@ -29,7 +29,7 @@ from ..prompts.eval.episode_mem_prompts import (
 from ..llm.llm_provider import LLMProvider
 
 from .base_memory_extractor import MemoryExtractor, MemoryExtractRequest
-from api_specs.memory_types import MemoryType, Memory, RawDataType, MemCell
+from api_specs.memory_types import MemoryType, EpisodeMemory, RawDataType, MemCell
 
 from common_utils.datetime_utils import get_now_with_timezone
 from agentic_layer.vectorize_service import get_vectorize_service
@@ -196,7 +196,7 @@ class EpisodeMemoryExtractor(MemoryExtractor):
 
     async def _extract_episode(
         self, request: EpisodeMemoryExtractRequest, use_group_prompt: bool = False
-    ) -> Optional[Memory]:
+    ) -> Optional[EpisodeMemory]:
         """
         Extract Episode memory (internal method, single extraction)
 
@@ -207,7 +207,7 @@ class EpisodeMemoryExtractor(MemoryExtractor):
                 - False: Extract personal Episode (user_id from request.user_id)
 
         Returns:
-            Memory (contains episode field)
+            EpisodeMemory (contains episode field)
         """
         logger.debug(
             f"📚 Starting Episode extraction, use_group_prompt={use_group_prompt}"
@@ -318,8 +318,8 @@ class EpisodeMemoryExtractor(MemoryExtractor):
         # Compute Embedding
         embedding_data = await self._compute_embedding(content)
 
-        # Create Memory object (unified return type)
-        episode_memory = Memory(
+        # Create EpisodeMemory object
+        episode_memory = EpisodeMemory(
             memory_type=MemoryType.EPISODIC_MEMORY,
             user_id=user_id,
             user_name=user_name,
@@ -338,7 +338,7 @@ class EpisodeMemoryExtractor(MemoryExtractor):
         logger.debug(f"✅ Episode extraction completed: subject='{title}'")
         return episode_memory
 
-    async def extract_memory(self, request: MemoryExtractRequest) -> Optional[Memory]:
+    async def extract_memory(self, request: MemoryExtractRequest) -> Optional[EpisodeMemory]:
         """
         Extract Episode memory from MemCell (implement abstract method from base class)
 
@@ -354,7 +354,7 @@ class EpisodeMemoryExtractor(MemoryExtractor):
                 - Other optional fields
 
         Returns:
-            Memory: Episode memory object
+            EpisodeMemory: Episode memory object
                 - Group Episode: user_id=None, episode contains global view of entire conversation
                 - Personal Episode: user_id=<user_id>, episode contains personal view of the user
         """

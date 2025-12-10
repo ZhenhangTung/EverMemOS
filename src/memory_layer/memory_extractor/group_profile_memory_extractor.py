@@ -9,7 +9,7 @@ import os
 
 from ..llm.llm_provider import LLMProvider
 from .base_memory_extractor import MemoryExtractor, MemoryExtractRequest
-from api_specs.memory_types import Memory, MemoryType, MemCell
+from api_specs.memory_types import BaseMemory, MemoryType, MemCell
 from common_utils.datetime_utils import (
     get_now_with_timezone,
     from_timestamp,
@@ -134,7 +134,7 @@ class TopicInfo:
 
 
 @dataclass
-class GroupProfileMemory(Memory):
+class GroupProfileMemory(BaseMemory):
     """
     Group Profile Memory aligned with design document.
 
@@ -155,14 +155,13 @@ class GroupProfileMemory(Memory):
     # Note: summary and group_id are already defined as Optional in the base class, no need to redefine here
 
     def __post_init__(self):
-        """Set memory_type to GROUP_PROFILE and call parent __post_init__."""
+        """Set memory_type to GROUP_PROFILE."""
         self.memory_type = MemoryType.GROUP_PROFILE
         # Ensure topics and roles are not None, preventing None values from historical data or exceptions
         if self.topics is None:
             self.topics = []
         if self.roles is None:
             self.roles = {}
-        super().__post_init__()
 
 
 @dataclass

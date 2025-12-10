@@ -14,7 +14,7 @@ from ..prompts import (
 )
 from ..llm.llm_provider import LLMProvider
 from .base_memory_extractor import MemoryExtractor, MemoryExtractRequest
-from api_specs.memory_types import MemoryType, MemCell, Memory, Foresight
+from api_specs.memory_types import MemoryType, MemCell, Foresight, BaseMemory, EpisodeMemory
 from agentic_layer.vectorize_service import get_vectorize_service
 from core.observation.logger import get_logger
 from common_utils.datetime_utils import get_now_with_timezone
@@ -52,7 +52,7 @@ class ForesightExtractor(MemoryExtractor):
 
         logger.info("Foresight extractor initialized (associative prediction mode)")
 
-    async def extract_memory(self, request: MemoryExtractRequest) -> Optional[Memory]:
+    async def extract_memory(self, request: MemoryExtractRequest) -> Optional[BaseMemory]:
         """
         Implement abstract base class required extract_memory method
 
@@ -157,7 +157,7 @@ class ForesightExtractor(MemoryExtractor):
         return []
 
     async def generate_foresights_for_episode(
-        self, episode: Memory
+        self, episode: EpisodeMemory
     ) -> List[Foresight]:
         """
         Generate foresight association predictions for EpisodeMemory

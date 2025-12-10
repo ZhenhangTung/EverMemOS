@@ -126,9 +126,9 @@ class MemCell:
 
 
 @dataclass
-class Memory:
+class BaseMemory:
     """
-    Base class for memory extraction results.
+    Base class for all memory types.
     Contains common fields shared by all memory types.
     """
 
@@ -136,10 +136,6 @@ class Memory:
     user_id: str
     timestamp: datetime
     ori_event_id_list: List[str]
-
-    subject: Optional[str] = None
-    summary: Optional[str] = None
-    episode: Optional[str] = None
 
     group_id: Optional[str] = None
     group_name: Optional[str] = None
@@ -174,9 +170,6 @@ class Memory:
             "user_name": self.user_name,
             "timestamp": self._format_timestamp(),
             "ori_event_id_list": self.ori_event_id_list,
-            "subject": self.subject,
-            "summary": self.summary,
-            "episode": self.episode,
             "group_id": self.group_id,
             "group_name": self.group_name,
             "participants": self.participants,
@@ -188,8 +181,23 @@ class Memory:
 
 
 @dataclass
-class EventLog(Memory):
-    """Event log - for both extraction and retrieval."""
+class EpisodeMemory(BaseMemory):
+    """Episode memory - narrative memory of events."""
+    subject: Optional[str] = None
+    summary: Optional[str] = None
+    episode: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = super().to_dict()
+        d["subject"] = self.subject
+        d["summary"] = self.summary
+        d["episode"] = self.episode
+        return d
+
+
+@dataclass
+class EventLog(BaseMemory):
+    """Event log - atomic facts extracted from episodes."""
     time: Optional[str] = None
     atomic_fact: Optional[Union[str, List[str]]] = None
     fact_embeddings: Optional[List[List[float]]] = None
@@ -203,6 +211,8 @@ class EventLog(Memory):
             d["atomic_fact"] = self.atomic_fact
         if self.fact_embeddings:
             d["fact_embeddings"] = self.fact_embeddings
+        if self.parent_episode_id:
+            d["parent_episode_id"] = self.parent_episode_id
         return d
 
     @classmethod
@@ -216,11 +226,12 @@ class EventLog(Memory):
             time=data.get("time", ""),
             atomic_fact=data.get("atomic_fact", []),
             fact_embeddings=data.get("fact_embeddings"),
+            parent_episode_id=data.get("parent_episode_id"),
         )
 
 
 @dataclass
-class Foresight(Memory):
+class Foresight(BaseMemory):
     """Foresight prediction memory."""
     foresight: Optional[str] = None
     evidence: Optional[str] = None

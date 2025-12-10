@@ -11,7 +11,7 @@ import time
 from typing import Dict, Any
 from dataclasses import dataclass
 
-from api_specs.memory_types import Memory, RawDataType
+from api_specs.memory_types import BaseMemory, EpisodeMemory, RawDataType
 from biz_layer.mem_memorize import memorize
 from api_specs.dtos.memory_command import MemorizeRequest
 from .fetch_mem_service import get_fetch_memory_service
@@ -82,7 +82,7 @@ class MemoryManager:
 
     # --------- Write path (raw data -> memorize) ---------
     @trace_logger(operation_name="agentic_layer memory storage")
-    async def memorize(self, memorize_request: MemorizeRequest) -> List[Memory]:
+    async def memorize(self, memorize_request: MemorizeRequest) -> List[BaseMemory]:
         """Memorize a heterogeneous list of raw items.
 
         Accepts list[Any], where each item can be one of the typed raw dataclasses
@@ -1101,9 +1101,9 @@ class MemoryManager:
                     original_data_by_group[group_id] = []
                 original_data_by_group[group_id].append(memcell.original_data)
 
-            # Create Memory object
-            memory = Memory(
-                memory_type="episode_summary",  # Episodic memory type
+            # Create EpisodeMemory object
+            memory = EpisodeMemory(
+                memory_type=MemoryType.EPISODIC_MEMORY,
                 user_id=user_id,
                 timestamp=timestamp,
                 ori_event_id_list=[hit_id],

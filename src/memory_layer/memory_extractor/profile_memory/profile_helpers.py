@@ -6,7 +6,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set
 
 from core.observation.logger import get_logger
 
-from api_specs.memory_types import Memory, MemoryType, RawDataType
+from api_specs.memory_types import BaseMemory, MemoryType, RawDataType
 from .project_helpers import (
     convert_projects_to_dataclass,
     merge_projects_participated,
@@ -45,9 +45,9 @@ def remove_evidences_from_profile(profile_obj: Dict[str, Any]) -> Dict[str, Any]
 
 
 def accumulate_old_memory_entry(
-    memory: Memory, participants_profile_list: List[Dict[str, Any]]
+    memory: BaseMemory, participants_profile_list: List[Dict[str, Any]]
 ) -> None:
-    """Convert legacy Memory objects into prompt-ready dictionaries."""
+    """Convert legacy BaseMemory objects into prompt-ready dictionaries."""
     try:
         if memory.memory_type != MemoryType.PROFILE:
             return

@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from memory_layer.llm.llm_provider import LLMProvider
-from api_specs.memory_types import RawDataType, Memory, MemCell
+from api_specs.memory_types import RawDataType, BaseMemory, MemCell
 from api_specs.dtos.memory_command import RawData
 
 
@@ -22,7 +22,7 @@ class MemCellExtractRequest:
     group_id: Optional[str] = None
     group_name: Optional[str] = None
 
-    old_memory_list: Optional[List[Memory]] = None
+    old_memory_list: Optional[List[BaseMemory]] = None
     smart_mask_flag: Optional[bool] = False
 
 

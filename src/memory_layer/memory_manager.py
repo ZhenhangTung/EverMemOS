@@ -11,11 +11,10 @@ from .llm.llm_provider import LLMProvider
 from .memcell_extractor.conv_memcell_extractor import ConvMemCellExtractor
 from .memcell_extractor.base_memcell_extractor import RawData
 from .memcell_extractor.conv_memcell_extractor import ConversationMemCellExtractRequest
-from api_specs.memory_types import MemCell, RawDataType, MemoryType, Foresight
+from api_specs.memory_types import MemCell, RawDataType, MemoryType, Foresight, BaseMemory, EpisodeMemory
 from .memory_extractor.episode_memory_extractor import (
     EpisodeMemoryExtractor,
     EpisodeMemoryExtractRequest,
-    Memory,
 )
 from .memory_extractor.profile_memory_extractor import (
     ProfileMemoryExtractor,
@@ -67,7 +66,7 @@ class MemoryManager:
         group_id: Optional[str] = None,
         group_name: Optional[str] = None,
         user_id_list: Optional[List[str]] = None,
-        old_memory_list: Optional[List[Memory]] = None,
+        old_memory_list: Optional[List[BaseMemory]] = None,
     ) -> tuple[Optional[MemCell], Optional[StatusResult]]:
         """
         Extract MemCell (boundary detection + raw data)
@@ -126,10 +125,10 @@ class MemoryManager:
         ] = None,  # None means group memory, with value means personal memory
         group_id: Optional[str] = None,
         group_name: Optional[str] = None,
-        old_memory_list: Optional[List[Memory]] = None,
+        old_memory_list: Optional[List[BaseMemory]] = None,
         user_organization: Optional[List] = None,
         episode_memory: Optional[
-            Memory
+            EpisodeMemory
         ] = None,  # Used for Foresight and EventLog extraction
     ):
         """
@@ -185,7 +184,7 @@ class MemoryManager:
 
     async def _extract_episode(
         self, memcell: MemCell, user_id: Optional[str], group_id: Optional[str]
-    ) -> Optional[Memory]:
+    ) -> Optional[EpisodeMemory]:
         """Extract Episode (group or personal)"""
         if self._episode_extractor is None:
             self._episode_extractor = EpisodeMemoryExtractor(self.llm_provider)
@@ -208,7 +207,7 @@ class MemoryManager:
         return await self._episode_extractor.extract_memory(request)
 
     async def _extract_foresight(
-        self, episode_memory: Optional[Memory]
+        self, episode_memory: Optional[EpisodeMemory]
     ) -> List[Foresight]:
         """Extract Foresight"""
         if not episode_memory:
@@ -224,7 +223,7 @@ class MemoryManager:
         extractor = ForesightExtractor(llm_provider=self.llm_provider)
         return await extractor.generate_foresights_for_episode(episode_memory)
 
-    async def _extract_event_log(self, episode_memory: Optional[Memory]):
+    async def _extract_event_log(self, episode_memory: Optional[EpisodeMemory]):
         """Extract Event Log"""
         if not episode_memory:
             logger.warning(
@@ -250,8 +249,8 @@ class MemoryManager:
         memcell: MemCell,
         user_id: Optional[str],
         group_id: Optional[str],
-        old_memory_list: Optional[List[Memory]],
-    ) -> Optional[Memory]:
+        old_memory_list: Optional[List[BaseMemory]],
+    ) -> Optional[BaseMemory]:
         """Extract Profile"""
         if memcell.type != RawDataType.CONVERSATION:
             return None
@@ -271,9 +270,9 @@ class MemoryManager:
         user_id: Optional[str],
         group_id: Optional[str],
         group_name: Optional[str],
-        old_memory_list: Optional[List[Memory]],
+        old_memory_list: Optional[List[BaseMemory]],
         user_organization: Optional[List],
-    ) -> Optional[Memory]:
+    ) -> Optional[BaseMemory]:
         """Extract Group Profile"""
         extractor = GroupProfileMemoryExtractor(self.llm_provider)
         request = GroupProfileMemoryExtractRequest(

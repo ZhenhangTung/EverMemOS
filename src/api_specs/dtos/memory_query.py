@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
-from api_specs.memory_types import Memory
+from api_specs.memory_types import BaseMemory
 from api_specs.memory_models import MemoryType, Metadata, MemoryModel, RetrieveMethod
 
 
@@ -67,7 +67,7 @@ class RetrieveMemRequest:
 class RetrieveMemResponse:
     """Memory retrieval response"""
 
-    memories: List[Dict[str, List[Memory]]]
+    memories: List[Dict[str, List[BaseMemory]]]
     scores: List[Dict[str, List[float]]]
     importance_scores: List[float] = field(
         default_factory=list

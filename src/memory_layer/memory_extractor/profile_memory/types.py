@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from api_specs.memory_types import Memory, MemoryType, MemCell
+from api_specs.memory_types import BaseMemory, MemoryType, MemCell
 from memory_layer.memory_extractor.base_memory_extractor import MemoryExtractRequest
 
 
@@ -43,7 +43,7 @@ class GroupImportanceEvidence:
 
 
 @dataclass
-class ProfileMemory(Memory):
+class ProfileMemory(BaseMemory):
     """
     Profile memory result class.
 

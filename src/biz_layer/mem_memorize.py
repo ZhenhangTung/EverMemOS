@@ -8,7 +8,8 @@ from memory_layer.memory_manager import MemoryManager
 from api_specs.memory_types import (
     MemoryType,
     MemCell,
-    Memory,
+    BaseMemory,
+    EpisodeMemory,
     RawDataType,
     Foresight,
 )
@@ -447,9 +448,9 @@ class ExtractionState:
     scene: str
     is_assistant_scene: bool
     participants: List[str]
-    group_episode: Optional[Memory] = None
-    group_episode_memories: List[Memory] = None
-    episode_memories: List[Memory] = None
+    group_episode: Optional[EpisodeMemory] = None
+    group_episode_memories: List[EpisodeMemory] = None
+    episode_memories: List[EpisodeMemory] = None
     parent_docs_map: Dict[str, Any] = None
 
     def __post_init__(self):
@@ -646,7 +647,7 @@ async def _process_memories(state: ExtractionState, memory_manager: MemoryManage
     )
 
 
-def _clone_episodes_for_users(state: ExtractionState) -> List[Memory]:
+def _clone_episodes_for_users(state: ExtractionState) -> List[EpisodeMemory]:
     """Copy group Episode to each user"""
     from dataclasses import replace
 
@@ -662,8 +663,8 @@ def _clone_episodes_for_users(state: ExtractionState) -> List[Memory]:
 
 async def _save_episodes(
     state: ExtractionState,
-    episodes_to_save: List[Memory],
-    episodic_source: List[Memory],
+    episodes_to_save: List[EpisodeMemory],
+    episodic_source: List[EpisodeMemory],
 ):
     """Save Episodes to database"""
     for ep in episodes_to_save:
@@ -686,7 +687,7 @@ async def _save_episodes(
 
 
 async def _extract_foresight_and_eventlog(
-    state: ExtractionState, memory_manager: MemoryManager, episodic_source: List[Memory]
+    state: ExtractionState, memory_manager: MemoryManager, episodic_source: List[EpisodeMemory]
 ) -> Tuple[List[Foresight], List[EventLog]]:
     """Extract Foresight and EventLog"""
     logger.info(
