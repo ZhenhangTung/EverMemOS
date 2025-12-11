@@ -7,8 +7,8 @@ from memory_layer.memory_extractor.profile_memory.types import (
     ProfileMemoryExtractRequest,
     ProjectInfo,
 )
-from .merger import ProfileMemoryMerger
-from .extractor import ProfileMemoryExtractor
+from memory_layer.memory_extractor.profile_memory.merger import ProfileMemoryMerger
+from memory_layer.memory_extractor.profile_memory.extractor import ProfileMemoryExtractor
 
 __all__ = [
     "GroupImportanceEvidence",

@@ -74,7 +74,7 @@ class TopicProcessor:
         Returns:
             Latest timestamp from (filtered) memcells, or current time if no valid timestamp found.
         """
-        from ..group_profile_memory_extractor import convert_to_datetime
+        from memory_layer.memory_extractor.group_profile_memory_extractor import convert_to_datetime
 
         # If memcell_ids provided and not empty, create a set for fast lookup
         filter_ids = set(memcell_ids) if memcell_ids else None
@@ -126,7 +126,7 @@ class TopicProcessor:
         Returns:
             Processed list of TopicInfo objects (sorted by last_active_at)
         """
-        from ..group_profile_memory_extractor import TopicInfo
+        from memory_layer.memory_extractor.group_profile_memory_extractor import TopicInfo
 
         # Calculate the latest time in memcell list as reference time point
         # Used for time judgment in topic replacement strategy (offline batch processing scenario)

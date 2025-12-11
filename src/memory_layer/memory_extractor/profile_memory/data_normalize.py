@@ -7,26 +7,26 @@ existing imports keep working.
 
 from __future__ import annotations
 
-from .evidence_utils import (
+from memory_layer.memory_extractor.profile_memory.evidence_utils import (
     conversation_id_from_evidence,
     ensure_str_list,
     format_evidence_entry,
     merge_evidences_recursive,
 )
-from .profile_helpers import (
+from memory_layer.memory_extractor.profile_memory.profile_helpers import (
     accumulate_old_memory_entry,
     merge_profiles,
     merge_single_profile,
     profile_payload_to_memory,
     remove_evidences_from_profile,
 )
-from .project_helpers import (
+from memory_layer.memory_extractor.profile_memory.project_helpers import (
     convert_projects_to_dataclass,
     merge_projects_participated,
     project_to_dict,
 )
-from .skill_helpers import merge_skill_lists, normalize_skills_with_evidence
-from .value_helpers import (
+from memory_layer.memory_extractor.profile_memory.skill_helpers import merge_skill_lists, normalize_skills_with_evidence
+from memory_layer.memory_extractor.profile_memory.value_helpers import (
     extract_values_with_evidence,
     merge_value_with_evidences_lists,
 )

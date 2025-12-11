@@ -33,6 +33,12 @@ from memory_layer.memcell_extractor.conv_memcell_extractor import (
 from memory_layer.memory_extractor.episode_memory_extractor import (
     EpisodeMemoryExtractor,
 )
+# 评估专用的检索优化版本 prompts
+from memory_layer.prompts.en.episode_mem_prompts import (
+    EPISODE_GENERATION_PROMPT_R,
+    GROUP_EPISODE_GENERATION_PROMPT_R,
+    DEFAULT_CUSTOM_INSTRUCTIONS_R,
+)
 from memory_layer.memory_extractor.base_memory_extractor import (
     MemoryExtractRequest,
 )
@@ -223,7 +229,10 @@ async def memcell_extraction_from_conversation(
 ) -> list:
 
     episode_extractor = EpisodeMemoryExtractor(
-        llm_provider=llm_provider, use_eval_prompts=True
+        llm_provider=llm_provider,
+        episode_prompt=EPISODE_GENERATION_PROMPT_R,
+        group_episode_prompt=GROUP_EPISODE_GENERATION_PROMPT_R,
+        custom_instructions=DEFAULT_CUSTOM_INSTRUCTIONS_R,
     )
     # If foresight extraction is enabled, create ForesightExtractor
     foresight_extractor = None
@@ -380,7 +389,7 @@ async def process_single_conversation(
     # Create MemCellExtractor
     raw_data_list = convert_conversation_to_raw_data_list(conversation)
     memcell_extractor = ConvMemCellExtractor(
-        llm_provider=llm_provider, use_eval_prompts=True
+        llm_provider=llm_provider,
     )
 
     # Conditional creation: Cluster manager (per-conversation)
@@ -424,7 +433,7 @@ async def process_single_conversation(
             group_name=f"LoComo Conversation {conv_id}",
         )
 
-    # Extract MemCells
+    # Extract MemCells (pass foresight extraction config)
     memcell_list = await memcell_extraction_from_conversation(
         raw_data_list,
         llm_provider=llm_provider,
@@ -434,7 +443,6 @@ async def process_single_conversation(
         task_id=task_id,
         enable_foresight_extraction=config.enable_foresight_extraction if config else False,
     )
-    # print(f"   ✅ Conv {conv_id}: {len(memcell_list)} memcells extracted")  # Commented to avoid interrupting progress bar
 
     # Convert timestamps to datetime objects before saving
     for memcell in memcell_list:
@@ -707,11 +715,10 @@ async def main():
         max_tokens=config.llm_config[llm_service]["max_tokens"],
     )
 
-    # Create shared Event Log Extractor (using evaluation-specific prompts)
+    # Create shared Event Log Extractor
     console.print("⚙️ Initializing Event Log Extractor...", style="yellow")
     shared_event_log_extractor = EventLogExtractor(
         llm_provider=shared_llm_provider,
-        use_eval_prompts=True,  # Evaluation system uses eval/ prompts
     )
 
     # 🔥 Use pending conversation dict (checkpoint resume)

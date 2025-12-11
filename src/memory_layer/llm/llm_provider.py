@@ -1,5 +1,5 @@
 import os
-from .openai_provider import OpenAIProvider
+from memory_layer.llm.openai_provider import OpenAIProvider
 
 
 class LLMProvider:

@@ -1,117 +1,185 @@
 """
-Multilingual Prompts Module
+Multi-language prompt module.
 
-Control the language via the MEMORY_LANGUAGE environment variable, supports 'en' and 'zh'.
-Default is English ('en').
-
-Usage:
-1. Set environment variable: export MEMORY_LANGUAGE=zh
-2. No code changes needed, import directly from memory_layer.prompts
+Use get_prompt_by() to dynamically fetch prompts by name and language.
+Default language is controlled by MEMORY_LANGUAGE env var (default: 'en').
 
 Example:
-    from memory_layer.prompts import (
-        EPISODE_GENERATION_PROMPT,
-        CONVERSATION_PROFILE_PART1_EXTRACTION_PROMPT,
-        get_foresight_generation_prompt,
-    )
+    from memory_layer.prompts import get_prompt_by
+    
+    prompt = get_prompt_by("EPISODE_GENERATION_PROMPT")  # default language
+    prompt = get_prompt_by("EPISODE_GENERATION_PROMPT", language="zh")  # specific language
 """
 
-import os
+from typing import Any, Optional, Callable
 
-# Get language setting, default to English
-MEMORY_LANGUAGE = os.getenv('MEMORY_LANGUAGE', 'en').lower()
+from common_utils.language_utils import (
+    get_prompt_language,
+    is_supported_language,
+    SUPPORTED_LANGUAGES,
+    DEFAULT_LANGUAGE,
+)
 
-# Supported languages
-SUPPORTED_LANGUAGES = ['en', 'zh']
+# ============================================================================
+# Prompt Registry - maps prompt names to module paths
+# Format: {prompt_name: {language: (module_path, is_function)}}
+# ============================================================================
 
-if MEMORY_LANGUAGE not in SUPPORTED_LANGUAGES:
-    print(f"Warning: Unsupported language '{MEMORY_LANGUAGE}', falling back to 'en'")
-    MEMORY_LANGUAGE = 'en'
+_PROMPT_REGISTRY = {
+    # Conversation
+    "CONV_BOUNDARY_DETECTION_PROMPT": {
+        "en": ("memory_layer.prompts.en.conv_prompts", False),
+        "zh": ("memory_layer.prompts.zh.conv_prompts", False),
+    },
+    "CONV_SUMMARY_PROMPT": {
+        "en": ("memory_layer.prompts.en.conv_prompts", False),
+        "zh": ("memory_layer.prompts.zh.conv_prompts", False),
+    },
+    # Episode
+    "EPISODE_GENERATION_PROMPT": {
+        "en": ("memory_layer.prompts.en.episode_mem_prompts", False),
+        "zh": ("memory_layer.prompts.zh.episode_mem_prompts", False),
+    },
+    "GROUP_EPISODE_GENERATION_PROMPT": {
+        "en": ("memory_layer.prompts.en.episode_mem_prompts", False),
+        "zh": ("memory_layer.prompts.zh.episode_mem_prompts", False),
+    },
+    "DEFAULT_CUSTOM_INSTRUCTIONS": {
+        "en": ("memory_layer.prompts.en.episode_mem_prompts", False),
+        "zh": ("memory_layer.prompts.zh.episode_mem_prompts", False),
+    },
+    # Profile
+    "CONVERSATION_PROFILE_EXTRACTION_PROMPT": {
+        "en": ("memory_layer.prompts.en.profile_mem_prompts", False),
+        "zh": ("memory_layer.prompts.zh.profile_mem_prompts", False),
+    },
+    "CONVERSATION_PROFILE_PART1_EXTRACTION_PROMPT": {
+        "en": ("memory_layer.prompts.en.profile_mem_part1_prompts", False),
+        "zh": ("memory_layer.prompts.zh.profile_mem_part1_prompts", False),
+    },
+    "CONVERSATION_PROFILE_PART2_EXTRACTION_PROMPT": {
+        "en": ("memory_layer.prompts.en.profile_mem_part2_prompts", False),
+        "zh": ("memory_layer.prompts.zh.profile_mem_part2_prompts", False),
+    },
+    "CONVERSATION_PROFILE_PART3_EXTRACTION_PROMPT": {
+        "en": ("memory_layer.prompts.en.profile_mem_part3_prompts", False),
+        "zh": ("memory_layer.prompts.zh.profile_mem_part3_prompts", False),
+    },
+    "CONVERSATION_PROFILE_EVIDENCE_COMPLETION_PROMPT": {
+        "en": ("memory_layer.prompts.en.profile_mem_evidence_completion_prompt", False),
+        "zh": ("memory_layer.prompts.zh.profile_mem_evidence_completion_prompt", False),
+    },
+    # Group Profile
+    "CONTENT_ANALYSIS_PROMPT": {
+        "en": ("memory_layer.prompts.en.group_profile_prompts", False),
+        "zh": ("memory_layer.prompts.zh.group_profile_prompts", False),
+    },
+    "BEHAVIOR_ANALYSIS_PROMPT": {
+        "en": ("memory_layer.prompts.en.group_profile_prompts", False),
+        "zh": ("memory_layer.prompts.zh.group_profile_prompts", False),
+    },
+    # Foresight (functions)
+    "get_foresight_generation_prompt": {
+        "en": ("memory_layer.prompts.en.foresight_prompts", True),
+        "zh": ("memory_layer.prompts.zh.foresight_prompts", True),
+    },
+    "get_group_foresight_generation_prompt": {
+        "en": ("memory_layer.prompts.en.foresight_prompts", True),
+        "zh": ("memory_layer.prompts.zh.foresight_prompts", True),
+    },
+    # Event Log
+    "EVENT_LOG_PROMPT": {
+        "en": ("memory_layer.prompts.en.event_log_prompts", False),
+        "zh": ("memory_layer.prompts.zh.event_log_prompts", False),
+    },
+}
 
-# Dynamically import prompts based on language setting
-if MEMORY_LANGUAGE == 'zh':
-    # ===== Chinese Prompts =====
-    # Conversation related
-    from .zh.conv_prompts import CONV_BOUNDARY_DETECTION_PROMPT, CONV_SUMMARY_PROMPT
 
-    # Episode related
-    from .zh.episode_mem_prompts import (
-        EPISODE_GENERATION_PROMPT,
-        GROUP_EPISODE_GENERATION_PROMPT,
-        DEFAULT_CUSTOM_INSTRUCTIONS,
-    )
+# ============================================================================
+# PromptManager - Dynamic prompt loader with caching
+# ============================================================================
 
-    # Profile related
-    from .zh.profile_mem_prompts import CONVERSATION_PROFILE_EXTRACTION_PROMPT
-    from .zh.profile_mem_part1_prompts import (
-        CONVERSATION_PROFILE_PART1_EXTRACTION_PROMPT,
-    )
-    from .zh.profile_mem_part2_prompts import (
-        CONVERSATION_PROFILE_PART2_EXTRACTION_PROMPT,
-    )
-    from .zh.profile_mem_part3_prompts import (
-        CONVERSATION_PROFILE_PART3_EXTRACTION_PROMPT,
-    )
-    from .zh.profile_mem_evidence_completion_prompt import (
-        CONVERSATION_PROFILE_EVIDENCE_COMPLETION_PROMPT,
-    )
 
-    # Group Profile related
-    from .zh.group_profile_prompts import (
-        CONTENT_ANALYSIS_PROMPT,
-        BEHAVIOR_ANALYSIS_PROMPT,
-    )
+class PromptManager:
+    """Prompt manager for dynamic multi-language prompt loading."""
 
-    # Foresight related
-    from .zh.foresight_prompts import (
-        get_group_foresight_generation_prompt,
-        get_foresight_generation_prompt,
-    )
+    def __init__(self):
+        self._module_cache: dict[str, Any] = {}
 
-    # Event Log related
-    from .zh.event_log_prompts import EVENT_LOG_PROMPT
+    def _load_module(self, module_path: str) -> Any:
+        """Load module dynamically with caching."""
+        if module_path not in self._module_cache:
+            import importlib
+            self._module_cache[module_path] = importlib.import_module(module_path)
+        return self._module_cache[module_path]
 
-else:
-    # ===== English Prompts (default) =====
-    # Conversation related
-    from .en.conv_prompts import CONV_BOUNDARY_DETECTION_PROMPT, CONV_SUMMARY_PROMPT
+    def get_prompt(self, prompt_name: str, language: Optional[str] = None) -> Any:
+        """Get prompt by name and language.
+        
+        Args:
+            prompt_name: Prompt name (e.g. "EPISODE_GENERATION_PROMPT")
+            language: Language code ("en" or "zh"). Defaults to MEMORY_LANGUAGE env var.
+            
+        Returns:
+            Prompt string or function.
+            
+        Raises:
+            ValueError: If prompt name or language is invalid.
+        """
+        if language is None:
+            language = get_prompt_language()
+        language = language.lower()
+        
+        if prompt_name not in _PROMPT_REGISTRY:
+            raise ValueError(f"Unknown prompt: {prompt_name}. Available: {list(_PROMPT_REGISTRY.keys())}")
+        
+        prompt_info = _PROMPT_REGISTRY[prompt_name]
+        if language not in prompt_info:
+            raise ValueError(f"Language '{language}' not supported for '{prompt_name}'. Available: {list(prompt_info.keys())}")
+        
+        module_path, _ = prompt_info[language]
+        module = self._load_module(module_path)
+        return getattr(module, prompt_name)
 
-    # Episode related
-    from .en.episode_mem_prompts import (
-        EPISODE_GENERATION_PROMPT,
-        GROUP_EPISODE_GENERATION_PROMPT,
-        DEFAULT_CUSTOM_INSTRUCTIONS,
-    )
+    def list_prompts(self) -> list[str]:
+        """List all available prompt names."""
+        return list(_PROMPT_REGISTRY.keys())
 
-    # Profile related
-    from .en.profile_mem_prompts import CONVERSATION_PROFILE_EXTRACTION_PROMPT
-    from .en.profile_mem_part1_prompts import (
-        CONVERSATION_PROFILE_PART1_EXTRACTION_PROMPT,
-    )
-    from .en.profile_mem_part2_prompts import (
-        CONVERSATION_PROFILE_PART2_EXTRACTION_PROMPT,
-    )
-    from .en.profile_mem_part3_prompts import (
-        CONVERSATION_PROFILE_PART3_EXTRACTION_PROMPT,
-    )
-    from .en.profile_mem_evidence_completion_prompt import (
-        CONVERSATION_PROFILE_EVIDENCE_COMPLETION_PROMPT,
-    )
+    def get_supported_languages(self, prompt_name: str) -> list[str]:
+        """Get supported languages for a prompt."""
+        if prompt_name not in _PROMPT_REGISTRY:
+            return []
+        return list(_PROMPT_REGISTRY[prompt_name].keys())
 
-    # Group Profile related
-    from .en.group_profile_prompts import (
-        CONTENT_ANALYSIS_PROMPT,
-        BEHAVIOR_ANALYSIS_PROMPT,
-    )
 
-    # Foresight related
-    from .en.foresight_prompts import (
-        get_group_foresight_generation_prompt,
-        get_foresight_generation_prompt,
-    )
+# Global PromptManager instance
+_prompt_manager = PromptManager()
 
-    # Event Log related
-    from .en.event_log_prompts import EVENT_LOG_PROMPT
 
-# Export current language info
-CURRENT_LANGUAGE = MEMORY_LANGUAGE
+def get_prompt_by(prompt_name: str, language: Optional[str] = None) -> Any:
+    """Get prompt by name and language (convenience function).
+    
+    Args:
+        prompt_name: Prompt name (e.g. "EPISODE_GENERATION_PROMPT")
+        language: Language code ("en" or "zh"). Defaults to MEMORY_LANGUAGE env var.
+        
+    Returns:
+        Prompt string or function.
+        
+    Raises:
+        ValueError: If prompt name or language is invalid.
+    """
+    return _prompt_manager.get_prompt(prompt_name, language)
+
+
+# ============================================================================
+# Exported constants (for backward compatibility)
+# ============================================================================
+
+CURRENT_LANGUAGE = get_prompt_language()
+MEMORY_LANGUAGE = CURRENT_LANGUAGE
+
+
+def get_current_language() -> str:
+    """Get current language setting."""
+    return get_prompt_language()

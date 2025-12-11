@@ -1,14 +1,12 @@
 <div align="center">
 
-<h1>
+<h1 style="font-family: 'Bookman Old Style', serif;">
   EverMemOS
-</h1>
-
-<p>
+  <br>
   <a href="https://everm.ai/" target="_blank">
-    <img src="figs/evermind_logo.svg" alt="EverMind" height="34" />
+    <img src="figs/logo.png" alt="EverMemOS" height="34" />
   </a>
-</p>
+</h1>
 
 <p><strong>Let every interaction be driven by understanding </strong> · Enterprise-Grade Intelligent Memory System</p>
 

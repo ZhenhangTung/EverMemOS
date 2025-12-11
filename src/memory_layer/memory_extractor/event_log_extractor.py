@@ -10,13 +10,8 @@ from datetime import datetime
 import json
 import re
 
-# Import dynamic language prompts (automatically selected based on MEMORY_LANGUAGE environment variable)
-from ..prompts import EVENT_LOG_PROMPT
-
-# Evaluation-specific prompts
-from ..prompts.eval.event_log_prompts import EVENT_LOG_PROMPT as EVAL_EVENT_LOG_PROMPT
-
-from ..llm.llm_provider import LLMProvider
+from memory_layer.prompts import get_prompt_by
+from memory_layer.llm.llm_provider import LLMProvider
 from common_utils.datetime_utils import get_now_with_timezone
 
 from api_specs.memory_types import EventLog, MemoryType
@@ -35,22 +30,22 @@ class EventLogExtractor:
     - Atomic facts are independent, searchable units
     """
 
-    def __init__(self, llm_provider: LLMProvider, use_eval_prompts: bool = False):
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        event_log_prompt: Optional[str] = None,
+    ):
         """
         Initialize the event log extractor.
 
         Args:
             llm_provider: LLM provider for generating event logs
-            use_eval_prompts: Whether to use evaluation-specific prompts
+            event_log_prompt: Optional custom event log prompt
         """
         self.llm_provider = llm_provider
-        self.use_eval_prompts = use_eval_prompts
-
-        # Select corresponding prompt based on use_eval_prompts
-        if self.use_eval_prompts:
-            self.event_log_prompt = EVAL_EVENT_LOG_PROMPT
-        else:
-            self.event_log_prompt = EVENT_LOG_PROMPT
+        
+        # Use custom prompt or get default via PromptManager
+        self.event_log_prompt = event_log_prompt or get_prompt_by("EVENT_LOG_PROMPT")
 
     def _parse_timestamp(self, timestamp) -> datetime:
         """

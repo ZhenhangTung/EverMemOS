@@ -41,7 +41,7 @@ class RoleProcessor:
         Returns:
             Processed roles, formatted as role -> [{"user_id": "xxx", "user_name": "xxx", "confidence": "strong|weak", "evidences": [...]}]
         """
-        from ..group_profile_memory_extractor import GroupRole
+        from memory_layer.memory_extractor.group_profile_memory_extractor import GroupRole
 
         # Define valid roles list (based on GroupRole enum)
         VALID_ROLES = {role.value for role in GroupRole}

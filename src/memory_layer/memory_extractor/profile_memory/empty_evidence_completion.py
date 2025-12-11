@@ -6,14 +6,10 @@ from typing import AbstractSet, Any, Callable, Dict, List, Optional, Set, Tuple
 
 from core.observation.logger import get_logger
 
-from ...llm.llm_provider import LLMProvider
-from .conversation import build_evidence_completion_prompt
-from .data_normalize import merge_evidences_recursive
-from .evidence_utils import (
-    conversation_id_from_evidence,
-    ensure_str_list,
-    format_evidence_entry,
-)
+from memory_layer.llm.llm_provider import LLMProvider
+from memory_layer.memory_extractor.profile_memory.conversation import build_evidence_completion_prompt
+from memory_layer.memory_extractor.profile_memory.data_normalize import merge_evidences_recursive
+from memory_layer.memory_extractor.profile_memory.evidence_utils import conversation_id_from_evidence, ensure_str_list, format_evidence_entry
 
 logger = get_logger(__name__)
 

@@ -18,14 +18,11 @@ from common_utils.datetime_utils import (
     from_timestamp as dt_from_timestamp,
     get_now_with_timezone,
 )
-from ..llm.llm_provider import LLMProvider
+from memory_layer.llm.llm_provider import LLMProvider
 from api_specs.memory_types import RawDataType
-from ..prompts.zh.conv_prompts import CONV_BOUNDARY_DETECTION_PROMPT
 
-from ..prompts.eval.conv_prompts import (
-    CONV_BOUNDARY_DETECTION_PROMPT as EVAL_CONV_BOUNDARY_DETECTION_PROMPT,
-)
-from .base_memcell_extractor import (
+from memory_layer.prompts import get_prompt_by
+from memory_layer.memcell_extractor.base_memcell_extractor import (
     MemCellExtractor,
     RawData,
     MemCell,
@@ -66,17 +63,20 @@ class ConvMemCellExtractor(MemCellExtractor):
     - Foresight extraction (handled by ForesightExtractor)
     - EventLog extraction (handled by EventLogExtractor)
     - Embedding computation (handled by MemoryManager)
+    
+    Language support:
+    - Controlled by MEMORY_LANGUAGE env var: 'zh' (Chinese) or 'en' (English), default 'en'
     """
-
-    def __init__(self, llm_provider=LLMProvider, use_eval_prompts: bool = False):
+    def __init__(
+        self,
+        llm_provider=LLMProvider,
+        boundary_detection_prompt: Optional[str] = None,
+    ):
         super().__init__(RawDataType.CONVERSATION, llm_provider)
         self.llm_provider = llm_provider
-        self.use_eval_prompts = use_eval_prompts
-
-        if use_eval_prompts:
-            self.conv_boundary_detection_prompt = EVAL_CONV_BOUNDARY_DETECTION_PROMPT
-        else:
-            self.conv_boundary_detection_prompt = CONV_BOUNDARY_DETECTION_PROMPT
+        
+        # Use custom prompt or get default via PromptManager
+        self.conv_boundary_detection_prompt = boundary_detection_prompt or get_prompt_by("CONV_BOUNDARY_DETECTION_PROMPT")
 
     def shutdown(self) -> None:
         """Cleanup resources."""

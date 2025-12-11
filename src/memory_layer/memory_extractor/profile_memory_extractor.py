@@ -1,6 +1,6 @@
 """Backward-compatible exports for profile memory extraction components."""
 
-from .profile_memory import (
+from memory_layer.memory_extractor.profile_memory import (
     GroupImportanceEvidence,
     ImportanceEvidence,
     ProfileMemory,

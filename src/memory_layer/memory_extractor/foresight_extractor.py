@@ -7,13 +7,9 @@ import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
-# Import dynamic language prompts (automatically selected based on MEMORY_LANGUAGE environment variable)
-from ..prompts import (
-    get_group_foresight_generation_prompt,
-    get_foresight_generation_prompt,
-)
-from ..llm.llm_provider import LLMProvider
-from .base_memory_extractor import MemoryExtractor, MemoryExtractRequest
+from memory_layer.prompts import get_prompt_by
+from memory_layer.llm.llm_provider import LLMProvider
+from memory_layer.memory_extractor.base_memory_extractor import MemoryExtractor, MemoryExtractRequest
 from api_specs.memory_types import MemoryType, MemCell, Foresight, BaseMemory, EpisodeMemory
 from agentic_layer.vectorize_service import get_vectorize_service
 from core.observation.logger import get_logger
@@ -96,7 +92,8 @@ class ForesightExtractor(MemoryExtractor):
                         f"🎯 Generating foresight associations for MemCell: {memcell.subject}, retry {retry}/5"
                     )
 
-                # Build prompt
+                # Build prompt (get function type prompt via PromptManager)
+                get_group_foresight_generation_prompt = get_prompt_by("get_group_foresight_generation_prompt")
                 prompt = get_group_foresight_generation_prompt(
                     memcell_summary=memcell.summary,
                     memcell_episode=memcell.episode or "",
@@ -173,12 +170,14 @@ class ForesightExtractor(MemoryExtractor):
         # Maximum 5 retries
         for retry in range(5):
             try:
-                logger.info(
-                    f"🎯 Generating foresight associations for EpisodeMemory: {episode.subject}, retry {retry+1}/5"
-                )
+                if retry == 0:
+                    logger.info(f"🎯 Generating foresight associations for EpisodeMemory: {episode.subject}")
+                else:
+                    logger.info(f"🎯 Generating foresight associations for EpisodeMemory: {episode.subject}, retry {retry+1}/5")
 
-                # Build prompt
+                # Build prompt (get function type prompt via PromptManager)
                 # Directly use episode's user_id
+                get_foresight_generation_prompt = get_prompt_by("get_foresight_generation_prompt")
                 prompt = get_foresight_generation_prompt(
                     episode_memory=episode.summary or "",
                     episode_content=episode.episode or "",

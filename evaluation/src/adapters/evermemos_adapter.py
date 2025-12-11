@@ -74,10 +74,9 @@ class EverMemOSAdapter(BaseAdapter):
             max_tokens=llm_config.get("max_tokens", 32768),
         )
 
-        # Initialize Event Log Extractor (using evaluation-specific prompts)
+        # Initialize Event Log Extractor
         self.event_log_extractor = EventLogExtractor(
             llm_provider=self.llm_provider,
-            use_eval_prompts=True,  # Evaluation system uses eval/ prompts
         )
 
         # Ensure NLTK data is available

@@ -7,9 +7,7 @@ logger = get_logger(__name__)
 
 
 def get_timezone() -> ZoneInfo:
-    """
-    Get timezone
-    """
+    """Get timezone from TZ env var (default: Asia/Shanghai)."""
     tz = os.getenv("TZ", "Asia/Shanghai")
     return ZoneInfo(tz)
 
@@ -18,123 +16,114 @@ timezone = get_timezone()
 
 
 def get_now_with_timezone() -> datetime.datetime:
-    """
-    Get current time with local timezone
-    return datetime.datetime(2025, 9, 16, 20, 17, 41, tzinfo=zoneinfo.ZoneInfo(key='Asia/Shanghai'))
-    """
+    """Get current time with local timezone."""
     return datetime.datetime.now(tz=timezone)
 
 
 def to_timezone(dt: datetime.datetime, tz: ZoneInfo = None) -> datetime.datetime:
-    """
-    Convert datetime object to specified timezone
-    """
+    """Convert datetime to specified timezone."""
     if tz is None:
         tz = timezone
     return dt.astimezone(tz)
 
 
-def to_iso_format(dt: datetime.datetime) -> str:
+def to_iso_format(
+    time_value: datetime.datetime | int | float | str | None,
+) -> str | None:
+    """Convert time value to ISO format string with timezone.
+    
+    Supports: datetime, int/float (unix timestamp), str, None.
+    
+    Args:
+        time_value: Time value to convert.
+        
+    Returns:
+        ISO format string (e.g. 2025-09-16T20:20:06+08:00), or None.
+        
+    Raises:
+        TypeError: If time_value is not a supported type.
+        ValueError: If timestamp is invalid.
     """
-    Convert datetime object to ISO format string (with timezone)
-    return 2025-09-16T20:20:06.517301+08:00
-    """
+
+    if time_value is None:
+        return None
+
+    value_type = type(time_value)
+    
+    if value_type is str:
+        if not time_value:
+            return None
+        # Validate and parse ISO format string
+        time_str = time_value.replace("Z", "+00:00") if time_value.endswith("Z") else time_value
+        dt = datetime.datetime.fromisoformat(time_str)
+    elif value_type in (int, float):
+        if time_value <= 0:
+            raise ValueError(f"Invalid timestamp: {time_value}. Must be positive.")
+        dt = from_timestamp(time_value)
+    elif value_type is datetime.datetime:
+        dt = time_value
+    else:
+        raise TypeError(
+            f"Unsupported type: {value_type.__name__}. "
+            f"Expected: datetime, int, float, str, or None."
+        )
+
+    # Ensure timezone and convert to local
     if dt.tzinfo is None:
-        # If not, since the default uses the TZ environment variable, manually set the timezone
         dt = dt.replace(tzinfo=timezone)
-    # If it's UTC or similar, convert to local timezone
     return dt.astimezone(timezone).isoformat()
 
 
 def from_timestamp(timestamp: int | float) -> datetime.datetime:
-    """
-    Convert timestamp to datetime object, automatically recognizing second-level and millisecond-level precision
-
-    Args:
-        timestamp: timestamp, supports second-level (10-digit number) and millisecond-level (13-digit number)
-
-    Returns:
-        datetime.datetime(2025, 9, 16, 20, 17, 41, tzinfo=zoneinfo.ZoneInfo(key='Asia/Shanghai'))
-    """
-    # Automatically detect timestamp precision
-    # Millisecond-level timestamps usually >= 1e12 (1000000000000), approximately 13 digits
-    # Second-level timestamps usually < 1e12, approximately 10 digits
+    """Convert unix timestamp to datetime. Auto-detects seconds vs milliseconds."""
+    # >= 1e12 is milliseconds, < 1e12 is seconds
     if timestamp >= 1e12:
-        # Millisecond-level timestamp, convert to second-level
         timestamp_seconds = timestamp / 1000.0
     else:
-        # Second-level timestamp, use directly
         timestamp_seconds = timestamp
-
     return datetime.datetime.fromtimestamp(timestamp_seconds, tz=timezone)
 
 
 def to_timestamp(dt: datetime.datetime) -> int:
-    """
-    Convert datetime object to timestamp in seconds
-    return 1758025061
-    """
+    """Convert datetime to unix timestamp (seconds)."""
     return int(dt.timestamp())
 
 
 def to_timestamp_ms(dt: datetime.datetime) -> int:
-    """
-    Convert datetime object to millisecond-level timestamp
-    return 1758025061123
-    """
+    """Convert datetime to unix timestamp (milliseconds)."""
     return int(dt.timestamp() * 1000)
 
 
 def to_timestamp_ms_universal(time_value) -> int:
-    """
-    Universal function to convert various time formats to millisecond-level timestamp
-    Supports multiple input formats:
-    - int/float: timestamp (automatically recognize second-level or millisecond-level)
-    - str: ISO format time string
-    - datetime object
-    - None: return 0
-
-    Args:
-        time_value: various format time values
-
-    Returns:
-        int: millisecond-level timestamp, return 0 on failure
+    """Convert any time format to milliseconds timestamp.
+    
+    Supports: int/float (timestamp), str (ISO format), datetime, None.
+    Returns 0 on failure or None input.
     """
     try:
         if time_value is None:
             return 0
 
-        # Handle numeric types (timestamp)
         if isinstance(time_value, (int, float)):
-            # Automatically detect timestamp precision
+            # Auto-detect: >= 1e12 is ms, otherwise seconds
             if time_value >= 1e12:
-                # Millisecond-level timestamp, return directly
                 return int(time_value)
-            else:
-                # Second-level timestamp, convert to millisecond-level
-                return int(time_value * 1000)
+            return int(time_value * 1000)
 
-        # Handle string type
         if isinstance(time_value, str):
-            # First try parsing as number
             try:
-                numeric_value = float(time_value)
-                return to_timestamp_ms_universal(numeric_value)
+                return to_timestamp_ms_universal(float(time_value))
             except ValueError:
-                # Not a number, try parsing as ISO format time string
-                dt = from_iso_format(time_value)
-                return to_timestamp_ms(dt)
+                return to_timestamp_ms(from_iso_format(time_value))
 
-        # Handle datetime object
         if isinstance(time_value, datetime.datetime):
             return to_timestamp_ms(time_value)
 
-        # Other types, try converting to string and then parse
         return to_timestamp_ms_universal(str(time_value))
 
     except Exception as e:
         logger.error(
-            "[DateTimeUtils] to_timestamp_ms_universal - Error converting time value %s: %s",
+            "[DateTimeUtils] to_timestamp_ms_universal - Error converting %s: %s",
             time_value,
             str(e),
         )

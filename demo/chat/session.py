@@ -13,7 +13,7 @@ from demo.config import ChatModeConfig, LLMConfig, ScenarioType
 from demo.utils import query_memcells_by_group_and_time
 from demo.ui import I18nTexts
 from memory_layer.llm.llm_provider import LLMProvider
-from common_utils.datetime_utils import get_now_with_timezone
+from common_utils.datetime_utils import get_now_with_timezone, to_iso_format
 
 
 class ChatSession:
@@ -226,14 +226,18 @@ class ChatSession:
         Returns:
             Retrieval result dictionary
         """
-        # 🔥 Critical: Fully aligned with test_v3_retrieve_http.py
+        # 🔥 Critical: Decide whether to pass user_id based on scenario type
+        # - Group chat scenario: Don't pass user_id, retrieve group-level memories
+        # - Assistant scenario: Can pass user_id to retrieve specific user memories
         payload = {
             "query": query,
-            "user_id": "user_001",  # Consistent with test
+            "group_id": self.group_id,  # Pass group ID for filtering
             "top_k": self.config.top_k_memories,
             "data_source": self.data_source,  # episode / event_log
             "retrieval_mode": self.retrieval_mode,  # rrf / embedding / bm25
         }
+        # Group chat scenario: Don't pass user_id, retrieve group-level shared memories
+        # Assistant scenario: Can pass user_id for personal memories (currently not passing, using group memories)
         
         # Debug logs (shown only in dev environment)
         # print(f"\n[DEBUG] Lightweight Retrieval Request:")
@@ -285,13 +289,16 @@ class ChatSession:
         Returns:
             Retrieval result dictionary
         """
-        # 🔥 Critical: Fully aligned with test_v3_retrieve_http.py
+        # 🔥 Critical: Decide whether to pass user_id based on scenario type
+        # - Group chat scenario: Don't pass user_id, retrieve group-level memories
+        # - Assistant scenario: Can pass user_id to retrieve specific user memories
         payload = {
             "query": query,
-            "user_id": "user_001",  # Consistent with test
+            "group_id": self.group_id,  # Pass group ID for filtering
             "top_k": self.config.top_k_memories,
             "time_range_days": self.config.time_range_days,  # Use configured time range
         }
+        # Group chat scenario: Don't pass user_id, retrieve group-level shared memories
         
         # Debug logs (shown only in dev environment)
         # print(f"\n[DEBUG] Agentic Retrieval Request:")
@@ -357,7 +364,11 @@ class ChatSession:
         if memories:
             memory_lines = []
             for i, mem in enumerate(memories, start=1):
-                timestamp = mem.get("timestamp", "")[:10]
+                # 使用 datetime_utils 统一处理时间格式
+                raw_timestamp = mem.get("timestamp", "")
+                iso_timestamp = to_iso_format(raw_timestamp)
+                # 只取日期部分（前10个字符，如 2025-12-04）
+                timestamp = iso_timestamp[:10] if iso_timestamp else ""
                 subject = mem.get("subject", "")
                 summary = mem.get("summary", "")
                 episode = mem.get("episode", "")

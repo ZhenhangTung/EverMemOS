@@ -11,16 +11,11 @@ from typing import AbstractSet, Any, Dict, List, Optional, Set
 
 from core.observation.logger import get_logger
 
-from ...llm.llm_provider import LLMProvider
+from memory_layer.llm.llm_provider import LLMProvider
 
-# Import dynamic language prompts (automatically selected based on MEMORY_LANGUAGE environment variable)
-from ...prompts import (
-    CONVERSATION_PROFILE_PART1_EXTRACTION_PROMPT,
-    CONVERSATION_PROFILE_PART2_EXTRACTION_PROMPT,
-    CONVERSATION_PROFILE_PART3_EXTRACTION_PROMPT,
-)
+from memory_layer.prompts import get_prompt_by
 from api_specs.memory_types import MemoryType, MemCell
-from .conversation import (
+from memory_layer.memory_extractor.profile_memory.conversation import (
     annotate_relative_dates,
     build_conversation_text,
     build_episode_text,
@@ -30,8 +25,8 @@ from .conversation import (
     is_important_to_user,
     merge_group_importance_evidence,
 )
-from .empty_evidence_completion import complete_missing_evidences
-from .data_normalize import (
+from memory_layer.memory_extractor.profile_memory.empty_evidence_completion import complete_missing_evidences
+from memory_layer.memory_extractor.profile_memory.data_normalize import (
     accumulate_old_memory_entry,
     convert_projects_to_dataclass,
     merge_profiles,
@@ -39,12 +34,12 @@ from .data_normalize import (
     profile_payload_to_memory,
     remove_evidences_from_profile,
 )
-from .evidence_utils import (
+from memory_layer.memory_extractor.profile_memory.evidence_utils import (
     filter_opinion_tendency_by_type,
     remove_entries_without_evidence,
 )
-from .project_helpers import filter_project_items_by_type
-from .merger import convert_important_info_to_evidence
+from memory_layer.memory_extractor.profile_memory.project_helpers import filter_project_items_by_type
+from memory_layer.memory_extractor.profile_memory.merger import convert_important_info_to_evidence
 from memory_layer.memory_extractor.profile_memory.types import (
     GroupImportanceEvidence,
     ImportanceEvidence,
@@ -171,16 +166,16 @@ class ProfileMemoryExtractor(MemoryExtractor):
                     if len(base_memory_obj) > 1:
                         participants_base_memory_map[mem.user_id] = base_memory_obj
 
-        # Build two prompts
+        # Build two prompts (get via PromptManager)
         prompt_part1 = build_profile_prompt(
-            CONVERSATION_PROFILE_PART1_EXTRACTION_PROMPT,
+            get_prompt_by("CONVERSATION_PROFILE_PART1_EXTRACTION_PROMPT"),
             all_conversation_text,
             participants_profile_list_no_evidences,
             participants_base_memory_map,
             request,
         )
         prompt_part2 = build_profile_prompt(
-            CONVERSATION_PROFILE_PART2_EXTRACTION_PROMPT,
+            get_prompt_by("CONVERSATION_PROFILE_PART2_EXTRACTION_PROMPT"),
             all_conversation_text,
             participants_profile_list_no_evidences,
             participants_base_memory_map,
@@ -706,8 +701,8 @@ class ProfileMemoryExtractor(MemoryExtractor):
                 f"({user_info['message_count']} messages)"
             )
 
-            # Build Part3 prompt
-            prompt = CONVERSATION_PROFILE_PART3_EXTRACTION_PROMPT
+            # Build Part3 prompt（通过 PromptManager 获取）
+            prompt = get_prompt_by("CONVERSATION_PROFILE_PART3_EXTRACTION_PROMPT")
             prompt += f"\n\n**Existing User Profile:**\n"
             prompt += f"User ID: {user_id}\n"
             prompt += f"User Name: {user_info['user_name']}\n"

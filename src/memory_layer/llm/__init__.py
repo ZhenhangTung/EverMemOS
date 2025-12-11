@@ -4,8 +4,8 @@ LLM providers module for memory layer.
 This module provides LLM providers for the memory layer functionality.
 """
 
-from .openai_provider import OpenAIProvider
-from .protocol import LLMProvider
+from memory_layer.llm.openai_provider import OpenAIProvider
+from memory_layer.llm.protocol import LLMProvider
 
 __all__ = ["LLMProvider", "OpenAIProvider"]
 

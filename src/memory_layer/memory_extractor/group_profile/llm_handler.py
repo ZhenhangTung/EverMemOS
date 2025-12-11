@@ -132,8 +132,8 @@ class GroupProfileLLMHandler:
 
         Only passes topics-related info to LLM, excluding evidences (but keeping confidence).
         """
-        # Use dynamic language prompt import (automatically selected based on MEMORY_LANGUAGE environment variable)
-        from ...prompts import CONTENT_ANALYSIS_PROMPT
+        from memory_layer.prompts import get_prompt_by
+        CONTENT_ANALYSIS_PROMPT = get_prompt_by("CONTENT_ANALYSIS_PROMPT")
 
         # Build existing_profile for LLM, including only required fields, excluding evidences
         existing_profile_for_llm = {
@@ -187,8 +187,8 @@ class GroupProfileLLMHandler:
 
         Only passes roles info to LLM, excluding evidences (but keeping confidence).
         """
-        # Use dynamic language prompt import (automatically selected based on MEMORY_LANGUAGE environment variable)
-        from ...prompts import BEHAVIOR_ANALYSIS_PROMPT
+        from memory_layer.prompts import get_prompt_by
+        BEHAVIOR_ANALYSIS_PROMPT = get_prompt_by("BEHAVIOR_ANALYSIS_PROMPT")
 
         # Build existing_profile for LLM, including only roles, excluding evidences
         existing_profile_for_llm = {

@@ -16,7 +16,7 @@ from typing import Optional
 import asyncio
 import random
 
-from .protocol import LLMProvider, LLMError
+from memory_layer.llm.protocol import LLMProvider, LLMError
 from core.observation.logger import get_logger
 
 logger = get_logger(__name__)

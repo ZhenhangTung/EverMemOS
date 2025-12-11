@@ -34,7 +34,7 @@ from infra_layer.adapters.out.search.repository.event_log_es_repository import (
 )
 from core.observation.tracing.decorators import trace_logger
 from core.nlp.stopwords_utils import filter_stopwords
-from common_utils.datetime_utils import from_iso_format, get_now_with_timezone
+from common_utils.datetime_utils import from_iso_format, get_now_with_timezone, to_iso_format
 from infra_layer.adapters.out.persistence.repository.memcell_raw_repository import (
     MemCellRawRepository,
 )
@@ -1436,7 +1436,7 @@ class MemoryManager:
                         'id': hit.get('_id', ''),
                         'user_id': source.get('user_id', ''),
                         'group_id': source.get('group_id', ''),
-                        'timestamp': source.get('timestamp', ''),
+                        'timestamp': self._format_datetime_field(source.get('timestamp')) or '',
                         'episode': source.get('episode', ''),
                         'foresight': source.get('foresight', ''),
                         'evidence': source.get('evidence', ''),
@@ -1466,7 +1466,7 @@ class MemoryManager:
                         'id': result.get('id', ''),
                         'user_id': result.get('user_id', ''),
                         'group_id': result.get('group_id', ''),
-                        'timestamp': result.get('timestamp', ''),
+                        'timestamp': self._format_datetime_field(result.get('timestamp')) or '',
                         'subject': result.get('metadata', {}).get('title', ''),
                         'episode': (
                             result.get('episode', '')
@@ -1538,15 +1538,15 @@ class MemoryManager:
                             'event_id': doc.get('event_id', ''),
                             'user_id': doc.get('user_id', ''),
                             'group_id': doc.get('group_id', ''),
-                            'timestamp': doc.get('timestamp', ''),
+                            'timestamp': self._format_datetime_field(doc.get('timestamp')) or '',
                             'subject': '',
                             'episode': doc.get('episode', ''),
                             'summary': '',
                             'evidence': doc.get('evidence', ''),
                             'atomic_fact': doc.get('atomic_fact', ''),
                             'metadata': doc.get('metadata', {}),
-                            'start_time': doc.get('start_time'),
-                            'end_time': doc.get('end_time'),
+                            'start_time': self._format_datetime_field(doc.get('start_time')),
+                            'end_time': self._format_datetime_field(doc.get('end_time')),
                         }
                     else:
                         # Result from Milvus (need to convert field names)
@@ -1566,7 +1566,7 @@ class MemoryManager:
                             'event_id': doc.get('id', ''),  # Milvus uses 'id'
                             'user_id': doc.get('user_id', ''),
                             'group_id': doc.get('group_id', ''),
-                            'timestamp': doc.get('timestamp', ''),
+                            'timestamp': self._format_datetime_field(doc.get('timestamp')) or '',
                             'subject': (
                                 doc.get('metadata', {}).get('title', '')
                                 if isinstance(doc.get('metadata'), dict)
@@ -1661,22 +1661,37 @@ class MemoryManager:
 
     @staticmethod
     def _format_datetime_field(value: Any) -> Optional[str]:
-        if isinstance(value, datetime):
-            return value.isoformat()
-        return value
+        """将 datetime 或 Unix 时间戳转换为 ISO 格式字符串
+        
+        Args:
+            value: datetime 对象、Unix 时间戳（int/float）或字符串
+            
+        Returns:
+            ISO 格式的日期时间字符串（带时区），或 None
+        """
+        # 使用 datetime_utils 的通用转换函数
+        return to_iso_format(value)
 
     @staticmethod
     def _parse_datetime_value(value: Any) -> Optional[datetime]:
+        """将字符串或datetime对象解析为带时区的datetime对象
+        
+        Args:
+            value: datetime对象或ISO格式字符串
+            
+        Returns:
+            带时区的datetime对象，解析失败返回None
+        """
+        if value is None:
+            return None
         if isinstance(value, datetime):
             return value
         if isinstance(value, str) and value:
             try:
-                return datetime.fromisoformat(value)
-            except ValueError:
-                try:
-                    return datetime.fromisoformat(value.replace("Z", "+00:00"))
-                except ValueError:
-                    return None
+                # 使用 datetime_utils 的解析函数，支持 "Z" 后缀和时区处理
+                return from_iso_format(value)
+            except Exception:
+                return None
         return None
 
     def _filter_foresight_memories_by_time(

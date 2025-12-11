@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from core.observation.logger import get_logger
 
-from .evidence_utils import (
+from memory_layer.memory_extractor.profile_memory.evidence_utils import (
     conversation_id_from_evidence,
     ensure_str_list,
     format_evidence_entry,

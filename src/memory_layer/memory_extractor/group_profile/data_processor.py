@@ -132,7 +132,7 @@ class GroupProfileDataProcessor:
             Merged and deduplicated memcell_ids (historical order unchanged, new ones appended in time order, up to max_count)
         """
         from common_utils.datetime_utils import get_now_with_timezone
-        from ..group_profile_memory_extractor import convert_to_datetime
+        from memory_layer.memory_extractor.group_profile_memory_extractor import convert_to_datetime
 
         historical = historical or []
 

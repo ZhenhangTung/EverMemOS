@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set
 
-from .value_helpers import (
+from memory_layer.memory_extractor.profile_memory.value_helpers import (
     extract_values_with_evidence,
     merge_value_with_evidences_lists,
     merge_value_with_evidences_lists_keep_highest_level,

@@ -6,12 +6,10 @@ Key Features:
 - MongoDB connection and initialization
 - MemCell queries
 - Time serialization tools
-- Prompt language settings
 
 V4 Update:
 - Removed custom retrieval strategies (using API in src)
 - Retained basic utility functions
-- Added Prompt language setting functionality
 """
 
 import json
@@ -29,19 +27,8 @@ from infra_layer.adapters.out.persistence.document.memory.memcell import (
 )
 from demo.config import MongoDBConfig
 
-
-# ============================================================================
-# Prompt Language Settings
-# ============================================================================
-
-
-def get_prompt_language() -> str:
-    """Get Current Prompt Language Setting
-
-    Returns:
-        Current MEMORY_LANGUAGE environment variable value, defaults to "en"
-    """
-    return os.getenv("MEMORY_LANGUAGE", "en")
+# Import language utility function from common_utils
+from common_utils.language_utils import get_prompt_language
 
 
 # ============================================================================

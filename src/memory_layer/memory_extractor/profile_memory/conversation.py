@@ -10,8 +10,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from core.observation.logger import get_logger
 
-# Import dynamic language prompt (automatically select based on MEMORY_LANGUAGE environment variable)
-from ...prompts import CONVERSATION_PROFILE_EVIDENCE_COMPLETION_PROMPT
+from memory_layer.prompts import get_prompt_by
 from api_specs.memory_types import MemCell
 from memory_layer.memory_extractor.profile_memory.types import (
     GroupImportanceEvidence,
@@ -435,7 +434,9 @@ def build_evidence_completion_prompt(
     conversation_text: str, profiles_without_evidences: List[Dict[str, Any]]
 ) -> str:
     """Construct the evidence completion prompt for a batch of user profiles."""
-    return CONVERSATION_PROFILE_EVIDENCE_COMPLETION_PROMPT.replace(
+    # 通过 PromptManager 获取提示词
+    prompt_template = get_prompt_by("CONVERSATION_PROFILE_EVIDENCE_COMPLETION_PROMPT")
+    return prompt_template.replace(
         "{conversation}", conversation_text
     ).replace(
         "{user_profiles_without_evidences}",
