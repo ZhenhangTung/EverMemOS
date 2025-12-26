@@ -66,7 +66,7 @@ async def _idempotent_start(self):
 
 
 # Apply patches
-# MessageBatch.wait_drain = _optimized_wait_drain
+MessageBatch.wait_drain = _optimized_wait_drain
 AIOKafkaProducer.start = _idempotent_start
 
 logger = get_logger(__name__)
