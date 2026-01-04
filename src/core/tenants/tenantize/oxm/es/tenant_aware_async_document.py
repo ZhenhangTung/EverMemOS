@@ -92,9 +92,6 @@ class TenantAwareAsyncDocument(AliasSupportDoc):
         # Dynamically get the connection alias for the current tenant
         tenant_using = cls._get_tenant_aware_using()
 
-        # Ensure the connection is registered
-        cls._ensure_connection_registered(tenant_using)
-
         # Return the corresponding connection
         return async_connections.get_connection(tenant_using)
 
