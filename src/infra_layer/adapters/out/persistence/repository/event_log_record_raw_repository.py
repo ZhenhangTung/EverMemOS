@@ -163,7 +163,6 @@ class EventLogRecordRawRepository(BaseRepository[EventLogRecord]):
         self,
         user_id: Optional[str] = MAGIC_ALL,
         group_id: Optional[str] = MAGIC_ALL,
-        parent_type: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         limit: Optional[int] = None,
@@ -173,7 +172,7 @@ class EventLogRecordRawRepository(BaseRepository[EventLogRecord]):
         model: Optional[Type[T]] = None,
     ) -> List[Union[EventLogRecord, EventLogRecordProjection]]:
         """
-        Get list of event logs by filters (user_id, group_id, parent_type, and/or time range)
+        Get list of event logs by filters (user_id, group_id, and/or time range)
 
         Args:
             user_id: User ID
@@ -183,9 +182,6 @@ class EventLogRecordRawRepository(BaseRepository[EventLogRecord]):
             group_id: Group ID
                 - Not provided or MAGIC_ALL ("__all__"): Don't filter by group_id
                 - None or "": Filter for null/empty values (records with group_id as None or "")
-                - Other values: Exact match
-            parent_type: Parent type filter (e.g., "memcell", "episode")
-                - None: Don't filter by parent_type
                 - Other values: Exact match
             start_time: Optional start time (inclusive)
             end_time: Optional end time (exclusive)
@@ -225,10 +221,6 @@ class EventLogRecordRawRepository(BaseRepository[EventLogRecord]):
                     filter_dict["group_id"] = {"$in": [None, ""]}
                 else:
                     filter_dict["group_id"] = group_id
-
-            # Handle parent_type filter
-            if parent_type is not None:
-                filter_dict["parent_type"] = parent_type
 
             # If model is not specified, use full version
             target_model = model if model is not None else self.model

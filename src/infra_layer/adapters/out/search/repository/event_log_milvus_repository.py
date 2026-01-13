@@ -148,6 +148,7 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
         query_vector: List[float],
         user_id: Optional[str] = None,
         group_id: Optional[str] = None,
+        parent_type: Optional[str] = None,
         parent_id: Optional[str] = None,
         event_type: Optional[str] = None,
         start_time: Optional[datetime] = None,
@@ -164,6 +165,7 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
             query_vector: Query vector
             user_id: User ID filter
             group_id: Group ID filter
+            parent_type: Parent type filter (e.g., "memcell", "episode")
             parent_id: Parent memory ID filter
             event_type: Event type filter
             start_time: Start timestamp filter
@@ -199,6 +201,8 @@ class EventLogMilvusRepository(BaseMilvusRepository[EventLogCollection]):
                 filter_expr.append(
                     f'array_contains(participants, "{participant_user_id}")'
                 )
+            if parent_type:
+                filter_expr.append(f'parent_type == "{parent_type}"')
             if parent_id:
                 filter_expr.append(f'parent_id == "{parent_id}"')
             if event_type:

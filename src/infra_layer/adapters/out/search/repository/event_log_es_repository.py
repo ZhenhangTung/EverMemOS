@@ -183,6 +183,8 @@ class EventLogEsRepository(BaseRepository[EventLogDoc]):
         query: List[str],
         user_id: Optional[str] = None,
         group_id: Optional[str] = None,
+        parent_type: Optional[str] = None,
+        parent_id: Optional[str] = None,
         keywords: Optional[List[str]] = None,
         date_range: Optional[Dict[str, Any]] = None,
         size: int = 10,
@@ -200,6 +202,8 @@ class EventLogEsRepository(BaseRepository[EventLogDoc]):
             query: List of search terms, supports multiple search terms
             user_id: User ID filter
             group_id: Group ID filter
+            parent_type: Parent type filter (e.g., "memcell", "episode")
+            parent_id: Parent memory ID filter
             keywords: Keyword filter
             date_range: Time range filter, format: {"gte": "2024-01-01", "lte": "2024-12-31"}
             size: Number of results
@@ -236,6 +240,14 @@ class EventLogEsRepository(BaseRepository[EventLogDoc]):
                     filter_queries.append(
                         Q("bool", must_not=Q("exists", field="group_id"))
                     )
+
+            # Handle parent_id filter
+            if parent_id:
+                filter_queries.append(Q("term", parent_id=parent_id))
+
+            # Handle parent_type filter
+            if parent_type:
+                filter_queries.append(Q("term", parent_type=parent_type))
 
             if keywords:
                 filter_queries.append(Q("terms", keywords=keywords))

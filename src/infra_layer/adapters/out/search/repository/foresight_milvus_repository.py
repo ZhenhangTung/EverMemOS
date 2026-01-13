@@ -163,6 +163,7 @@ class ForesightMilvusRepository(BaseMilvusRepository[ForesightCollection]):
         query_vector: List[float],
         user_id: Optional[str] = None,
         group_id: Optional[str] = None,
+        parent_type: Optional[str] = None,
         parent_id: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
@@ -179,6 +180,7 @@ class ForesightMilvusRepository(BaseMilvusRepository[ForesightCollection]):
             query_vector: Query vector
             user_id: User ID filter
             group_id: Group ID filter
+            parent_type: Parent type filter (e.g., "memcell", "episode")
             parent_id: Parent memory ID filter
             start_time: Foresight start time filter
             end_time: Foresight end time filter
@@ -215,6 +217,8 @@ class ForesightMilvusRepository(BaseMilvusRepository[ForesightCollection]):
                 filter_expr.append(
                     f'array_contains(participants, "{participant_user_id}")'
                 )
+            if parent_type:
+                filter_expr.append(f'parent_type == "{parent_type}"')
             if parent_id:
                 filter_expr.append(f'parent_id == "{parent_id}"')
             if start_time:

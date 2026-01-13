@@ -164,7 +164,6 @@ class ForesightRecordRawRepository(BaseRepository[ForesightRecord]):
         self,
         user_id: Optional[str] = MAGIC_ALL,
         group_id: Optional[str] = MAGIC_ALL,
-        parent_type: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         limit: Optional[int] = None,
@@ -173,7 +172,7 @@ class ForesightRecordRawRepository(BaseRepository[ForesightRecord]):
         model: Optional[Type[T]] = None,
     ) -> List[Union[ForesightRecord, ForesightRecordProjection]]:
         """
-        Retrieve list of foresights by filters (user_id, group_id, parent_type, and/or validity time range)
+        Retrieve list of foresights by filters (user_id, group_id, and/or validity time range)
 
         Args:
             user_id: User ID
@@ -183,9 +182,6 @@ class ForesightRecordRawRepository(BaseRepository[ForesightRecord]):
             group_id: Group ID
                 - Not provided or MAGIC_ALL ("__all__"): Don't filter by group_id
                 - None or "": Filter for null/empty values (records with group_id as None or "")
-                - Other values: Exact match
-            parent_type: Parent type filter (e.g., "memcell", "episode")
-                - None: Don't filter by parent_type
                 - Other values: Exact match
             start_time: Optional query start time (datetime object)
                 - Filters foresights whose validity period overlaps with [start_time, end_time)
@@ -238,10 +234,6 @@ class ForesightRecordRawRepository(BaseRepository[ForesightRecord]):
                     filter_dict["group_id"] = {"$in": [None, ""]}
                 else:
                     filter_dict["group_id"] = group_id
-
-            # Handle parent_type filter
-            if parent_type is not None:
-                filter_dict["parent_type"] = parent_type
 
             # Use full version if model is not specified
             target_model = model if model is not None else self.model
