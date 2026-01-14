@@ -11,7 +11,7 @@ from core.oxm.es.analyzer import (
 )
 
 
-class EventLogDoc(TenantAwareAliasDoc("event-log", number_of_shards=3)):
+class EventLogDoc(TenantAwareAliasDoc("event-log", number_of_shards=1)):
     """
     Event log Elasticsearch document
 
