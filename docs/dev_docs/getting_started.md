@@ -81,21 +81,13 @@ Edit the `.env` file and fill in the actual configuration values:
 
 #### LLM Configuration
 ```bash
-# Conversation MemCell Extractor
-CONV_MEMCELL_LLM_PROVIDER=openai
-CONV_MEMCELL_LLM_MODEL=google/gemini-2.5-flash
-CONV_MEMCELL_LLM_BASE_URL=https://openrouter.ai/api/v1
-CONV_MEMCELL_LLM_API_KEY=sk-or-v1-your-api-key
-CONV_MEMCELL_LLM_TEMPERATURE=0.3
-CONV_MEMCELL_LLM_MAX_TOKENS=16384
-
-# Episode Memory Extractor
-EPISODE_MEMORY_LLM_PROVIDER=openai
-EPISODE_MEMORY_LLM_MODEL=google/gemini-2.5-flash
-EPISODE_MEMORY_LLM_BASE_URL=https://openrouter.ai/api/v1
-EPISODE_MEMORY_LLM_API_KEY=sk-or-v1-your-api-key
-EPISODE_MEMORY_LLM_TEMPERATURE=0.3
-EPISODE_MEMORY_LLM_MAX_TOKENS=16384
+# LLM 配置
+LLM_PROVIDER=openai
+LLM_MODEL=google/gemini-2.5-flash
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=sk-or-v1-你的API密钥
+LLM_TEMPERATURE=0.3
+LLM_MAX_TOKENS=16384
 ```
 
 #### DeepInfra Configuration (for Embedding and Rerank)
@@ -161,7 +153,7 @@ PYTHONASYNCIODEBUG=1
 #### OpenRouter API Key
 1. Visit [OpenRouter](https://openrouter.ai/)
 2. Register an account and create an API key
-3. Fill the key into `CONV_MEMCELL_LLM_API_KEY` and `EPISODE_MEMORY_LLM_API_KEY` in the `.env` file
+3. Fill the key into `LLM_API_KEY` in the `.env` file
 
 #### DeepInfra API Key
 1. Visit [DeepInfra](https://deepinfra.com/)

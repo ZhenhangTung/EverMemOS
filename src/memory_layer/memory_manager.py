@@ -149,7 +149,7 @@ class MemoryManager:
             group_name: Group name
             old_memory_list: List of historical memories
             user_organization: User organization information
-            episode_memory: Episode memory (used to extract Foresight/EventLog)
+            episodic_memory: Episodic memory (used to extract Foresight/EventLog)
 
         Returns:
             - EPISODIC_MEMORY: Returns Memory (group or personal)

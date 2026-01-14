@@ -200,7 +200,7 @@ Note: profile type is not supported in search interface""",
                 "query": "coffee preference",
                 "retrieve_method": "keyword",
                 "top_k": 10,
-                "memory_types": ["episode_memory"],
+                "memory_types": ["episodic_memory"],
             }
         }
     }

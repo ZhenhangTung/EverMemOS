@@ -81,21 +81,13 @@ vim .env  # 或使用你喜欢的编辑器
 
 #### LLM 配置
 ```bash
-# Conversation MemCell Extractor / 对话记忆单元提取器
-CONV_MEMCELL_LLM_PROVIDER=openai
-CONV_MEMCELL_LLM_MODEL=google/gemini-2.5-flash
-CONV_MEMCELL_LLM_BASE_URL=https://openrouter.ai/api/v1
-CONV_MEMCELL_LLM_API_KEY=sk-or-v1-你的API密钥
-CONV_MEMCELL_LLM_TEMPERATURE=0.3
-CONV_MEMCELL_LLM_MAX_TOKENS=16384
-
-# Episode Memory Extractor / 情景记忆提取器
-EPISODE_MEMORY_LLM_PROVIDER=openai
-EPISODE_MEMORY_LLM_MODEL=google/gemini-2.5-flash
-EPISODE_MEMORY_LLM_BASE_URL=https://openrouter.ai/api/v1
-EPISODE_MEMORY_LLM_API_KEY=sk-or-v1-你的API密钥
-EPISODE_MEMORY_LLM_TEMPERATURE=0.3
-EPISODE_MEMORY_LLM_MAX_TOKENS=16384
+# LLM 配置
+LLM_PROVIDER=openai
+LLM_MODEL=google/gemini-2.5-flash
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=sk-or-v1-你的API密钥
+LLM_TEMPERATURE=0.3
+LLM_MAX_TOKENS=16384
 ```
 
 #### DeepInfra 配置（用于 Embedding 和 Rerank）
@@ -161,7 +153,7 @@ PYTHONASYNCIODEBUG=1
 #### OpenRouter API 密钥
 1. 访问 [OpenRouter](https://openrouter.ai/)
 2. 注册账号并创建 API 密钥
-3. 将密钥填入 `.env` 文件的 `CONV_MEMCELL_LLM_API_KEY` 和 `EPISODE_MEMORY_LLM_API_KEY`
+3. 将密钥填入 `.env` 文件的 `LLM_API_KEY`
 
 #### DeepInfra API 密钥
 1. 访问 [DeepInfra](https://deepinfra.com/)

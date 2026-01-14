@@ -95,7 +95,7 @@ The response has two forms depending on the memory extraction status:
   "result": {
     "saved_memories": [
       {
-        "memory_type": "episode_memory",
+        "memory_type": "episodic_memory",
         "user_id": "user_001",
         "group_id": "group_123",
         "timestamp": "2025-01-15T10:00:00",
@@ -444,7 +444,7 @@ Retrieve user's core memory data through KV method.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | user_id | string | Yes | - | User ID |
-| memory_type | string | No | "profile" | Memory type, options: `profile`, `episode_memory`, `foresight`, `event_log` |
+| memory_type | string | No | "profile" | Memory type, options: `profile`, `episodic_memory`, `foresight`, `event_log` |
 | limit | integer | No | 10 | Maximum number of memories to return |
 | offset | integer | No | 0 | Pagination offset |
 | sort_by | string | No | - | Sort field |
@@ -454,7 +454,7 @@ Retrieve user's core memory data through KV method.
 
 **Memory Type Descriptions**:
 - `profile`: User profile, containing user's characteristics and attributes
-- `episode_memory`: Episodic memory summary
+- `episodic_memory`: Episodic memory summary
 - `foresight`: Foresight memory, containing user's intentions and plans
 - `event_log`: Event log, recording user's behavioral events
 
@@ -556,7 +556,7 @@ Retrieve relevant memories based on query text using keyword, vector, or hybrid 
   "top_k": 10,
   "start_time": "2024-01-01T00:00:00",
   "end_time": "2024-12-31T23:59:59",
-  "memory_types": ["episode_memory"],
+  "memory_types": ["episodic_memory"],
   "filters": {},
   "include_metadata": true
 }
@@ -573,7 +573,7 @@ Retrieve relevant memories based on query text using keyword, vector, or hybrid 
 | top_k | integer | No | 10 | Maximum number of results to return |
 | start_time | string | No | - | Time range start (ISO 8601 format) |
 | end_time | string | No | - | Time range end (ISO 8601 format) |
-| memory_types | array | No | ["episode_memory"] | List of memory types to retrieve, options: `episode_memory`, `foresight`, `event_log` (`profile` not supported) |
+| memory_types | array | No | ["episodic_memory"] | List of memory types to retrieve, options: `episodic_memory`, `foresight`, `event_log` (`profile` not supported) |
 | filters | object | No | {} | Additional filter conditions |
 | radius | float | No | - | COSINE similarity threshold for vector retrieval (only for vector and hybrid methods, default 0.6) |
 | include_metadata | boolean | No | true | Whether to include metadata |
@@ -598,7 +598,7 @@ Retrieve relevant memories based on query text using keyword, vector, or hybrid 
       {
         "group_456": [
           {
-            "memory_type": "episode_memory",
+            "memory_type": "episodic_memory",
             "user_id": "user_123",
             "timestamp": "2024-01-15T10:30:00",
             "summary": "Discussed coffee preferences",
@@ -677,7 +677,7 @@ async def search_memories():
         "query": "coffee preference",
         "retrieve_method": "hybrid",
         "top_k": 10,
-        "memory_types": ["episode_memory"]
+        "memory_types": ["episodic_memory"]
     }
     
     async with httpx.AsyncClient() as client:

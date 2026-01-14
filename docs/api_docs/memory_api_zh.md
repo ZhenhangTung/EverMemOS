@@ -95,7 +95,7 @@ Memory API 提供了专门用于处理群聊记忆的接口，采用简单直接
   "result": {
     "saved_memories": [
       {
-        "memory_type": "episode_memory",
+        "memory_type": "episodic_memory",
         "user_id": "user_001",
         "group_id": "group_123",
         "timestamp": "2025-01-15T10:00:00",
@@ -444,7 +444,7 @@ Memory Manager (memory_manager.py)
 | 参数 | 类型 | 必需 | 默认值 | 说明 |
 |-----|------|------|--------|------|
 | user_id | string | 是 | - | 用户ID |
-| memory_type | string | 否 | "profile" | 记忆类型，可选值：`profile`、`episode_memory`、`foresight`、`event_log` |
+| memory_type | string | 否 | "profile" | 记忆类型，可选值：`profile`、`episodic_memory`、`foresight`、`event_log` |
 | limit | integer | 否 | 10 | 返回记忆的最大数量 |
 | offset | integer | 否 | 0 | 分页偏移量 |
 | sort_by | string | 否 | - | 排序字段 |
@@ -454,7 +454,7 @@ Memory Manager (memory_manager.py)
 
 **记忆类型说明**：
 - `profile`: 用户画像，包含用户的特征和属性
-- `episode_memory`: 情景记忆摘要
+- `episodic_memory`: 情景记忆摘要
 - `foresight`: 前瞻性记忆，包含用户的意图和计划
 - `event_log`: 事件日志，记录用户的行为事件
 
@@ -556,7 +556,7 @@ asyncio.run(fetch_memories())
   "top_k": 10,
   "start_time": "2024-01-01T00:00:00",
   "end_time": "2024-12-31T23:59:59",
-  "memory_types": ["episode_memory"],
+  "memory_types": ["episodic_memory"],
   "filters": {},
   "include_metadata": true
 }
@@ -573,7 +573,7 @@ asyncio.run(fetch_memories())
 | top_k | integer | 否 | 10 | 返回的最大结果数 |
 | start_time | string | 否 | - | 时间范围起点（ISO 8601格式） |
 | end_time | string | 否 | - | 时间范围终点（ISO 8601格式） |
-| memory_types | array | 否 | ["episode_memory"] | 要检索的记忆类型列表，可选值：`episode_memory`、`foresight`、`event_log`（不支持 `profile`） |
+| memory_types | array | 否 | ["episodic_memory"] | 要检索的记忆类型列表，可选值：`episodic_memory`、`foresight`、`event_log`（不支持 `profile`） |
 | filters | object | 否 | {} | 额外的过滤条件 |
 | radius | float | 否 | - | 向量检索时的 COSINE 相似度阈值（仅对 vector 和 hybrid 方法有效，默认 0.6） |
 | include_metadata | boolean | 否 | true | 是否包含元数据 |
@@ -598,7 +598,7 @@ asyncio.run(fetch_memories())
       {
         "group_456": [
           {
-            "memory_type": "episode_memory",
+            "memory_type": "episodic_memory",
             "user_id": "user_123",
             "timestamp": "2024-01-15T10:30:00",
             "summary": "讨论了咖啡偏好",
@@ -677,7 +677,7 @@ async def search_memories():
         "query": "咖啡偏好",
         "retrieve_method": "hybrid",
         "top_k": 10,
-        "memory_types": ["episode_memory"]
+        "memory_types": ["episodic_memory"]
     }
     
     async with httpx.AsyncClient() as client:

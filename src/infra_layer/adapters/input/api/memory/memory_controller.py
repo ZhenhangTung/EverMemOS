@@ -107,7 +107,7 @@ class MemoryController(BaseController):
                                     "result": {
                                         "saved_memories": [
                                             {
-                                                "memory_type": "episode_memory",
+                                                "memory_type": "episodic_memory",
                                                 "user_id": "user_001",
                                                 "group_id": "group_123",
                                                 "timestamp": "2025-01-15T10:00:00",
@@ -277,7 +277,7 @@ class MemoryController(BaseController):
         
         ## Functionality:
         - Directly retrieve stored core memories based on user ID
-        - Support multiple memory types: profile, episode_memory, foresight, event_log
+        - Support multiple memory types: profile, episodic_memory, foresight, event_log
         - Support pagination and sorting
         - Suitable for scenarios requiring quick retrieval of fixed user memory sets
         
@@ -285,7 +285,7 @@ class MemoryController(BaseController):
         - **base_memory**: Base memory, user's basic information and commonly used data
         - **profile**: User profile, containing user characteristics and attributes
         - **preference**: User preferences, containing user likes and settings
-        - **episode_memory**: Episodic memory summaries
+        - **episodic_memory**: Episodic memory summaries
         
         ## Use cases:
         - User profile display
@@ -469,7 +469,7 @@ class MemoryController(BaseController):
                                         "group_id": "group_456",
                                         "memories": [
                                             {
-                                                "memory_type": "episode_memory",
+                                                "memory_type": "episodic_memory",
                                                 "user_id": "user_123",
                                                 "timestamp": "2024-01-15T10:30:00",
                                                 "summary": "Discussed coffee preference",
