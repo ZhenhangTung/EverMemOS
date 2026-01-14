@@ -422,9 +422,6 @@ class ConversationMetaTester:
             response = requests.get(
                 url, headers=headers, params=params, timeout=self.timeout
             )
-            import ipdb
-
-            ipdb.set_trace()
             response_json = self.print_response(response)
 
             if response.status_code == 200 and response_json.get("status") == "ok":
