@@ -1,11 +1,12 @@
 """
 Memory Controller - Unified memory management controller
 
-Provides complete memory management RESTful API routes, including:
-- Memory storage (memorize): Receive simple direct single message format and store
-- Conversation metadata (conversation-meta): Save conversation metadata information
-- Memory retrieval (fetch): Retrieve user core memories via GET method
-- Memory search (search): Support three retrieval methods: keyword, vector, and hybrid
+Provides RESTful API routes for:
+- Memory ingestion (POST /memories): accept a single-message payload and create memories
+- Memory fetch (GET /memories): fetch by memory_type with optional user/group/time filters (query params or JSON body)
+- Memory search (GET /memories/search): keyword/vector/hybrid/rrf/agentic retrieval with grouped results
+- Conversation metadata (GET/POST/PATCH /conversation-meta): get with default fallback, upsert, and partial update
+- Memory deletion (DELETE /memories): soft delete by combined filters
 """
 
 import json
@@ -77,22 +78,15 @@ class MemoryController(BaseController):
         response_model=Dict[str, Any],
         summary="Store single group chat message memory",
         description="""
-        Receive simple direct single message format and store as memory
+        Receive a single message payload and store it as memory
         
         ## Functionality:
-        - Receive simple direct single message data (no pre-conversion required)
-        - Extract single message into memory units (memcells)
-        - Suitable for real-time message processing scenarios
-        - Return list of saved memories
+        - Accept raw single-message data (no pre-conversion required)
+        - Create memories when enough context is available
+        - Response returns extraction count and status (saved memories are fetched via API)
         
         ## Interface description:
-        - Receive simple direct single message format, no conversion required
-        
-        ## Use cases:
-        - Real-time message stream processing
-        - Chatbot integration
-        - Message queue consumption
-        - Single message import
+        - Accept a simple single-message JSON payload
         """,
         responses={
             200: {
@@ -106,15 +100,7 @@ class MemoryController(BaseController):
                                     "status": "ok",
                                     "message": "Extracted 1 memories",
                                     "result": {
-                                        "saved_memories": [
-                                            {
-                                                "memory_type": "episodic_memory",
-                                                "user_id": "user_001",
-                                                "group_id": "group_123",
-                                                "timestamp": "2025-01-15T10:00:00",
-                                                "content": "User discussed the technical solution for the new feature",
-                                            }
-                                        ],
+                                        "saved_memories": [],
                                         "count": 1,
                                         "status_info": "extracted",
                                     },
@@ -176,14 +162,15 @@ class MemoryController(BaseController):
         """
         Store single message memory data
 
-        Receive simple direct single message format, convert and store via group_chat_converter
+        Convert a single-message payload to a memory request and persist it.
+        If no memory is extracted, the message remains pending for later processing.
 
         Args:
             request: FastAPI request object
             request_body: Message request body (used for OpenAPI documentation only)
 
         Returns:
-            Dict[str, Any]: Memory storage response, containing list of saved memories
+            Dict[str, Any]: Memory storage response with extraction count and status info
 
         Raises:
             HTTPException: When request processing fails
@@ -274,24 +261,23 @@ class MemoryController(BaseController):
         response_model=Dict[str, Any],
         summary="Fetch user memories",
         description="""
-        Retrieve user's core memory data via KV method
+        Retrieve memory records by memory_type with optional filters
         
         ## Functionality:
-        - Directly retrieve stored core memories based on user ID
-        - Support multiple memory types: profile, episodic_memory, foresight, event_log
-        - Support pagination and sorting
-        - Suitable for scenarios requiring quick retrieval of fixed user memory sets
+        - Fetch by user_id/group_id with optional time range filters
+        - Support memory types: profile, episodic_memory, event_log, foresight
+        - Accept parameters via query string or JSON body (GET with body supported)
+        - Suitable for quick lookup without full-text retrieval
         
         ## Memory type descriptions:
-        - **base_memory**: Base memory, user's basic information and commonly used data
-        - **profile**: User profile, containing user characteristics and attributes
-        - **preference**: User preferences, containing user likes and settings
-        - **episodic_memory**: Episodic memory summaries
+        - **episodic_memory / event_log**: Filterable by timestamp
+        - **foresight**: Filtered by active time window
+        - **profile**: No time range filtering
         
         ## Use cases:
         - User profile display
         - Personalized recommendation systems
-        - User preference settings loading
+        - Conversation history review
         """,
         responses={
             200: {
@@ -304,11 +290,11 @@ class MemoryController(BaseController):
                             "result": {
                                 "memories": [
                                     {
-                                        "memory_type": "base_memory",
+                                        "memory_type": "episodic_memory",
                                         "user_id": "user_123",
                                         "timestamp": "2024-01-15T10:30:00",
-                                        "content": "User likes drinking coffee",
-                                        "summary": "Coffee preference",
+                                        "content": "User discussed coffee during the project sync",
+                                        "summary": "Project sync coffee note",
                                     }
                                 ],
                                 "total_count": 100,
@@ -361,8 +347,8 @@ class MemoryController(BaseController):
         """
         Retrieve user memory data
 
-        Directly retrieve stored core memories by user ID via KV method.
-        Parameters are passed via request body (GET with body, similar to Elasticsearch style).
+        Fetch memory records by memory_type with optional user/group/time filters.
+        Parameters are accepted from query params or request body (GET with body is supported).
 
         Args:
             fastapi_request: FastAPI request object
@@ -426,13 +412,13 @@ class MemoryController(BaseController):
     @get(
         "/search",
         response_model=Dict[str, Any],
-        summary="Search relevant memories (supports keyword/vector/hybrid search)",
+        summary="Search relevant memories (keyword/vector/hybrid/rrf/agentic)",
         description="""
-        Retrieve relevant memory data based on query text using keyword, vector, or hybrid methods
+        Retrieve relevant memory data based on query text using multiple retrieval methods
         
         ## Functionality:
         - Find most relevant memories based on query text
-        - Support three methods: keyword (BM25), vector similarity, and hybrid search
+        - Support keyword (BM25), vector similarity, hybrid search, RRF fusion, and agentic retrieval
         - Support time range filtering
         - Return results organized by group with relevance scores
         - Suitable for scenarios requiring exact matching or semantic retrieval
@@ -473,7 +459,7 @@ class MemoryController(BaseController):
                                                 "memory_type": "episodic_memory",
                                                 "user_id": "user_123",
                                                 "timestamp": "2024-01-15T10:30:00",
-                                                "summary": "Discussed coffee preference",
+                                                "summary": "Discussed coffee choices",
                                                 "group_id": "group_456",
                                             }
                                         ],
@@ -537,7 +523,7 @@ class MemoryController(BaseController):
         """
         Search relevant memory data
 
-        Retrieve relevant memory data based on query text using keyword, vector, or hybrid methods.
+        Retrieve relevant memory data based on query text using keyword, vector, hybrid, RRF, or agentic methods.
         Parameters are passed via request body (GET with body, similar to Elasticsearch style).
 
         Args:
@@ -577,7 +563,7 @@ class MemoryController(BaseController):
                 "After conversion: retrieve_method=%s", retrieve_request.retrieve_method
             )
 
-            # Use retrieve_mem method (supports keyword, vector, hybrid)
+            # Use retrieve_mem method (supports keyword, vector, hybrid, rrf, agentic)
             response = await self.memory_manager.retrieve_mem(retrieve_request)
 
             # Return unified response format
@@ -611,17 +597,15 @@ class MemoryController(BaseController):
         response_model=Dict[str, Any],
         summary="Get conversation metadata",
         description="""
-        Retrieve conversation metadata by group_id with automatic fallback to default config.
+        Retrieve conversation metadata by group_id with fallback to default config
         
         ## Functionality:
         - Query by group_id to get conversation metadata
-        - If group_id not found, automatically fallback to default config (group_id=null)
-        - If group_id not provided, returns default config directly
+        - If group_id not found, fallback to default config
+        - If group_id not provided, returns default config
         
         ## Fallback Logic:
-        - First tries to find by exact group_id
-        - If not found, automatically returns default config (group_id=null)
-        - Default config is the single record where group_id is null
+        - Try exact group_id first, then use default config
         
         ## Use Cases:
         - Get specific group's metadata
@@ -753,12 +737,11 @@ class MemoryController(BaseController):
         
         ## Functionality:
         - If group_id exists, update the entire record (upsert)
-        - If group_id does not exist or is null, create a new record
-        - When group_id is null, creates default config for the scene (only one per scene)
+        - If group_id does not exist, create a new record
+        - If group_id is omitted, save as default config for the scene
         - All fields must be provided with complete data
         
-        ## Default Config (group_id=null):
-        - Each scene can have only one default config
+        ## Default Config:
         - Default config is used as fallback when specific group_id config not found
         
         ## Notes:
@@ -858,7 +841,7 @@ class MemoryController(BaseController):
         - **default_timezone**: Default timezone
         
         ## Notes:
-        - group_id can be a specific value or null (for default config)
+        - group_id can be a specific value or omitted (for default config)
         - If user_details field is provided, it will completely replace existing user details
         - Not allowed to modify core fields such as version, scene, group_id, conversation_created_at
         """,
@@ -1036,13 +1019,12 @@ class MemoryController(BaseController):
         response_model=Dict[str, Any],
         summary="Delete memories (soft delete)",
         description="""
-        Soft delete MemCell records based on combined filter criteria
+        Soft delete memory records based on combined filter criteria
         
         ## Functionality:
         - Soft delete records matching combined filter conditions
         - If multiple conditions provided, ALL must be satisfied (AND logic)
-        - Use MAGIC_ALL ("__all__") to skip a specific filter
-        - At least one filter must be specified (not all MAGIC_ALL)
+        - At least one filter must be specified
         
         ## Filter Parameters (combined with AND):
         - **event_id**: Filter by specific event_id
@@ -1110,7 +1092,7 @@ class MemoryController(BaseController):
                         "example": {
                             "status": ErrorStatus.FAILED.value,
                             "code": ErrorCode.INVALID_PARAMETER.value,
-                            "message": "At least one of event_id, user_id, or group_id must be provided (not MAGIC_ALL)",
+                            "message": "At least one of event_id, user_id, or group_id must be provided",
                             "timestamp": "2025-01-15T10:30:00+00:00",
                             "path": "/api/v1/memories",
                         }
@@ -1155,7 +1137,7 @@ class MemoryController(BaseController):
         """
         Soft delete memory data based on combined filter criteria
 
-        Filters are combined with AND logic. Use MAGIC_ALL to skip a filter.
+        Filters are combined with AND logic. Omit any filter you do not want to apply.
 
         Args:
             fastapi_request: FastAPI request object
