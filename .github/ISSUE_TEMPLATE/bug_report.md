@@ -1,3 +1,11 @@
+---
+name: Bug Report
+about: Report a bug or issue with EverMemOS
+title: '[BUG] '
+labels: ['bug']
+assignees: ''
+---
+
 # Bug Report
 
 Thank you for taking the time to report a bug! Please fill out the information below to help us understand and fix the issue.
@@ -101,4 +109,4 @@ Before submitting, please check:
 
 ---
 
-**Note**: For security vulnerabilities, please do NOT create a public issue. Instead, email us at evermind@shanda.com.
+**Note**: For security vulnerabilities, please do NOT create a public issue. Instead, refer to our [Security Policy](../SECURITY.md).

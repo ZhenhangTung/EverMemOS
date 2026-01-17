@@ -17,10 +17,17 @@
   <a href="https://github.com/EverMind-AI/EverMemOS/releases">
     <img alt="Release" src="https://img.shields.io/badge/release-v1.1.0-4A90E2?style=flat-square" />
   </a>
+  <a href="https://github.com/EverMind-AI/EverMemOS/stargazers">
+    <img alt="Stars" src="https://img.shields.io/github/stars/EverMind-AI/EverMemOS?style=flat-square" />
+  </a>
 </p>
 
 
 </div>
+
+---
+
+[🚀 Quick Start](#quick-start) • [📖 Documentation](docs/) • [🎯 Demos](docs/usage/DEMOS.md) • [🤝 Contributing](#contributing) • [💬 Discord](https://discord.gg/pfwwskxp)
 
 ---
 
@@ -30,9 +37,25 @@
 
 **EverMemOS** enables AI to not only remember what happened, but understand the meaning behind memories and use them to guide decisions. Achieving **92.3% reasoning accuracy** on the LoCoMo benchmark, EverMemOS provides long-term memory capabilities for conversational AI agents through structured extraction, intelligent retrieval, and progressive profile building.
 
+<p align="center">
+  <img src="figs/overview.png" alt="EverMemOS Architecture Overview" width="800"/>
+</p>
+
+**How it works:** EverMemOS extracts structured memories from conversations (Encoding), organizes them into episodes and profiles (Consolidation), and intelligently retrieves relevant context when needed (Retrieval).
+
 📚 [Vision & Overview](docs/OVERVIEW.md) • 🏗️ [Architecture](docs/ARCHITECTURE.md) • 📖 [Full Documentation](docs/)
 
 **Latest**: v1.1.0 with vLLM Support + Evaluation Resources ([Changelog](docs/CHANGELOG.md))
+
+---
+
+## Why EverMemOS?
+
+- 🎯 **92.3% Accuracy** - Best-in-class performance on LoCoMo benchmark
+- 🚀 **Production Ready** - Enterprise-grade with Milvus vector DB, Elasticsearch, MongoDB, and Redis
+- 🔧 **Easy Integration** - Simple REST API, works with any LLM
+- 📊 **Multi-Modal Memory** - Episodes, facts, preferences, relations
+- 🔍 **Smart Retrieval** - BM25, embeddings, or agentic search
 
 ---
 
@@ -40,6 +63,13 @@
 
 ### Prerequisites
 - Python 3.10+ • Docker 20.10+ • uv package manager • 4GB RAM
+
+**Verify Prerequisites:**
+```bash
+# Verify you have the required versions
+python --version  # Should be 3.10+
+docker --version  # Should be 20.10+
+```
 
 ### Installation
 
@@ -63,6 +93,10 @@ cp env.template .env
 
 # 5. Start server
 uv run python src/run.py --port 8001
+
+# 6. Verify installation
+curl http://localhost:8001/health
+# Expected response: {"status": "healthy", ...}
 ```
 
 ✅ Server running at `http://localhost:8001` • [Full Setup Guide](docs/installation/SETUP.md)
@@ -173,8 +207,8 @@ cat evaluation/results/locomo-evermemos/report.txt
 
 We welcome contributions! Here's how you can help:
 
-- 🐛 **[Report Bugs](docs/ISSUE_TEMPLATE_BUG.md)** - Help us improve
-- ✨ **[Request Features](docs/ISSUE_TEMPLATE_FEATURE.md)** - Share your ideas
+- 🐛 **[Report Bugs](https://github.com/EverMind-AI/EverMemOS/issues/new?template=bug_report.md)** - Help us improve
+- ✨ **[Request Features](https://github.com/EverMind-AI/EverMemOS/issues/new?template=feature_request.md)** - Share your ideas
 - 💻 **[Submit PRs](CONTRIBUTING.md)** - Read our contribution guide
 - 💬 **[Join Discord](https://discord.gg/pfwwskxp)** - Connect with the community
 - 📧 **[Email Us](mailto:evermind@shanda.com)** - General inquiries

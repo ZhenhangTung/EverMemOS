@@ -1,3 +1,11 @@
+---
+name: Feature Request
+about: Suggest a new feature or enhancement for EverMemOS
+title: '[FEATURE] '
+labels: ['enhancement']
+assignees: ''
+---
+
 # Feature Request
 
 Thank you for suggesting a new feature! Please provide as much detail as possible to help us understand your idea.
