@@ -732,7 +732,7 @@ Save conversation metadata, including scene, participants, tags, etc.
   "version": "1.0",
   "scene": "group_chat",
   "scene_desc": {
-    "bot_ids": ["bot_001"],
+    "description": "Project discussion group chat",
     "type": "project_discussion"
   },
   "name": "Project Discussion Group",
@@ -763,7 +763,7 @@ Save conversation metadata, including scene, participants, tags, etc.
 |-------|------|----------|-------------|
 | version | string | Yes | Metadata version |
 | scene | string | Yes | Scene identifier (e.g., "group_chat") |
-| scene_desc | object | Yes | Scene description object, can contain fields like bot_ids |
+| scene_desc | object | Yes | Scene description object, can contain fields like description |
 | name | string | Yes | Conversation name |
 | description | string | No | Conversation description |
 | group_id | string | Yes | Unique group identifier |

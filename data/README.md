@@ -63,7 +63,7 @@ EverMemOS supports two core conversation scenarios:
 - **🤖 Company Scenario** (`scene: "company"`)
   - Human-AI assistant dialogue
   - One-on-one conversation format
-  - `scene_desc` contains `bot_ids` array to identify assistant robots
+  - `scene_desc` contains `description` field to describe the conversation scene
   - Example: `assistant_chat_en.json`, `assistant_chat_zh.json`
 
 - **👥 Work Scenario** (`scene: "work"`)

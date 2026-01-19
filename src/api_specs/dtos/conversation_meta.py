@@ -72,7 +72,7 @@ class ConversationMetaRequest(BaseModel):
     scene: str  # Scene identifier
     scene_desc: Dict[
         str, Any
-    ]  # Scene description, usually contains fields like bot_ids
+    ]  # Scene description, usually contains fields like description
     name: str  # Conversation name
     group_id: str  # Group ID
     created_at: str  # Creation time, ISO format string
@@ -108,8 +108,13 @@ class ConversationMetaCreateRequest(BaseModel):
     )
     scene_desc: Dict[str, Any] = Field(
         ...,
-        description="Scene description object, can include fields like bot_ids",
-        examples=[{"bot_ids": ["bot_001"], "type": "project_discussion"}],
+        description="Scene description object, can include fields like description",
+        examples=[
+            {
+                "description": "Project discussion group chat",
+                "type": "project_discussion",
+            }
+        ],
     )
     name: str = Field(
         ..., description="Conversation name", examples=["Project Discussion Group"]
@@ -165,7 +170,7 @@ class ConversationMetaCreateRequest(BaseModel):
                         "version": "1.0",
                         "scene": "group_chat",
                         "scene_desc": {
-                            "bot_ids": ["bot_001"],
+                            "description": "Project discussion group chat",
                             "type": "project_discussion",
                         },
                         "name": "Project Discussion Group",
@@ -193,7 +198,9 @@ class ConversationMetaCreateRequest(BaseModel):
                     "value": {
                         "version": "1.0",
                         "scene": "group_chat",
-                        "scene_desc": {"bot_ids": ["default_bot"]},
+                        "scene_desc": {
+                            "description": "Default conversation meta config"
+                        },
                         "name": "Default Group Chat Settings",
                         "description": "Default settings for group_chat scene",
                         "group_id": None,
@@ -268,7 +275,7 @@ class ConversationMetaResponse(BaseModel):
                 "id": "507f1f77bcf86cd799439011",
                 "group_id": "group_123",
                 "scene": "group_chat",
-                "scene_desc": {"bot_ids": ["bot_001"]},
+                "scene_desc": {"description": "Project discussion group chat"},
                 "name": "Project Discussion",
                 "description": "Technical discussion group",
                 "version": "1.0",
@@ -311,7 +318,9 @@ class GetConversationMetaResponse(BaseApiResponse[ConversationMetaResponse]):
                             "id": "507f1f77bcf86cd799439011",
                             "group_id": "group_123",
                             "scene": "group_chat",
-                            "scene_desc": {"bot_ids": ["bot_001"]},
+                            "scene_desc": {
+                                "description": "Project discussion group chat"
+                            },
                             "name": "Project Discussion",
                             "version": "1.0",
                             "conversation_created_at": "2025-01-15T10:00:00+00:00",
@@ -328,7 +337,9 @@ class GetConversationMetaResponse(BaseApiResponse[ConversationMetaResponse]):
                             "id": "507f1f77bcf86cd799439012",
                             "group_id": None,
                             "scene": "group_chat",
-                            "scene_desc": {"bot_ids": ["default_bot"]},
+                            "scene_desc": {
+                                "description": "Default conversation meta config"
+                            },
                             "name": "Default Settings",
                             "version": "1.0",
                             "conversation_created_at": "2025-01-15T10:00:00+00:00",
@@ -358,7 +369,7 @@ class SaveConversationMetaResponse(BaseApiResponse[ConversationMetaResponse]):
                     "id": "507f1f77bcf86cd799439011",
                     "group_id": "group_123",
                     "scene": "group_chat",
-                    "scene_desc": {"bot_ids": ["bot_001"]},
+                    "scene_desc": {"description": "Project discussion group chat"},
                     "name": "Project Discussion",
                     "version": "1.0",
                     "conversation_created_at": "2025-01-15T10:00:00+00:00",
@@ -399,7 +410,7 @@ class ConversationMetaPatchRequest(BaseModel):
     scene_desc: Optional[Dict[str, Any]] = Field(
         default=None,
         description="New scene description",
-        examples=[{"bot_ids": ["bot_002"]}],
+        examples=[{"description": "Project discussion group chat"}],
     )
     tags: Optional[List[str]] = Field(
         default=None, description="New tag list", examples=[["tag1", "tag2"]]

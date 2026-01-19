@@ -2490,7 +2490,6 @@ class MemoryControllerTester:
             "scene": "assistant",
             "scene_desc": {
                 "description": "Project collaboration group chat",
-                "bot_ids": ["bot_001"],
                 "extra": {"category": "test"},
             },
             "name": "Test Project Discussion Group",

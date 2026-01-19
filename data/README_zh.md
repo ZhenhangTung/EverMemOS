@@ -34,7 +34,7 @@
 {
   "version": "1.0.0",
   "conversation_meta": {
-    "scene": "work",
+    "scene": "group_chat",
     "scene_desc": {},
     "group_id": "group_001",
     "name": "项目讨论组",
@@ -60,13 +60,13 @@
 
 EverMemOS 支持两种核心对话场景：
 
-- **🤖 Company 场景** (`scene: "company"`)
+- **🤖 Company 场景** (`scene: "assistant"`)
   - 人机助手对话
   - 一对一对话格式
-  - `scene_desc` 包含 `bot_ids` 数组，用于标识助手机器人
+  - `scene_desc` 包含 `description` 字段，用于描述对话场景
   - 示例：`assistant_chat_en.json`, `assistant_chat_zh.json`
 
-- **👥 Work 场景** (`scene: "work"`)
+- **👥 Work 场景** (`scene: "group_chat"`)
   - 多人群聊
   - 工作协作格式
   - `scene_desc` 通常为空对象

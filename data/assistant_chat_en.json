@@ -1,11 +1,9 @@
 {
   "version": "1.0.0",
   "conversation_meta": {
-    "scene": "company",
+    "scene": "assistant",
     "scene_desc": {
-      "bot_ids": [
-        "robot_001"
-      ]
+      "description": "Project discussion group chat"
     },
     "name": "User health consultation dialogue",
     "description": "Conversation records between users and AI assistants on topics such as tourism in Beijing, health management, and sports rehabilitation.",

@@ -732,7 +732,7 @@ asyncio.run(search_memories())
   "version": "1.0",
   "scene": "group_chat",
   "scene_desc": {
-    "bot_ids": ["bot_001"],
+    "description": "新功能开发的技术讨论",
     "type": "project_discussion"
   },
   "name": "项目讨论组",
@@ -763,7 +763,7 @@ asyncio.run(search_memories())
 |-----|------|------|------|
 | version | string | 是 | 元数据版本 |
 | scene | string | 是 | 场景标识（如 "group_chat"） |
-| scene_desc | object | 是 | 场景描述对象，可包含 bot_ids 等字段 |
+| scene_desc | object | 是 | 场景描述对象，可包含 description 等字段 |
 | name | string | 是 | 对话名称 |
 | description | string | 否 | 对话描述 |
 | group_id | string | 是 | 群组唯一标识 |

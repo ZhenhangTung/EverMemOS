@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "conversation_meta": {
-    "scene": "work",
+    "scene": "group_chat",
     "scene_desc": {},
     "name": "智能销售助手项目组",
     "description": "智能销售助手项目的开发讨论群",

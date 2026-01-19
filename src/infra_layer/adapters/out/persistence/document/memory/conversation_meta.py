@@ -46,7 +46,7 @@ class ConversationMeta(DocumentBase, AuditBase):
     )
     scene_desc: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Scene description information, typically containing fields like bot_ids",
+        description="Scene description information, typically containing fields like description",
     )
 
     # Conversation basic information
@@ -92,7 +92,7 @@ class ConversationMeta(DocumentBase, AuditBase):
             "example": {
                 "version": "1.0.0",
                 "scene": "scene_a",
-                "scene_desc": {"bot_ids": ["aaa", "bbb", "ccc"]},
+                "scene_desc": {"description": "Scene description"},
                 "name": "User health consultation conversation",
                 "description": "Conversation records between user and AI assistant regarding Beijing travel, health management, sports rehabilitation, etc.",
                 "group_id": "example_group_id",  # Can be None for default settings

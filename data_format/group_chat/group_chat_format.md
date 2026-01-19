@@ -36,7 +36,7 @@ Two core conversation scenes are supported:
 "conversation_meta": {
   "scene": "company",
   "scene_desc": {
-    "bot_ids": ["robot_001"]
+    "description": "User and AI assistant conversation about Beijing tourism, health management, and sports rehabilitation"
   },
   ...
 }
@@ -53,7 +53,7 @@ Two core conversation scenes are supported:
 
 - **scene**: Scene type identifier (`company` or `work`)
 - **scene_desc**: Scene description information
-  - Company scene: Contains `bot_ids` list, indicating which users are assistant bots
+  - Company scene: Contains `description` field, describing the conversation scene
   - Work scene: Usually an empty object, representing a multi-person collaboration scene
 
 ### 3. User Details

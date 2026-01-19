@@ -158,7 +158,9 @@ class ConversationMetaTester:
         body = {
             "version": "1.0.0",
             "scene": "group_chat",
-            "scene_desc": {"bot_ids": ["default_bot"], "type": "default_config"},
+            "scene_desc": {
+                "description": "This is the default conversation meta config"
+            },
             "name": f"Default Settings ({self.test_run_id})",
             "description": "This is the default conversation meta config",
             "group_id": None,  # null = default config
@@ -214,7 +216,7 @@ class ConversationMetaTester:
             "version": "1.0.0",
             "scene": "group_chat",
             "scene_desc": {
-                "bot_ids": ["bot_001", "bot_002"],
+                "description": "Test conversation meta with specific group_id",
                 "type": "project_discussion",
             },
             "name": f"Test Group ({self.test_run_id})",
@@ -279,7 +281,7 @@ class ConversationMetaTester:
             "version": "1.0.1",  # Updated version
             "scene": "group_chat",
             "scene_desc": {
-                "bot_ids": ["bot_001", "bot_002", "bot_003"],
+                "description": "Updated conversation meta",
                 "type": "updated",
             },
             "name": f"Updated Group ({self.test_run_id})",
@@ -695,7 +697,7 @@ class ConversationMetaTester:
         body1 = {
             "version": "1.0.0",
             "scene": "group_chat",
-            "scene_desc": {"bot_ids": ["bot_v1"]},
+            "scene_desc": {"description": "First default config"},
             "name": f"Default V1 ({self.test_run_id})",
             "description": "First default config",
             "group_id": None,
@@ -723,7 +725,7 @@ class ConversationMetaTester:
             body2 = {
                 "version": "2.0.0",
                 "scene": "group_chat",
-                "scene_desc": {"bot_ids": ["bot_v2"]},
+                "scene_desc": {"description": "Second default config (should update)"},
                 "name": f"Default V2 ({self.test_run_id})",
                 "description": "Second default config (should update)",
                 "group_id": None,
@@ -783,7 +785,7 @@ class ConversationMetaTester:
         body1 = {
             "version": "1.0.0",
             "scene": "group_chat",
-            "scene_desc": {"bot_ids": ["bot_v1"]},
+            "scene_desc": {"description": "First version"},
             "name": f"Group V1",
             "description": "First version",
             "group_id": dup_group_id,
@@ -811,7 +813,7 @@ class ConversationMetaTester:
             body2 = {
                 "version": "2.0.0",
                 "scene": "group_chat",
-                "scene_desc": {"bot_ids": ["bot_v2", "bot_v3"]},
+                "scene_desc": {"description": "Updated description"},
                 "name": f"Group V2 (Updated)",
                 "description": "Second version (should update)",
                 "group_id": dup_group_id,
