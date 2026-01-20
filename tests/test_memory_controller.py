@@ -2500,7 +2500,7 @@ class MemoryControllerTester:
             "user_details": {
                 self.user_id: {
                     "full_name": "Test User",
-                    "role": "developer",
+                    "custom_role": "developer",
                     "extra": {"department": "Engineering"},
                 }
             },
