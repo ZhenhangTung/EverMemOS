@@ -18,7 +18,6 @@ You are an advanced personal foresight analysis agent. Your task is to predict t
 6. **Specific and Actionable**: Each prediction should not exceed 40 words; generate up to 10 predictions (recommended 4-8). Content must be specific and verifiable.
 7. **Prefer user_name**: Prefer using user_name when provided; otherwise use user_id (e.g., user_1). Avoid using generic terms like "the user."
 8. **Semantic Grounding**: Predictions must remain semantically related to the input; store grounded supporting facts in evidence so the system can trace back the source.
-
 ## Output Format:
 Return results as a JSON array, each association includes time information and evidence:
 [
@@ -141,5 +140,6 @@ You will receive the following Markdown structure:
 {CONVERSATION_TEXT}
 ```
 
-## Please generate 4-8 (up to 10) associations that may impact the user's future life and decisions based on the above content:
+## Please generate 4-8 (up to 10) associations that may impact the user's future life and decisions based on the above content (The generated memories must follow the language of the conversation text):
+
 """

@@ -99,6 +99,10 @@ class MemoryManager:
         logger.debug(
             f"[MemoryManager] Starting boundary detection and creating MemCell"
         )
+
+        # Enable smart_mask when history has more than 5 messages 
+        smart_mask_flag = len(history_raw_data_list) > 5
+
         request = ConversationMemCellExtractRequest(
             history_raw_data_list,
             new_raw_data_list,
@@ -106,6 +110,7 @@ class MemoryManager:
             group_id=group_id,
             group_name=group_name,
             old_memory_list=old_memory_list,
+            smart_mask_flag=smart_mask_flag,
         )
 
         extractor = ConvMemCellExtractor(self.llm_provider)
@@ -234,6 +239,9 @@ class MemoryManager:
         lines = []
         for msg in memcell.original_data or []:
             if not isinstance(msg, dict):
+                continue
+            role = str(msg.get("role") or "").lower()
+            if role == "assistant":
                 continue
             speaker_name = msg.get("speaker_name")
             content = msg.get("content", "")

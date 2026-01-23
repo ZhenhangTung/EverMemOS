@@ -667,6 +667,7 @@ class MemoryManager:
         top_k: int,
         memory_type: str = 'unknown',
         retrieve_method: str = RetrieveMethod.HYBRID.value,
+        instruction: str = None,
     ) -> List[Dict]:
         """Rerank hits using rerank service with stage metrics"""
         if not hits:
@@ -674,7 +675,9 @@ class MemoryManager:
 
         stage_start = time.perf_counter()
         try:
-            result = await get_rerank_service().rerank_memories(query, hits, top_k)
+            result = await get_rerank_service().rerank_memories(
+                query, hits, top_k, instruction=instruction
+            )
             record_retrieve_stage(
                 retrieve_method=retrieve_method,
                 stage='rerank',
@@ -699,7 +702,6 @@ class MemoryManager:
         memory_type = (
             request.memory_types[0].value if request.memory_types else 'unknown'
         )
-
         # Run keyword and vector search concurrently
         kw_results, vec_results = await asyncio.gather(
             self.get_keyword_search_results(request, retrieve_method=retrieve_method),
@@ -889,11 +891,15 @@ class MemoryManager:
                 )
                 return await self._to_response([], req)
 
-            # ========== Rerank → Top 5 for LLM ==========
-            topn = await self._rerank(
-                req.query, round1, config.round1_rerank_top_n, memory_type, 'agentic'
+            # ========== Rerank → max(5, top_k) for LLM & return ==========
+            rerank_n = max(config.round1_rerank_top_n, top_k)
+            reranked = await self._rerank(
+                req.query, round1, rerank_n, memory_type, 'agentic',
+                instruction=config.reranker_instruction,
             )
-            topn_pairs = [(m, m.get("score", 0)) for m in topn]
+            # Use top 5 for sufficiency check
+            topn_for_llm = reranked[:config.round1_rerank_top_n]
+            topn_pairs = [(m, m.get("score", 0)) for m in topn_for_llm]
 
             # ========== LLM sufficiency check ==========
             is_sufficient, reasoning, missing_info = await check_sufficiency(
@@ -907,15 +913,17 @@ class MemoryManager:
             )
 
             if is_sufficient:
+                # Return reranked results (already done above, no extra rerank)
+                final_results = reranked[:top_k]
                 duration = time.perf_counter() - start_time
                 record_retrieve_request(
                     memory_type=memory_type,
                     retrieve_method=RetrieveMethod.AGENTIC.value,
                     status='success',
                     duration_seconds=duration,
-                    results_count=len(round1[:top_k]),
+                    results_count=len(final_results),
                 )
-                return await self._to_response(round1[:top_k], req)
+                return await self._to_response(final_results, req)
 
             # ========== Round 2: Multi-query ==========
             refined_queries, _ = await generate_multi_queries(
@@ -956,7 +964,8 @@ class MemoryManager:
 
             # ========== Final Rerank ==========
             final = await self._rerank(
-                req.query, combined, top_k, memory_type, 'agentic'
+                req.query, combined, top_k, memory_type, 'agentic',
+                instruction=config.reranker_instruction,
             )
 
             duration = time.perf_counter() - start_time

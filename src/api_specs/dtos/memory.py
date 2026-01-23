@@ -16,7 +16,7 @@ import json
 import re
 
 from bson import ObjectId
-from pydantic import BaseModel, Field, model_validator, SkipValidation
+from pydantic import BaseModel, Field, model_validator, SkipValidation, SerializeAsAny
 
 from api_specs.dtos.base import BaseApiResponse
 from api_specs.memory_types import BaseMemory, RawDataType
@@ -683,7 +683,7 @@ class PendingMessage(BaseModel):
 class RetrieveMemResponse(BaseModel):
     """Memory retrieve/search response (result data)"""
 
-    memories: SkipValidation[List[Dict[str, List[BaseMemory]]]] = Field(
+    memories: SerializeAsAny[SkipValidation[List[Dict[str, List[BaseMemory]]]]] = Field(
         default_factory=list
     )
     scores: SkipValidation[List[Dict[str, List[float]]]] = Field(default_factory=list)

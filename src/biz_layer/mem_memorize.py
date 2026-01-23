@@ -850,10 +850,11 @@ async def preprocess_conv_request(
 ) -> MemorizeRequest:
     """
     Simplified request preprocessing:
-    1. Read all historical messages from conversation_data_repo (excluding current request's messages)
-    2. Set historical messages as history_raw_data_list
-    3. Set current new message as new_raw_data_list
-    4. Boundary detection handled by subsequent logic (will clear or retain after detection)
+    1. Get last_memcell_time from status table to determine current memcell start
+    2. Read historical messages from conversation_data_repo (only messages after last_memcell_time)
+    3. Set historical messages as history_raw_data_list
+    4. Set current new message as new_raw_data_list
+    5. Boundary detection handled by subsequent logic (will clear or retain after detection)
     """
 
     logger.info(f"[preprocess] Start processing: group_id={request.group_id}")
@@ -865,23 +866,31 @@ async def preprocess_conv_request(
 
     # Use conversation_data_repo for read-then-store operation
     conversation_data_repo = get_bean_by_type(ConversationDataRepository)
+    status_repo = get_bean_by_type(ConversationStatusRawRepository)
 
     try:
         # Extract message_ids from new_raw_data_list to exclude them
         new_message_ids = [r.data_id for r in request.new_raw_data_list if r.data_id]
 
+        # Step 0: Get last_memcell_time to filter history (only get current memcell's messages)
+        start_time = None
+        status = await status_repo.get_by_group_id(request.group_id)
+        if status and status.last_memcell_time:
+            start_time = status.last_memcell_time
+            logger.info(f"[preprocess] Using last_memcell_time as start_time: {start_time}")
+
         # Step 1: Get historical messages, excluding current request's messages
-        # This handles the case where messages were just saved with sync_status=-1
+        # Only get messages after last_memcell_time (current memcell's accumulated messages)
         history_raw_data_list = await conversation_data_repo.get_conversation_data(
             group_id=request.group_id,
-            start_time=None,
+            start_time=start_time,
             end_time=None,
             limit=1000,
             exclude_message_ids=new_message_ids,
         )
 
         logger.info(
-            f"[preprocess] Read {len(history_raw_data_list)} historical messages (excluded {len(new_message_ids)} new)"
+            f"[preprocess] Read {len(history_raw_data_list)} historical messages (excluded {len(new_message_ids)} new, start_time={start_time})"
         )
 
         # Update request
